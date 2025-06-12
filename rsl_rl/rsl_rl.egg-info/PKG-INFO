@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: rsl-rl
+Version: 1.0.2
+Summary: Fast and simple RL algorithms implemented in pytorch
+Home-page: UNKNOWN
+Author: Nikita Rudin
+Author-email: rudinn@ethz.ch
+License: BSD-3-Clause
+Platform: UNKNOWN
+Requires-Python: >=3.6
+License-File: LICENSE
+
+UNKNOWN
+
