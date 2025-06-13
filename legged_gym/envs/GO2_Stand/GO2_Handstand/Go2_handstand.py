@@ -958,6 +958,3 @@ class Go2_stand(BaseTask):
             res += ~(contact ^ is_stance)
         return res
     
-    def _reward_default_pos_roll(self):
-        # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)

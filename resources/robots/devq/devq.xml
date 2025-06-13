@@ -1,0 +1,127 @@
+<mujoco model="alphadog_devq">
+  <compiler angle="radian" meshdir="meshes/"/>
+  <asset>
+    <mesh name="base_link" file="base_link.STL"/>
+    <mesh name="abad_link_2" file="abad_link_2.STL" scale="1 -1 1"/>
+    <mesh name="hip_link_0" file="hip_link_0.STL" scale="1 -1 1"/>
+    <mesh name="knee_link_0" file="knee_link_0.STL" scale="1 -1 1"/>
+    <mesh name="knee_link_01" file="knee_link_0.STL"/>
+    <mesh name="foot_link" file="foot_link.STL"/>
+    <mesh name="abad_link_3" file="abad_link_3.STL"/>
+    <mesh name="hip_link_1" file="hip_link_1.STL"/>
+    <mesh name="knee_link_1" file="knee_link_1.STL"/>
+    <mesh name="abad_link_0" file="abad_link_0.STL" scale="-1 -1 1"/>
+    <mesh name="hip_link_2" file="hip_link_2.STL" scale="1 -1 1"/>
+    <mesh name="knee_link_2" file="knee_link_2.STL" scale="1 -1 1"/>
+    <mesh name="knee_link_21" file="knee_link_2.STL"/>
+    <mesh name="abad_link_1" file="abad_link_1.STL" scale="-1 1 1"/>
+    <mesh name="hip_link_3" file="hip_link_3.STL"/>
+    <mesh name="knee_link_3" file="knee_link_3.STL"/>
+  </asset>
+  <worldbody>
+    <body name="body" pos="0 0 0.4">
+      <inertial pos="-0.00091406 -0.00137557 -0.0012984" quat="-8.54779e-05 0.706916 0.00340859 0.707289" mass="2.57116" diaginertia="0.0234707 0.0191756 0.00637181"/>
+      <joint name="floating_base_joint" type="free"/>
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="base_link"/>
+      <geom size="0.1 0.095 0.0538" type="box" rgba="1 0 0 0"/>
+      <body name="front_right_abad_link" pos="0.176 -0.0525 0">
+        <inertial pos="-0.00318972 0.00729879 0.000193611" quat="0.452032 0.533281 0.507399 0.503811" mass="0.44753" diaginertia="0.00036926 0.000331769 0.000315768"/>
+        <joint name="front_right_abad_joint" pos="0 0 0" axis="1 0 0" range="-1.134 1.134"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.25 1" mesh="abad_link_2"/>
+        <geom size="0.04 0.025" pos="0 -0.0385 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.75 0.75 0.25 1"/>
+        <body name="front_right_hip_link" pos="0 -0.077 0">
+          <inertial pos="-0.00244577 0.0185518 -0.0223481" quat="0.664524 0.269928 -0.613547 0.330312" mass="0.52665" diaginertia="0.000110415 0.000110415 0.000110415"/>
+          <joint name="front_right_hip_joint" pos="0 0 0" axis="0 -1 0" range="-3.141 2.792"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="hip_link_0"/>
+          <geom size="0.02 0.0125 0.06" pos="0 0 -0.05" type="box" rgba="1 0 0 0"/>
+          <body name="front_right_knee_link" pos="0 0 -0.15">
+            <inertial pos="-0.004959 -1.07531e-06 -0.0867478" quat="0.706807 -0.0250594 -0.025079 0.706518" mass="0.0795044" diaginertia="0.00034479 0.000339542 1.61993e-05"/>
+            <joint name="front_right_knee_joint" pos="0 0 0" axis="0 -1 0" range="0.436 2.705"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="knee_link_0"/>
+            <geom type="mesh" rgba="0.75 0.75 0.75 1" mesh="knee_link_01"/>
+            <geom pos="0 0 -0.15" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.05 0.05 0.05 1" mesh="foot_link"/>
+            <geom size="0.0205" pos="0 0 -0.15" rgba="0.05 0.05 0.05 1"/>
+          </body>
+        </body>
+      </body>
+      <body name="front_left_abad_link" pos="0.176 0.0525 0">
+        <inertial pos="-0.00318972 -0.00729879 0.000193611" quat="0.503811 0.507399 0.533281 0.452032" mass="0.44753" diaginertia="0.00036926 0.000331769 0.000315768"/>
+        <joint name="front_left_abad_joint" pos="0 0 0" axis="1 0 0" range="-1.134 1.134"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.25 1" mesh="abad_link_3"/>
+        <geom size="0.04 0.025" pos="0 0.0385 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.75 0.75 0.25 1"/>
+        <body name="front_left_hip_link" pos="0 0.077 0">
+          <inertial pos="-0.00244577 -0.0185518 -0.0223481" quat="0.269928 0.664524 -0.330312 0.613547" mass="0.52665" diaginertia="0.000110415 0.000110415 0.000110415"/>
+          <joint name="front_left_hip_joint" pos="0 0 0" axis="0 -1 0" range="-3.141 2.792"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="hip_link_1"/>
+          <geom size="0.02 0.0125 0.06" pos="0 0 -0.05" type="box" rgba="1 0 0 0"/>
+          <body name="front_left_knee_link" pos="0 0 -0.15">
+            <inertial pos="-0.004959 1.07531e-06 -0.0867478" quat="0.706518 -0.025079 -0.0250594 0.706807" mass="0.0795044" diaginertia="0.00034479 0.000339542 1.61993e-05"/>
+            <joint name="front_left_knee_joint" pos="0 0 0" axis="0 -1 0" range="0.436 2.705"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="knee_link_1"/>
+            <geom type="mesh" rgba="0.75 0.75 0.75 1" mesh="knee_link_1"/>
+            <geom pos="0 0 -0.15" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.05 0.05 0.05 1" mesh="foot_link"/>
+            <geom size="0.0205" pos="0 0 -0.15" rgba="0.05 0.05 0.05 1"/>
+          </body>
+        </body>
+      </body>
+      <body name="hind_right_abad_link" pos="-0.176 -0.0525 0">
+        <inertial pos="0.00318972 0.00729879 0.000193611" quat="0.507399 0.503811 0.452032 0.533281" mass="0.44753" diaginertia="0.00036926 0.000331769 0.000315768"/>
+        <joint name="hind_right_abad_joint" pos="0 0 0" axis="1 0 0" range="-1.134 1.134"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.25 1" mesh="abad_link_0"/>
+        <geom size="0.04 0.025" pos="0 -0.0385 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.75 0.75 0.25 1"/>
+        <body name="hind_right_hip_link" pos="0 -0.077 0">
+          <inertial pos="-0.00244577 0.0185518 -0.0223481" quat="0.664524 0.269928 -0.613547 0.330312" mass="0.52665" diaginertia="0.000110415 0.000110415 0.000110415"/>
+          <joint name="hind_right_hip_joint" pos="0 0 0" axis="0 -1 0" range="-3.141 2.792"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="hip_link_2"/>
+          <geom size="0.02 0.0125 0.06" pos="0 0 -0.05" type="box" rgba="1 0 0 0"/>
+          <body name="hind_right_knee_link" pos="0 0 -0.15">
+            <inertial pos="-0.004959 -1.07531e-06 -0.0867478" quat="0.706807 -0.0250594 -0.025079 0.706518" mass="0.0795044" diaginertia="0.00034479 0.000339542 1.61993e-05"/>
+            <joint name="hind_right_knee_joint" pos="0 0 0" axis="0 -1 0" range="0.436 2.705"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="knee_link_2"/>
+            <geom type="mesh" rgba="0.75 0.75 0.75 1" mesh="knee_link_21"/>
+            <geom pos="0 0 -0.15" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.05 0.05 0.05 1" mesh="foot_link"/>
+            <geom size="0.0205" pos="0 0 -0.15" rgba="0.05 0.05 0.05 1"/>
+          </body>
+        </body>
+      </body>
+      <body name="hind_left_abad_link" pos="-0.176 0.0525 0">
+        <inertial pos="0.00318972 -0.00729879 0.000193611" quat="0.533281 0.452032 0.503811 0.507399" mass="0.44753" diaginertia="0.00036926 0.000331769 0.000315768"/>
+        <joint name="hind_left_abad_joint" pos="0 0 0" axis="1 0 0" range="-1.134 1.134"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.25 1" mesh="abad_link_1"/>
+        <geom size="0.04 0.025" pos="0 0.0385 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.75 0.75 0.25 1"/>
+        <body name="hind_left_hip_link" pos="0 0.077 0">
+          <inertial pos="-0.00244577 -0.0185518 -0.0223481" quat="0.269928 0.664524 -0.330312 0.613547" mass="0.52665" diaginertia="0.000110415 0.000110415 0.000110415"/>
+          <joint name="hind_left_hip_joint" pos="0 0 0" axis="0 -1 0" range="-3.141 2.792"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="hip_link_3"/>
+          <geom size="0.02 0.0125 0.06" pos="0 0 -0.05" type="box" rgba="1 0 0 0"/>
+          <body name="hind_left_knee_link" pos="0 0 -0.15">
+            <inertial pos="-0.004959 1.07531e-06 -0.0867478" quat="0.706518 -0.025079 -0.0250594 0.706807" mass="0.0795044" diaginertia="0.00034479 0.000339542 1.61993e-05"/>
+            <joint name="hind_left_knee_joint" pos="0 0 0" axis="0 -1 0" range="0.436 2.705"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="knee_link_3"/>
+            <geom type="mesh" rgba="0.75 0.75 0.75 1" mesh="knee_link_3"/>
+            <geom pos="0 0 -0.15" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.05 0.05 0.05 1" mesh="foot_link"/>
+            <geom size="0.0205" pos="0 0 -0.15" rgba="0.05 0.05 0.05 1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+      <actuator>
+    <motor name="front_right_abad_joint" joint="front_right_abad_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="front_right_hip_joint" joint="front_right_hip_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="front_right_knee_joint" joint="front_right_knee_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+
+    <motor name="front_left_abad_joint" joint="front_left_abad_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="front_left_hip_joint" joint="front_left_hip_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="front_left_knee_joint" joint="front_left_knee_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+
+    <motor name="hind_right_abad_joint" joint="hind_right_abad_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="hind_right_hip_joint" joint="hind_right_hip_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="hind_right_knee_joint" joint="hind_right_knee_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+
+    <motor name="hind_left_abad_joint" joint="hind_left_abad_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="hind_left_hip_joint" joint="hind_left_hip_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+    <motor name="hind_left_knee_joint" joint="hind_left_knee_joint" ctrllimited="true" ctrlrange="-9.1 9.1"/>
+
+  </actuator>
+</mujoco>

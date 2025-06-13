@@ -106,8 +106,12 @@ if __name__ == "__main__":
         start = time.time()
         while viewer.is_running() and time.time() - start < 1000000:
             step_start = time.time()
-            tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
-            d.ctrl[:] = tau
+            if  (time.time() - start<10):
+                tau = pd_control(default_angles, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
+                d.ctrl[:] = tau
+            if  (time.time() - start>10):
+                tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
+                d.ctrl[:] = tau
             # mj_step can be replaced with code that also evalua
             # a policy and applies a control signal before stepping the physics.
             mujoco.mj_step(m, d)
