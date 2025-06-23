@@ -29,7 +29,7 @@
 运行以下命令进行训练：
 
 ```bash
-python legged_gym/scripts/train.py --task=go2 --headless
+python legged_gym/scripts/train.py --task=go2_jump --headless
 ```
 ```bash
 python legged_gym/scripts/train.py --task=go2_handstand --headless
@@ -59,6 +59,10 @@ python legged_gym/scripts/train.py --task=go2_handstand --headless
 ```bash
 python legged_gym/scripts/play.py --task=go2_handstand
 ```
+
+```bash
+python legged_gym/scripts/play.py --task=go2_jump
+```
 **说明**：
 
 - Play 启动参数与 Train 相同。
@@ -80,25 +84,35 @@ Play 会导出 Actor 网络，保存于 `logs/{experiment_name}/exported/policie
 ```bash
 python deploy/deploy_mujoco/deploy_mujoco_48_handstand.py go2.yaml
 ```
+```bash
+python deploy/deploy_mujoco/sim2sim_GO2.py --load_model logs/go2_jump/exported/policies/policy_1.pt
+```
 
-
+```bash
+python deploy/deploy_mujoco/sim2sim_GO2.py --load_model logs/go2_trot/exported/policies/policy_1.pt
+```
 -
 ## 运行说明
-deploy_mujoco_48.py go2的sim2sim最初版本，有base_line_vel，但base_line_vel只能在仿真中获得，故只能用来玩玩，没有任何意义。
-
 deploy_mujoco_48_handstand.py go2的handstand版本，没有base_line_vel，状态sin cos command ,command此时默认为0，后续可能加入起身下落的控制
 
-目前只有handstand 是有效的，其他的还没有做完，我的想法是把其他的项目比方说WALKTHESEDAYS，难以阅读的代码整合到legged_gym框架，方便后来者进行学习
+sim2sim_GO2.py 改自众擎开源项目的sim2sim，后续都会使用这个
+
+目前只有handstand jump是有效的，其他的还没有做完，我的想法是把其他的项目比方说BACKFLIP，难以阅读的代码整合到legged_gym框架，方便后来者进行学习
 # 问题 与后续修改的计划
 
-如何调节抬脚高度与相位
+如何调节抬脚高度（上下楼梯）
 
-上下楼梯
-
-HIMLOCO
-
-WALKTHESEDAYS
+改变相位与自身高度(walk these ways)
 
 PAKOUR
 
 BACKFLIP
+
+# 参考文章
+https://arxiv.org/pdf/2309.05665
+
+https://arxiv.org/abs/2212.03238
+
+https://arxiv.org/abs/2409.15755
+
+https://arxiv.org/abs/2401.16337

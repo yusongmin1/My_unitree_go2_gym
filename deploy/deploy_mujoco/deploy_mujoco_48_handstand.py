@@ -112,6 +112,7 @@ if __name__ == "__main__":
             if  (time.time() - start>10):
                 tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
                 d.ctrl[:] = tau
+                print(tau)
             # mj_step can be replaced with code that also evalua
             # a policy and applies a control signal before stepping the physics.
             mujoco.mj_step(m, d)
@@ -157,7 +158,7 @@ if __name__ == "__main__":
                 obs[12:24] = qj
                 obs[24:36] = dqj
                 obs[36:48] = action
-                print(d.qpos[0:3],linevel)
+                # print(d.qpos[0:3],linevel)
                 obs_tensor = torch.from_numpy(obs).unsqueeze(0)
                 # policy inference
                 action = policy(obs_tensor).detach().numpy().squeeze()

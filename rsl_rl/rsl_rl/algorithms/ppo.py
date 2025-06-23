@@ -199,7 +199,7 @@ class PPO:
                 else:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
-                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() #+ self.sym_coef * sym_loss
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + self.sym_coef * sym_loss
 
 
                 # Gradient step
@@ -210,12 +210,12 @@ class PPO:
 
                 mean_value_loss += value_loss.item()
                 mean_surrogate_loss += surrogate_loss.item()
-                #mean_sym_loss += sym_loss.item()
+                mean_sym_loss += sym_loss.item()
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
         mean_surrogate_loss /= num_updates
-        #mean_sym_loss /= num_updates
+        mean_sym_loss /= num_updates
         self.storage.clear()
-
-        return mean_value_loss, mean_surrogate_loss#, mean_sym_loss
+    
+        return mean_value_loss, mean_surrogate_loss, mean_sym_loss

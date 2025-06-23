@@ -1,19 +1,23 @@
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 
-from legged_gym.envs.GO2_cannot_deploy.go2_config import GO2Cfg_Yu,GO2CfgPPO_Yu
-from legged_gym.envs.GO2_cannot_deploy.dev_config import WEILANCfg_Yu,WEILANPPO_Yu
-from legged_gym.envs.GO2_Stand.GO2_Handstand.Go2_handstand_Config import GO2Cfg_Handstand,GO2CfgPPO_Handstand
+from legged_gym.envs.Go2_MoB.GO2_JUMP.go2_jump_env import GO2_JUMP_Robot
+from legged_gym.envs.Go2_MoB.GO2_JUMP.GO2_JUMP_config import GO2_JUMP_Cfg_Yu,GO2_JUMP_PPO_Yu
+from legged_gym.envs.Go2_MoB.GO2_Trot.GO2_Trot import GO2_Trot_Robot
+from legged_gym.envs.Go2_MoB.GO2_Trot.GO2_Trot_config import GO2_Trot_Cfg_Yu,GO2_Trot_PPO_Yu
 
 
 from .base.legged_robot import LeggedRobot
-from .GO2_cannot_deploy.Go2_env import Go2_env
 from .GO2_Stand.GO2_Handstand.Go2_handstand import Go2_stand
+from .GO2_Stand.GO2_Leftstand.Go2_handstand import Go2_stand_Robot
+from legged_gym.envs.GO2_Stand.GO2_Handstand.Go2_handstand_Config import GO2Cfg_Handstand,GO2CfgPPO_Handstand
+from .GO2_Stand.GO2_Leftstand.Go2_handstand_Config import GO2Cfg_Handstand_Command,GO2CfgPPO_Handstand_Command
+
 from legged_gym.utils.task_registry import task_registry
 
 
 
-
-task_registry.register( "go2", Go2_env, GO2Cfg_Yu(), GO2CfgPPO_Yu())
-task_registry.register( "WEILAN", Go2_env, WEILANCfg_Yu(), WEILANPPO_Yu())
+task_registry.register( "go2_trot", GO2_Trot_Robot, GO2_Trot_Cfg_Yu(), GO2_Trot_PPO_Yu())
+task_registry.register( "go2_jump", GO2_JUMP_Robot, GO2_JUMP_Cfg_Yu(), GO2_JUMP_PPO_Yu())
 task_registry.register( "go2_handstand", Go2_stand, GO2Cfg_Handstand(), GO2CfgPPO_Handstand())
+task_registry.register( "go2_handstand_command", Go2_stand_Robot, GO2Cfg_Handstand_Command(), GO2CfgPPO_Handstand_Command())
 print("注册的任务:  ",task_registry.task_classes)

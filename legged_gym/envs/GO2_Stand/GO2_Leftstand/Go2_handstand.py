@@ -1,25 +1,30 @@
-from legged_gym import LEGGED_GYM_ROOT_DIR, envs
-from time import time
-from warnings import WarningMessage
-import numpy as np
 import os
+import numpy as np
 
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
+from collections import deque
 
 import torch
-from torch import Tensor
-from typing import Tuple, Dict
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
-from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
-from legged_gym.envs.GO2_Stand.GO2_Handstand.Go2_handstand_Config import GO2Cfg_Handstand,GO2CfgPPO_Handstand
-class Go2_stand(BaseTask):
-    def __init__(self, cfg: GO2Cfg_Handstand, sim_params, physics_engine, sim_device, headless):
+from legged_gym.envs.GO2_Stand.GO2_Leftstand.Go2_handstand_Config import GO2Cfg_Handstand_Command
+
+
+def get_euler_xyz_tensor(quat):
+    r, p, w = get_euler_xyz(quat)
+    # stack r, p, w in dim1
+    euler_xyz = torch.stack((r, p, w), dim=1)
+    euler_xyz[euler_xyz > np.pi] -= 2 * np.pi
+    return euler_xyz
+
+
+class Go2_stand_Robot(BaseTask):
+    def __init__(self, cfg: GO2Cfg_Handstand_Command, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
@@ -39,7 +44,6 @@ class Go2_stand(BaseTask):
         self.init_done = False
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
-
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
         self._init_buffers()
@@ -54,15 +58,21 @@ class Go2_stand(BaseTask):
         """
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        
         # step physics and render each frame
         self.render()
         for _ in range(self.cfg.control.decimation):
-            self.torques = self._compute_torques(self.actions).view(self.torques.shape)
-            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
-            self.gym.simulate(self.sim)
+            action_delayed = self.update_cmd_action_latency_buffer()#????放在这里表示延迟了0.005秒的1到3帧月也就是最多0.015秒
+            #如果放到外面延迟最多能达到0.1秒是不符合常理的
+            self.torques = self._compute_torques(action_delayed).view(self.torques.shape)
+            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))#设置力矩
+
+            self.gym.simulate(self.sim)#前向仿真
             if self.device == 'cpu':
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
+            self.update_obs_latency_buffer()
+        
         self.post_physics_step()
 
         # return clipped obs, clipped states (None), rewards, dones and infos
@@ -72,6 +82,38 @@ class Go2_stand(BaseTask):
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
+    def reset(self):
+        """ Reset all robots"""
+        self.reset_idx(torch.arange(self.num_envs, device=self.device))
+        obs, privileged_obs, _, _, _ = self.step(torch.zeros(
+            self.num_envs, self.num_actions, device=self.device, requires_grad=False))
+        return obs, privileged_obs
+    
+    def update_cmd_action_latency_buffer(self):
+        actions_scaled = self.actions * self.cfg.control.action_scale
+        if self.cfg.domain_rand.add_cmd_action_latency:
+            self.cmd_action_latency_buffer[:,:,1:] = self.cmd_action_latency_buffer[:,:,:self.cfg.domain_rand.range_cmd_action_latency[1]].clone()
+            self.cmd_action_latency_buffer[:,:,0] = actions_scaled.clone()
+            action_delayed = self.cmd_action_latency_buffer[torch.arange(self.num_envs),:,self.cmd_action_latency_simstep.long()]
+        else:
+            action_delayed = actions_scaled
+        
+        return action_delayed
+
+    def update_obs_latency_buffer(self):#????为什么这个的调用频率1000HZ
+        if self.cfg.domain_rand.randomize_obs_motor_latency:
+            q = (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos
+            dq = self.dof_vel * self.obs_scales.dof_vel
+            self.obs_motor_latency_buffer[:,:,1:] = self.obs_motor_latency_buffer[:,:,:self.cfg.domain_rand.range_obs_motor_latency[1]].clone()
+            self.obs_motor_latency_buffer[:,:,0] = torch.cat((q, dq), 1).clone()
+        if self.cfg.domain_rand.randomize_obs_imu_latency:
+            self.gym.refresh_actor_root_state_tensor(self.sim)
+            self.base_quat[:] = self.root_states[:, 3:7]
+            self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
+            self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
+            self.obs_imu_latency_buffer[:,:,1:] = self.obs_imu_latency_buffer[:,:,:self.cfg.domain_rand.range_obs_imu_latency[1]].clone()
+            self.obs_imu_latency_buffer[:,:,0] = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1).clone()
+
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
             calls self._post_physics_step_callback() for common computations 
@@ -79,7 +121,7 @@ class Go2_stand(BaseTask):
         """
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
-
+        self.gym.refresh_rigid_body_state_tensor(self.sim)    
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -89,13 +131,10 @@ class Go2_stand(BaseTask):
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        period = 5.
+        period = 1.2
         offset = 0.5
         self._post_physics_step_callback()
-        self.phase = (self.episode_length_buf * self.dt) % period / period
-        self.phase_left = self.phase
-        self.phase_right = (self.phase + offset) % 1
-        self.leg_phase = torch.cat([self.phase_left.unsqueeze(1), self.phase_right.unsqueeze(1)], dim=-1)
+
         
         # compute observations, rewards, resets, ...
         self.check_termination()
@@ -104,11 +143,6 @@ class Go2_stand(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
 
-        self.phase = (self.episode_length_buf * self.dt) % period / period
-        self.phase_left = self.phase
-        self.phase_right = (self.phase + offset) % 1
-        self.leg_phase = torch.cat([self.phase_left.unsqueeze(1), self.phase_right.unsqueeze(1)], dim=-1)
-        
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
         self.last_actions[:] = self.actions[:]
@@ -170,7 +204,18 @@ class Go2_stand(BaseTask):
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
-    
+        # fix reset gravity bug
+        self.base_quat[env_ids] = self.root_states[env_ids, 3:7]
+        self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
+        self.projected_gravity[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.gravity_vec[env_ids])
+        self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
+        self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
+        #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
+        for i in range(self.obs_history.maxlen):
+            self.obs_history[i][env_ids] *= 0
+        for i in range(self.critic_history.maxlen):
+            self.critic_history[i][env_ids] *= 0
+        self.stand_command[env_ids] = 0
     def compute_reward(self):
         """ Compute rewards
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
@@ -189,44 +234,87 @@ class Go2_stand(BaseTask):
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
-    
-    def compute_observations(self):
-        """ Computes observations
-        """
-        sin_phase = torch.sin(2 * np.pi * self.phase ).unsqueeze(1)
-        cos_phase = torch.cos(2 * np.pi * self.phase ).unsqueeze(1)
-        self.obs_buf = torch.cat((  
-                                    sin_phase,
-                                    cos_phase,
-                                    self.stand_command,
-                                    self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
-                                    self.projected_gravity,#3 重力投影
-                                    self.commands[:, :3] * self.commands_scale,#3 控制
-                                    (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,#12 关节位置
-                                    self.dof_vel * self.obs_scales.dof_vel,#12 关节速度
-                                    self.actions#12 动作
-                                    ),dim=-1)
-        # add perceptive inputs if not blind
-        if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
-            self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
-        # add noise if needed
-        if self.add_noise:
-            self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
-            # 添加均匀分布的随机噪声（范围 [-noise_scale, noise_scale]）
-            #????是否正确
-        self.privileged_obs_buf = torch.cat((  
-                                    sin_phase,
-                                    cos_phase,
-                                    self.base_lin_vel * self.obs_scales.lin_vel,
-                                    self.stand_command,
-                                    self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
-                                    self.projected_gravity,#3 重力投影
-                                    self.commands[:, :3] * self.commands_scale,#3 控制
-                                    (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,#12 关节位置
-                                    self.dof_vel * self.obs_scales.dof_vel,#12 关节速度
-                                    self.actions#12 动作
-                                    ),dim=-1)
+    def _get_phase(self):
+        cycle_time = self.cfg.rewards.cycle_time
+        phase = self.episode_length_buf * self.dt / cycle_time
+        return phase
+
+    def _get_gait_phase(self):
+        # return float mask 1 is stance, 0 is swing
+        phase = self._get_phase()
+        # Add double support phase
+        stance_mask = torch.zeros((self.num_envs, 2), device=self.device)
+        # left foot stance
+        stance_mask[:, 0] = phase<0.5
+        # right foot stance
+        stance_mask[:, 1] = phase>0.5
+
+        return stance_mask
+    def compute_observations(self):   
+        phase = self._get_phase()
+
+        sin_pos = torch.sin(2 * torch.pi * phase).unsqueeze(1)
+        cos_pos = torch.cos(2 * torch.pi * phase).unsqueeze(1)
+
+        self.stance_mask = self._get_gait_phase()
+        contact_mask = self.contact_forces[:, self.feet_indices, 2] > 5.
+
+        self.command_input = torch.cat(
+            (sin_pos, cos_pos, self.commands[:, :3] * self.commands_scale), dim=1)#???? command_sacle不加会怎么样 1，1，1
+
+        self.privileged_obs_buf = torch.cat((
+            self.command_input,  # 2 + 3 控制输入 ，相位，目标速度，角速度
+            (self.dof_pos - self.default_joint_pd_target) * self.obs_scales.dof_pos,  # 12  当前关节位置与默认关节位置之差
+            self.dof_pos * self.obs_scales.dof_pos,  # 12
+            self.dof_vel * self.obs_scales.dof_vel,  # 速度乘以缩放因子 12
+            self.actions,  # 12
+            self.base_lin_vel * self.obs_scales.lin_vel,  # 3
+            self.base_ang_vel * self.obs_scales.ang_vel,  # 3
+            self.base_euler_xyz *self.cfg.normalization.obs_scales.quat,  # 3
+            self.env_frictions,  # 1
+            self.body_mass / 10.,  # 1
+            self.stance_mask,  # 2
+            contact_mask,  # 2    
+            
+        ), dim=-1)#5 12 12 12 12 3 3 3 1 1 2 2 =68
+        # print("self.privileged_obs_buf",self.privileged_obs_buf.shape)
+        q = (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos
+        dq = self.dof_vel * self.obs_scales.dof_vel
+
+        if self.cfg.domain_rand.randomize_obs_motor_latency:
+            self.obs_motor = self.obs_motor_latency_buffer[torch.arange(self.num_envs), :, self.obs_motor_latency_simstep.long()]#????
+        else:
+            self.obs_motor = torch.cat((q, dq), 1)
+
+        if self.cfg.domain_rand.randomize_obs_imu_latency:
+            self.obs_imu = self.obs_imu_latency_buffer[torch.arange(self.num_envs), :, self.obs_imu_latency_simstep.long()]
+        else:              
+            self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1)
+
+        obs_buf = torch.cat((
+            self.command_input,  # 5 = 2D(sin cos) + 3D(vel_x, vel_y, aug_vel_yaw)
+            self.obs_imu,#6 角速度，欧拉角XYZ
+            self.obs_motor,#24
+            self.actions,   # 12
+            self.stand_command
+        ), dim=-1)
+        # print("obs_buf",obs_buf.shape)
+        if self.add_noise:  
+            obs_now = obs_buf.clone() + (2 * torch.rand_like(obs_buf) -1) * self.noise_scale_vec * self.cfg.noise.noise_level
+        else:
+            obs_now = obs_buf.clone()
+        self.obs_history.append(obs_now)
+        self.critic_history.append(self.privileged_obs_buf)
+
+        obs_buf_all = torch.stack([self.obs_history[i]
+                                   for i in range(self.obs_history.maxlen)], dim=1)  # N,T,K
+
+        self.obs_buf = obs_buf_all.reshape(self.num_envs, -1)  # N, T*K
+        self.privileged_obs_buf = torch.cat([self.critic_history[i] for i in range(self.cfg.env.c_frame_stack)], dim=1)
+        # for i in range(self.cfg.env.c_frame_stack):
+        #     print(self.critic_history[i].shape)
+        # print("!!!!!!!!!!!!!!!!!!!!!11",self.privileged_obs_buf.shape)
+
     def create_sim(self):
         """ Creates simulation, terrain and evironments
         """
@@ -295,28 +383,47 @@ class Go2_stand(BaseTask):
             self.dof_vel_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             self.torque_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             for i in range(len(props)):
-                self.dof_pos_limits[i, 0] = props["lower"][i].item()
-                self.dof_pos_limits[i, 1] = props["upper"][i].item()
-                self.dof_vel_limits[i] = props["velocity"][i].item()
-                self.torque_limits[i] = props["effort"][i].item()
-                # soft limits
-                m = (self.dof_pos_limits[i, 0] + self.dof_pos_limits[i, 1]) / 2
-                r = self.dof_pos_limits[i, 1] - self.dof_pos_limits[i, 0]
-                self.dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
-                self.dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
-        return props
+                self.dof_pos_limits[i, 0] = props["lower"][i].item() 
+                self.dof_pos_limits[i, 1] = props["upper"][i].item() 
+                self.dof_vel_limits[i] = props["velocity"][i].item() 
+                self.torque_limits[i] = props["effort"][i].item() 
+        
 
+         # randomization of the motor zero calibration for real machine
+        if self.cfg.domain_rand.randomize_motor_zero_offset:
+            self.motor_zero_offsets[env_id, :] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (1,self.num_actions), device=self.device)
+        
+        # randomization of the motor pd gains
+        if self.cfg.domain_rand.randomize_pd_gains:
+            self.p_gains_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (1,self.num_actions), device=self.device)
+            self.d_gains_multiplier[env_id, :] =  torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (1,self.num_actions), device=self.device)   
+        
+
+        for i in range(len(props)):
+             props["friction"][i] *= self.joint_friction_coeffs[env_id, 0]
+             props["damping"][i] *= self.joint_damping_coeffs[env_id, 0]
+             props["armature"][i] = self.joint_armatures[env_id, 0]
+
+        return props
     def _process_rigid_body_props(self, props, env_id):
-        # if env_id==0:
-        #     sum = 0
-        #     for i, p in enumerate(props):
-        #         sum += p.mass
-        #         print(f"Mass of body {i}: {p.mass} (before randomization)")
-        #     print(f"Total mass {sum} (before randomization)")
         # randomize base mass
         if self.cfg.domain_rand.randomize_base_mass:
-            rng = self.cfg.domain_rand.added_mass_range
-            props[0].mass += np.random.uniform(rng[0], rng[1])
+            self.added_base_masses = torch_rand_float(self.cfg.domain_rand.added_base_mass_range[0], self.cfg.domain_rand.added_base_mass_range[1], (1, 1), device=self.device)
+            props[0].mass += self.added_base_masses
+
+        # randomize link masses
+        if self.cfg.domain_rand.randomize_link_mass:
+            self.multiplied_link_masses_ratio = torch_rand_float(self.cfg.domain_rand.multiplied_link_mass_range[0], self.cfg.domain_rand.multiplied_link_mass_range[1], (1, self.num_bodies-1), device=self.device)
+    
+            for i in range(1, len(props)):
+                props[i].mass *= self.multiplied_link_masses_ratio[0,i-1]
+
+        # randomize base com
+        if self.cfg.domain_rand.randomize_base_com:
+            self.added_base_com = torch_rand_float(self.cfg.domain_rand.added_base_com_range[0], self.cfg.domain_rand.added_base_com_range[1], (1, 3), device=self.device)
+            props[0].com += gymapi.Vec3(self.added_base_com[0, 0], self.added_base_com[0, 1],
+                                    self.added_base_com[0, 2])
+
         return props
     
     def _post_physics_step_callback(self):
@@ -335,6 +442,9 @@ class Go2_stand(BaseTask):
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
+        if self.cfg.domain_rand.stand_command :
+            self.stand_command[((self.episode_length_buf % self.cfg.domain_rand.stand_time)==0 )& (self.episode_length_buf>0) ]=1
+            self.stand_command[((self.episode_length_buf % self.cfg.domain_rand.stop_time) ==0 )& (self.episode_length_buf>0) ]=0
 
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
@@ -415,7 +525,30 @@ class Go2_stand(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
+    
+    def _reset_latency_buffer(self,env_ids):
+        if self.cfg.domain_rand.add_cmd_action_latency:   
+            self.cmd_action_latency_buffer[env_ids, :, :] = 0.0
+            if self.cfg.domain_rand.randomize_cmd_action_latency:
+                self.cmd_action_latency_simstep[env_ids] = torch.randint(self.cfg.domain_rand.range_cmd_action_latency[0], 
+                                                           self.cfg.domain_rand.range_cmd_action_latency[1]+1,(len(env_ids),),device=self.device) 
+            else:
+                self.cmd_action_latency_simstep[env_ids] = self.cfg.domain_rand.range_cmd_action_latency[1]
+                               
+        if self.cfg.domain_rand.add_obs_latency:
+            self.obs_motor_latency_buffer[env_ids, :, :] = 0.0
+            self.obs_imu_latency_buffer[env_ids, :, :] = 0.0
+            if self.cfg.domain_rand.randomize_obs_motor_latency:
+                self.obs_motor_latency_simstep[env_ids] = torch.randint(self.cfg.domain_rand.range_obs_motor_latency[0],
+                                                        self.cfg.domain_rand.range_obs_motor_latency[1]+1, (len(env_ids),),device=self.device)
+            else:
+                self.obs_motor_latency_simstep[env_ids] = self.cfg.domain_rand.range_obs_motor_latency[1]
 
+            if self.cfg.domain_rand.randomize_obs_imu_latency:
+                self.obs_imu_latency_simstep[env_ids] = torch.randint(self.cfg.domain_rand.range_obs_imu_latency[0],
+                                                        self.cfg.domain_rand.range_obs_imu_latency[1]+1, (len(env_ids),),device=self.device)
+            else:
+                self.obs_imu_latency_simstep[env_ids] = self.cfg.domain_rand.range_obs_imu_latency[1]
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
             给机器人一个随机速度
@@ -468,19 +601,16 @@ class Go2_stand(BaseTask):
         Returns:
             [torch.Tensor]: Vector of scales used to multiply a uniform distribution in [-1, 1]
         """
-        noise_vec = torch.zeros_like(self.obs_buf[0])
+        noise_vec = torch.zeros(self.cfg.env.num_single_obs, device=self.device)
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
-        noise_level = self.cfg.noise.noise_level
-        noise_vec[:3] = noise_scales.lin_vel * noise_level * self.obs_scales.lin_vel
-        noise_vec[3:6] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
-        noise_vec[6:9] = noise_scales.gravity * noise_level
-        noise_vec[9:12] = 0. # commands
-        noise_vec[12:24] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        noise_vec[24:36] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        noise_vec[36:48] = 0. # previous actions
-        if self.cfg.terrain.measure_heights:
-            noise_vec[48:235] = noise_scales.height_measurements* noise_level * self.obs_scales.height_measurements
+        noise_vec[0: 5] = 0.  # commands
+
+        noise_vec[5:8] = noise_scales.ang_vel * self.obs_scales.ang_vel   # ang vel
+        noise_vec[8:11] = noise_scales.quat         # euler x,y
+        noise_vec[11: 23] = noise_scales.dof_pos * self.obs_scales.dof_pos
+        noise_vec[23: 35] = noise_scales.dof_vel * self.obs_scales.dof_vel
+        noise_vec[35: 47] = 0.  # previous actions
         return noise_vec
 
     #----------------------------------------
@@ -491,6 +621,7 @@ class Go2_stand(BaseTask):
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
+        rigid_body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_dof_state_tensor(self.sim)
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
@@ -501,6 +632,7 @@ class Go2_stand(BaseTask):
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[:, 3:7]
+        self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
 
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         self.stand_command=torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
@@ -549,7 +681,24 @@ class Go2_stand(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
-
+        self.default_joint_pd_target = self.default_dof_pos.clone()
+        self.obs_history = deque(maxlen=self.cfg.env.frame_stack)
+        self.critic_history = deque(maxlen=self.cfg.env.c_frame_stack)
+        for _ in range(self.cfg.env.frame_stack):
+            self.obs_history.append(torch.zeros(
+                self.num_envs, self.cfg.env.num_single_obs, dtype=torch.float, device=self.device))
+        for _ in range(self.cfg.env.c_frame_stack):
+            self.critic_history.append(torch.zeros(
+                self.num_envs, self.cfg.env.single_num_privileged_obs, dtype=torch.float, device=self.device))
+        #通信延迟 cmd延迟，obs延迟 ，imu延迟
+        self.cmd_action_latency_buffer = torch.zeros(self.num_envs,self.num_actions,self.cfg.domain_rand.range_cmd_action_latency[1]+1,device=self.device)
+        self.obs_motor_latency_buffer = torch.zeros(self.num_envs,self.num_actions * 2,self.cfg.domain_rand.range_obs_motor_latency[1]+1,device=self.device)
+        self.obs_imu_latency_buffer = torch.zeros(self.num_envs, 6, self.cfg.domain_rand.range_obs_imu_latency[1]+1,device=self.device)
+        self.cmd_action_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
+        self.obs_motor_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
+        self.obs_imu_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)  
+        self._reset_latency_buffer(torch.arange(self.num_envs, device=self.device))
+        self.stance_mask= torch.zeros((self.num_envs, 2),dtype=torch.long, device=self.device)
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, whcih will be called to compute the total reward.
             Looks for self._reward_<REWARD_NAME>, where <REWARD_NAME> are names of all non zero reward scales in the cfg.
@@ -679,12 +828,30 @@ class Go2_stand(BaseTask):
         self.base_init_state = to_torch(base_init_state_list, device=self.device, requires_grad=False)
         start_pose = gymapi.Transform()
         start_pose.p = gymapi.Vec3(*self.base_init_state[:3])
+        self.joint_friction_coeffs = torch.ones(self.num_envs, 1, dtype=torch.float, device=self.device,requires_grad=False)
 
+        self.joint_damping_coeffs = torch.ones(self.num_envs, 1, dtype=torch.float, device=self.device,requires_grad=False)
+
+        self.joint_armatures = torch.zeros(self.num_envs, 1, dtype=torch.float, device=self.device,requires_grad=False)  
+            
+        self.torque_multiplier = torch.ones(self.num_envs, self.num_actions, dtype=torch.float, device=self.device,
+                                          requires_grad=False)
+        self.motor_zero_offsets = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device,
+                                         requires_grad=False) 
+        self.p_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.d_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.p_gains_multiplier = torch.ones(self.num_envs,self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.d_gains_multiplier = torch.ones(self.num_envs,self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        
         self._get_env_origins()
         env_lower = gymapi.Vec3(0., 0., 0.)
         env_upper = gymapi.Vec3(0., 0., 0.)
         self.actor_handles = []
         self.envs = []
+        self.env_frictions = torch.zeros(self.num_envs, 1, dtype=torch.float32, device=self.device)
+
+        self.body_mass = torch.zeros(self.num_envs, 1, dtype=torch.float32, device=self.device, requires_grad=False)
+
         for i in range(self.num_envs):
             # create env instance
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
@@ -725,6 +892,7 @@ class Go2_stand(BaseTask):
 
 
         self.target_gravity=torch.tensor(self.cfg.asset.target_gravity,dtype=torch.float,device=self.device,requires_grad=False)
+        self.target_gravity_liedown=torch.tensor(self.cfg.asset.target_gravity_liedown,dtype=torch.float,device=self.device,requires_grad=False)
         self.rew_hanstand=torch.zeros(1,dtype=torch.float,device=self.device,requires_grad=False)
     def _get_env_origins(self):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
@@ -764,6 +932,9 @@ class Go2_stand(BaseTask):
         self.max_episode_length = np.ceil(self.max_episode_length_s / self.dt)
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
+        self.cfg.domain_rand.stand_time = np.ceil(self.cfg.domain_rand.command_time / self.dt)
+        self.cfg.domain_rand.stop_time = np.ceil((self.cfg.env.episode_length_s-self.cfg.domain_rand.command_time) / self.dt)
+        
 
     def _draw_debug_vis(self):
         """ Draws visualizations for dubugging (slows down simulation a lot).
@@ -843,19 +1014,20 @@ class Go2_stand(BaseTask):
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
-        return torch.exp(-torch.abs(self.base_lin_vel[:, 0])*10)
+        return torch.exp(-torch.abs(self.base_lin_vel[:, 0])*10)*(self.stand_command.view(-1)>0)
     
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
         # print("!!!!!!_reward_ang_vel_xy",torch.mean(torch.norm(torch.abs(self.base_ang_vel[:, :2]), dim=1)))
-        return torch.exp(-torch.norm(torch.abs(self.base_ang_vel[:, 1:3]), dim=1))
+        return torch.exp(-torch.norm(torch.abs(self.base_ang_vel[:, 1:3]), dim=1))*(self.stand_command.view(-1)>0)
 
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
         # print("!!!!!!_reward_base_height",torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10)))
         self.rew_hanstand=torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10))
-        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10)
+        # print("!!!!!!_reward_base_height",torch.abs(base_height - self.cfg.rewards.base_height_target)[0])
+        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target))*(self.stand_command.view(-1)>0)
 
     def _reward_torques(self):
         # Penalize torques
@@ -904,23 +1076,23 @@ class Go2_stand(BaseTask):
         x_error = torch.square(self.commands[:, 0] + self.base_lin_vel[:, 2])#站立起来的话，本体的x轴对应世界系的z，本体z轴对应世界系的-x
         y_error = torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1])
         # print(torch.mean(self.rew_hanstand),self.rew_hanstand.shape)
-        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
+        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)*(self.stand_command.view(-1)>0)
     
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
         # print(torch.mean(self.episode_sums["handstand_orientation"]))
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
+        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)*(self.stand_command.view(-1)>0)
 
     
     def _reward_default_pos(self):
         # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)
+        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)*(self.stand_command.view(-1)>0) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)
     
     
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
-        return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
+        return torch.sum((torch.norm(self.contact_forces[:, self.feet_name_reward_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
 
 
     def _reward_handstand_feet_on_air(self):
@@ -934,8 +1106,10 @@ class Go2_stand(BaseTask):
         contact = torch.norm(self.contact_forces[:, self.feet_name_reward_indices , :], dim=-1) > 1.0
         # 如果所有足部均未接触地面，reward = 1；也可以使用 mean 得到部分奖励
         reward = (~contact).float().prod(dim=1)
-        # print(reward)
-        return reward
+        
+        # print(self.stand_command[0])
+        return reward*(self.stand_command.view(-1)>0)
+    
         # return 0
 
 
@@ -948,13 +1122,26 @@ class Go2_stand(BaseTask):
         """
         # self.rew_hanstand=torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
     
-        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
+        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))*(self.stand_command.view(-1)>0)
 
+    def _reward_handstand_orientation_liedown(self):
+        """
+        姿态奖励：
+        1. 使用 self.projected_gravity（机器人基座坐标系下的重力投影）来评估姿态。
+        2. 目标重力方向通过配置传入（例如 [1, 0, 0] 表示目标为竖直向上）。
+        3. 对比当前和目标重力方向的 L2 距离，偏差越大惩罚越大。
+        """
+        # self.rew_hanstand=torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
+    
+        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity_liedown) ** 2, dim=1))*(self.stand_command.view(-1)<=0)
     def _reward_contact(self):
         res = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         for i in range(2):
-            is_stance = self.leg_phase[:, i] < 0.51
+            is_stance = self.stance_mask[:, i] < 0.5
             contact = self.contact_forces[:, self.contact_foot_indices[i], 2] > 1
             res += ~(contact ^ is_stance)
-        return res
+        return res*(self.stand_command.view(-1)>0)
     
+    def _reward_stand_still(self):
+        # Penalize motion at zero commands
+        return torch.exp(-torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)) * ((self.stand_command.view(-1)<=0))

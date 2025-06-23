@@ -3,9 +3,12 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class GO2Cfg_Handstand( LeggedRobotCfg ):
 
     class env:
-        num_envs = 4096
-        num_observations = 48 # sin cos command + 45
-        num_privileged_obs = 51 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        frame_stack = 10 #action stack
+        c_frame_stack = 3 #critic 网络的堆叠帧数
+        num_single_obs = 48 #这个是传感器可以获得到的信息
+        num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
+        single_num_privileged_obs = 51  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
@@ -106,7 +109,7 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
         threshold=5.0
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
-        collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
+        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
         default_dof_drive_mode = 3 # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
@@ -228,16 +231,16 @@ class GO2CfgPPO_Handstand(LeggedRobotCfgPPO):
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
-        # sym_loss = True
-        # obs_permutation = [-0.0001, -1, 2, -3, 4,-5,
-        #                    -11, -12, 13, 14, 15, -16, -5 , -6 , 7 , 8 , 9 , -10,\
-        #                    -23, -24, 25, 26, 27, -28, -17, -18, 19, 20, 21, -22,\
-        #                    -35, -36, 37, 38, 39, -40, -29, -30, 31, 32, 33, -34,\
-        #                    -41, 42, -43, -44, 45, -46]
-        # # act_permutation = [-6, -7, 8, 9, 10, -11, -0.0001, -1, 2, 3, 4, -5]#关节电机的对陈关系
-        # act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
-        # frame_stack = 1
-        # sym_coef = 1.0
+        sym_loss = True
+        obs_permutation = [-0.0001, -1, 2, -3, 4,-5,
+                           -11, -12, 13, 14, 15, -16, -5 , -6 , 7 , 8 , 9 , -10,\
+                           -23, -24, 25, 26, 27, -28, -17, -18, 19, 20, 21, -22,\
+                           -35, -36, 37, 38, 39, -40, -29, -30, 31, 32, 33, -34,\
+                           -41, 42, -43, -44, 45, -46]
+        # act_permutation = [-6, -7, 8, 9, 10, -11, -0.0001, -1, 2, 3, 4, -5]#关节电机的对陈关系
+        act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
+        frame_stack = 10
+        sym_coef = 1.0
     class runner:
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'

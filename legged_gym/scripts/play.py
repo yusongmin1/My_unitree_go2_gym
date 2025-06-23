@@ -22,6 +22,9 @@ def play(args):
     env_cfg.noise.add_noise = False
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.randomize_base_mass = False
+    env_cfg.domain_rand.randomize_base_com = False
+    env_cfg.domain_rand.randomize_pd_gains = False
+    env_cfg.domain_rand.randomize_link_mass = False
     env_cfg.commands.resampling_time=10000000.0
     env_cfg.domain_rand.push_robots = False
 
@@ -49,7 +52,7 @@ def play(args):
     camera_vel = np.array([1., 1., 0.])
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
-    env.commands[:, 0]=-0.0
+    env.commands[:, 0]=4.
     env.commands[:, 1]=0.
     env.commands[:, 2]=0.0
     for i in range(10*int(env.max_episode_length)):
