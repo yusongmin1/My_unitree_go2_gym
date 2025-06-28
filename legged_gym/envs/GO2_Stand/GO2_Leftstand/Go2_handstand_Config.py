@@ -54,7 +54,7 @@ class GO2Cfg_Handstand_Command( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.0, 0.25] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -73,7 +73,22 @@ class GO2Cfg_Handstand_Command( LeggedRobotCfg ):
             'FR_calf_joint': -1.5,  # [rad]
             'RR_calf_joint': -1.5,    # [rad]
         }
+        descire_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0.,   # [rad]
+            'RL_hip_joint': 0.,   # [rad]
+            'FR_hip_joint': 0. ,  # [rad]
+            'RR_hip_joint': 0.,   # [rad]
 
+            'FL_thigh_joint': 1.75,     # [rad]
+            'RL_thigh_joint': 2.25,#1.,   # [rad]
+            'FR_thigh_joint': 1.75,     # [rad]
+            'RR_thigh_joint': 2.25,#1.,   # [rad]
+
+            'FL_calf_joint': -1.75,   # [rad]
+            'RL_calf_joint': -1.75,    # [rad]
+            'FR_calf_joint': -1.75,  # [rad]
+            'RR_calf_joint': -1.75,    # [rad]
+        }
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -150,24 +165,22 @@ class GO2Cfg_Handstand_Command( LeggedRobotCfg ):
     class rewards:
         class scales:
             termination = -0.0
-            tracking_lin_vel = 3.5
-            tracking_ang_vel = 3.5
-            # lin_vel_z = 0.2
-            # ang_vel_xy = 0.2
-            handstand_orientation = 10.0#0.1 1.0
-            torques = -0.0002
+            tracking_lin_vel = 3.0
+            tracking_ang_vel = 3.0
+            lin_vel_z = 0.2
+            ang_vel_xy = 0.2
+            handstand_orientation =2.0#0.1 1.0
+            torques = -0.0001
             dof_vel = -0.
-            dof_acc = -5.5e-4
-            base_height = 15.#0.1 
-            handstand_feet_on_air =  0.4
+            dof_acc = -1.5e-4
+            base_height = 6.0#0.1 
+            handstand_feet_on_air =  4.0
             collision = -1.
             feet_stumble = -0.0 
-            action_rate = -0.01
-            default_pos =-0.3####
-            stand_still =20. 
-            feet_contact_forces=-0.05
-            # handstand_orientation_liedown=0.5
-            # contact=0.3
+            action_rate = -0.001
+            default_pos =-0.2####
+            default_hip_pos=-0.5
+            # contact=0.4
 
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
@@ -175,7 +188,6 @@ class GO2Cfg_Handstand_Command( LeggedRobotCfg ):
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
         base_height_target = 0.52#0.25
-        max_contact_force = 150. # forces above this value are penalized
         cycle_time=1.2
     class normalization:
         class obs_scales:
@@ -264,7 +276,7 @@ class GO2CfgPPO_Handstand_Command(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 15000 # number of policy updates
+        max_iterations = 30000 # number of policy updates
 
         # logging
         save_interval = 200 # check for potential saves every this many iterations

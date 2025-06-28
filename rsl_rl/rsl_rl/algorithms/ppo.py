@@ -210,12 +210,16 @@ class PPO:
 
                 mean_value_loss += value_loss.item()
                 mean_surrogate_loss += surrogate_loss.item()
-                mean_sym_loss += sym_loss.item()
+                if sym_loss:
+                    mean_sym_loss += sym_loss.item()
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
         mean_surrogate_loss /= num_updates
-        mean_sym_loss /= num_updates
+        if sym_loss:
+            mean_sym_loss /= num_updates
+        else:
+            mean_sym_loss =0
         self.storage.clear()
     
         return mean_value_loss, mean_surrogate_loss, mean_sym_loss

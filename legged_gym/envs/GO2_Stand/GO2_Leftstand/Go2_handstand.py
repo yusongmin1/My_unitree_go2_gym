@@ -121,7 +121,7 @@ class Go2_stand_Robot(BaseTask):
         """
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
-        self.gym.refresh_rigid_body_state_tensor(self.sim)    
+        self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -525,7 +525,6 @@ class Go2_stand_Robot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
-    
     def _reset_latency_buffer(self,env_ids):
         if self.cfg.domain_rand.add_cmd_action_latency:   
             self.cmd_action_latency_buffer[env_ids, :, :] = 0.0
@@ -556,7 +555,6 @@ class Go2_stand_Robot(BaseTask):
         max_vel = self.cfg.domain_rand.max_push_vel_xy
         self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
-
     def _update_terrain_curriculum(self, env_ids):
         """ Implements the game-inspired curriculum.
 
@@ -681,7 +679,7 @@ class Go2_stand_Robot(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
-        self.default_joint_pd_target = self.default_dof_pos.clone()
+        self.default_joint_pd_target = self.descire_joint_pos.clone()
         self.obs_history = deque(maxlen=self.cfg.env.frame_stack)
         self.critic_history = deque(maxlen=self.cfg.env.c_frame_stack)
         for _ in range(self.cfg.env.frame_stack):
@@ -1014,21 +1012,17 @@ class Go2_stand_Robot(BaseTask):
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
-        return torch.exp(-torch.abs(self.base_lin_vel[:, 0])*10)*(self.stand_command.view(-1)>0)
+        return torch.exp(-torch.abs(self.base_lin_vel[:, 0])*10)
     
     def _reward_ang_vel_xy(self):
-        # Penalize xy axes base angular velocity
-        # print("!!!!!!_reward_ang_vel_xy",torch.mean(torch.norm(torch.abs(self.base_ang_vel[:, :2]), dim=1)))
-        return torch.exp(-torch.norm(torch.abs(self.base_ang_vel[:, 1:3]), dim=1))*(self.stand_command.view(-1)>0)
+        return torch.exp(-torch.norm(torch.abs(self.base_ang_vel[:, 1:3]), dim=1))
 
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        # print("!!!!!!_reward_base_height",torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10)))
+        # print("base_height",self.root_states[0, 2])
         self.rew_hanstand=torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10))
-        # print("!!!!!!_reward_base_height",torch.abs(base_height - self.cfg.rewards.base_height_target)[0])
-        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target))*(self.stand_command.view(-1)>0)
-
+        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10)
     def _reward_torques(self):
         # Penalize torques
         return torch.sum(torch.abs(self.torques), dim=1)
@@ -1043,7 +1037,6 @@ class Go2_stand_Robot(BaseTask):
     
     def _reward_action_rate(self):
         # Penalize changes in actions
-        # print("!!!!!!11",torch.mean(torch.sum(torch.square(self.last_actions - self.actions), dim=1)))
         return  torch.sum(torch.square(self.last_actions - self.actions), dim=1)
 
     
@@ -1076,20 +1069,24 @@ class Go2_stand_Robot(BaseTask):
         x_error = torch.square(self.commands[:, 0] + self.base_lin_vel[:, 2])#站立起来的话，本体的x轴对应世界系的z，本体z轴对应世界系的-x
         y_error = torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1])
         # print(torch.mean(self.rew_hanstand),self.rew_hanstand.shape)
-        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)*(self.stand_command.view(-1)>0)
+        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
     
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
         # print(torch.mean(self.episode_sums["handstand_orientation"]))
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)*(self.stand_command.view(-1)>0)
-
+        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
     
     def _reward_default_pos(self):
         # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)*(self.stand_command.view(-1)>0) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)
+        # print(torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)[0])
+        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)#*(torch.mean(self.rew_hanstand)>0.8)#*(torch.mean(self.rew_hanstand)>0.8)#*(self.stand_command.view(-1)>0) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)
     
-    
+    def _reward_default_hip_pos(self):
+        # Penalize motion at zero commands
+        # print(torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)[0])
+        diff= torch.abs(self.dof_pos - self.descire_joint_pos)
+        return diff[:,6]+diff[:,9]+diff[:,0]+diff[:,3]
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_name_reward_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
@@ -1122,26 +1119,12 @@ class Go2_stand_Robot(BaseTask):
         """
         # self.rew_hanstand=torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
     
-        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))*(self.stand_command.view(-1)>0)
+        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
 
-    def _reward_handstand_orientation_liedown(self):
-        """
-        姿态奖励：
-        1. 使用 self.projected_gravity（机器人基座坐标系下的重力投影）来评估姿态。
-        2. 目标重力方向通过配置传入（例如 [1, 0, 0] 表示目标为竖直向上）。
-        3. 对比当前和目标重力方向的 L2 距离，偏差越大惩罚越大。
-        """
-        # self.rew_hanstand=torch.exp(-torch.sum((self.projected_gravity - self.target_gravity) ** 2, dim=1))
-    
-        return torch.exp(-torch.sum((self.projected_gravity - self.target_gravity_liedown) ** 2, dim=1))*(self.stand_command.view(-1)<=0)
     def _reward_contact(self):
         res = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         for i in range(2):
-            is_stance = self.stance_mask[:, i] < 0.5
             contact = self.contact_forces[:, self.contact_foot_indices[i], 2] > 1
-            res += ~(contact ^ is_stance)
-        return res*(self.stand_command.view(-1)>0)
+            res += contact == self.stance_mask[:, i] 
+        return res#*(torch.mean(self.rew_hanstand)>0.8)
     
-    def _reward_stand_still(self):
-        # Penalize motion at zero commands
-        return torch.exp(-torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)) * ((self.stand_command.view(-1)<=0))

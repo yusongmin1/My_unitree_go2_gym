@@ -3,8 +3,8 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class GO2Cfg_Handstand( LeggedRobotCfg ):
 
     class env:
-        frame_stack = 10 #action stack
-        c_frame_stack = 3 #critic 网络的堆叠帧数
+        frame_stack = 1 #action stack
+        c_frame_stack = 1 #critic 网络的堆叠帧数
         num_single_obs = 48 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
         single_num_privileged_obs = 51  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
@@ -231,7 +231,7 @@ class GO2CfgPPO_Handstand(LeggedRobotCfgPPO):
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
-        sym_loss = True
+        sym_loss = False
         obs_permutation = [-0.0001, -1, 2, -3, 4,-5,
                            -11, -12, 13, 14, 15, -16, -5 , -6 , 7 , 8 , 9 , -10,\
                            -23, -24, 25, 26, 27, -28, -17, -18, 19, 20, 21, -22,\

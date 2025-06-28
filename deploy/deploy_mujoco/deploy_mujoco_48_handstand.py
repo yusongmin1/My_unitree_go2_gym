@@ -56,10 +56,10 @@ if __name__ == "__main__":
     # get config file name from command line
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config_file", type=str, help="config file name in the config folder")
-    args = parser.parse_args()
-    config_file = args.config_file
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("config_file", type=str, default="/home/zju/YuSongmin/RL_Leggedgym/unitree_rl_gym-main/deploy/deploy_mujoco/configs/go2.yaml",help="config file name in the config folder")
+    # args = parser.parse_args()
+    config_file ="go2.yaml"
     with open(f"{LEGGED_GYM_ROOT_DIR}/deploy/deploy_mujoco/configs/{config_file}", "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         policy_path = config["policy_path"].replace("{LEGGED_GYM_ROOT_DIR}", LEGGED_GYM_ROOT_DIR)
@@ -106,10 +106,10 @@ if __name__ == "__main__":
         start = time.time()
         while viewer.is_running() and time.time() - start < 1000000:
             step_start = time.time()
-            if  (time.time() - start<10):
+            if  (time.time() - start<100):
                 tau = pd_control(default_angles, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
                 d.ctrl[:] = tau
-            if  (time.time() - start>10):
+            if  (time.time() - start>100):
                 tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
                 d.ctrl[:] = tau
                 print(tau)
@@ -159,6 +159,7 @@ if __name__ == "__main__":
                 obs[24:36] = dqj
                 obs[36:48] = action
                 # print(d.qpos[0:3],linevel)
+                print(np.sum(np.abs(d.qpos[7:]-default_angles)))
                 obs_tensor = torch.from_numpy(obs).unsqueeze(0)
                 # policy inference
                 action = policy(obs_tensor).detach().numpy().squeeze()

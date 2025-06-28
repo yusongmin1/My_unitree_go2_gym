@@ -5,18 +5,18 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
         # change the observation dim
         frame_stack = 10 #action stack
         c_frame_stack = 3 #critic 网络的堆叠帧数
-        num_single_obs = 47 #这个是传感器可以获得到的信息
+        num_single_obs = 45 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 70  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        single_num_privileged_obs = 64  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         num_envs = 4096
-        episode_length_s = 24 # episode length in seconds
+        episode_length_s = 5 # episode length in seconds
         env_spacing = 3.  # not used with heightfields/trimeshes 
         joint_num = 12
         send_timeouts=True
 
-        reset_height = 0.15 # [m]
+        reset_height = 0.13 # [m]
         reset_landing_error = 0.2 # [in m]
 
         debug_draw = False
@@ -53,10 +53,10 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
     class commands:
         curriculum = False
         max_curriculum = 0.8
-        num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
+        num_commands = 3 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
-        class ranges(): 
+        class ranges: 
             pos_dx_lim = [-0.0,0.8]
             pos_dy_lim = [-0.1,0.1]
             pos_dz_lim = [-0.0,0.8]
@@ -64,7 +64,7 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
             pos_variation_increment = [0.01,0.01,0.01]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.0, 0.4] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -85,9 +85,23 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
             'FR_calf_joint': -1.5,  # [rad]
             'RR_calf_joint': -1.5,    # [rad]
         }
-        spring_kp=20
-        spring_kd=2
+        lie_joint_angles = { # = target angles [rad] when action = 0.0
 
+            'FL_hip_joint': 0.,   # [rad]
+            'RL_hip_joint': 0.,   # [rad]
+            'FR_hip_joint': -0. ,  # [rad]
+            'RR_hip_joint': -0.,   # [rad]
+
+            'FL_thigh_joint': 1.25,     # [rad]
+            'RL_thigh_joint': 1.25,#1.,   # [rad]
+            'FR_thigh_joint': 1.25,     # [rad]
+            'RR_thigh_joint': 1.25,#1.,   # [rad]
+
+            'FL_calf_joint': -2.,   # [rad]
+            'RL_calf_joint': -2.,    # [rad]
+            'FR_calf_joint': -2.,  # [rad]
+            'RR_calf_joint': -2.,    # [rad]
+        }
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -103,9 +117,10 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on = ["base"]
+        target_gravity=[0,0,-1]
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
-        collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
+        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
         default_dof_drive_mode = 3 # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
@@ -132,7 +147,7 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
         added_base_mass_range = [-1,1]
 
         randomize_link_mass = True
-        multiplied_link_mass_range = [0.95, 1.05]
+        multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
         added_base_com_range = [-0.02, 0.02]
@@ -155,85 +170,32 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
         randomize_cmd_action_latency = True
         range_cmd_action_latency = [1, 3]
 
-        randomize_joint_friction_and_damping = True
-        joint_friction_range = [0.0, 0.04]#直接赋值
-        joint_damping_range = [0.0, 0.04]
     class rewards:
         class scales:
-            termination = -0.0
-            tracking_lin_vel = 2.0
-            tracking_ang_vel = 2.0
-            lin_vel_z = 0.05
-            ang_vel_xy = 0.2#0.5平地的
-            orientation = 0.6#0.1 1.0
-            torques = -0.0002
-            dof_vel = -0.
-            dof_acc = -5.5e-4
-            base_height = 1.0#0.1 
-            feet_air_time =  1.0
-            collision = -1.
-            feet_stumble = -0.0 
-            action_rate = -0.01
-            stand_still = -2.
-            default_pos =-0.1####
-            default_hip_pos=0.3
-            feet_contact_forces=-0.01
-            jump=2.0
-            feet_clearance=0.5
-        class scales():
-            #---------- Task rewards (once per episode): ----------- #
+            before_setting=0.6
+            post_landing_pos=5.0
+            post_landing_ori=5.0
+            line_z=6.0
+            base_height_flight=4.0
+            base_height_stance=2.0
+            orientation=0.3
+            default_pose_air=-0.2
+            ang_vel_xy=0.2
+            revovery=4.
+            torques=-0.0001
+            dof_pos_limits=-1.
+            dof_vel_limits=-1.
+            torque_limits=-1.
+            termination=0.0
+            collision=-1.
+            action_rate=-0.005
+            action_rate_second_order=-0.0001
+            feet_contact_forces=-0.2
 
-            # Rewards for reaching desired pose upon landing:
-            task_pos = 200.0 # Final reward is scale * (dt*decimation)
-            task_ori = 200.0
-            task_max_height = 2000.0 # Reward for maximum height (minus minimum height) achieved
-            
-            termination = -20.
-            jumping = 50.
-
-            #---------- Continuous rewards (at every time step): ----------- #
-
-            # Rewards for maintaining desired pose AFTER landing:
-            post_landing_pos = 3. # Reward for maintaining landing position
-            post_landing_ori = 3. # Reward for returning to desired orientation after landing
-
-            base_height_flight = 80. # Reward for being in the air, only active the first jump
-            base_height_stance = 5. # Reward fo
-
-            tracking_lin_vel = 5.0 # Reward for tracking desired linear velocity
-            tracking_ang_vel = 0.5 # Reward for tracking desired angular velocity
-            symmetric_joints = -3. # Reward for symmetric joint angles b/w left and right legs
-            default_pose = 6. # Reward for staying close to default pose post landing
-            feet_distance = -20.0 # Reward for keeping feet close to the body in flight
-
-            #---------- Regularisation rewards: ----------- #
-
-            energy_usage_actuators = -1e-2 # Additional energy usage penalty for the actuators.
-            torques_actuators = -0.0 # Penalty for large torques
-
-            base_acc = -1e-6 # Penalty for large base acceleration
-            change_of_contact = 0.0 # Reward for maintaining contact state
-            early_contact = 5.0 # Reward for maintaining contact with ground early in the episode
-            feet_contact_forces = -5.0# Penalty for large contact forces at the feet
-            action_rate = -0.2 # Penalty for large change of actions
-            action_rate_second_order = -0.0 # Penalty for large change of action rate
-
-            dof_vel = -0.0
-            dof_acc = -1e-6
-            dof_jerk = -0.0
-
-            dof_pos_limits = -10.0
-            dof_vel_limits = -0.0
-            torque_limits = -0.0
-        only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
-        tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
-        base_height_target = 0.3#0.25
-        max_contact_force = 100. # forces above this value are penalized
-        cycle_time=1.5
-        target_feet_height=0.05
+        max_contact_force=165
+        only_positive_rewards=False
+        reward_sigma=0.25
+        target_height=0.6
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -283,7 +245,7 @@ class GO2_Spring_JUMP_Cfg_Yu( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 
-class GO2_JUMP_PPO_Yu(LeggedRobotCfgPPO):
+class GO2_Spring_JUMP_PPO_Yu(LeggedRobotCfgPPO):
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:
@@ -291,11 +253,7 @@ class GO2_JUMP_PPO_Yu(LeggedRobotCfgPPO):
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        # only for 'ActorCriticRecurrent':
-        # rnn_type = 'lstm'
-        # rnn_hidden_size = 512
-        # rnn_num_layers = 1
-        
+
     class algorithm:
         # training params
         value_loss_coef = 1.0
@@ -304,21 +262,18 @@ class GO2_JUMP_PPO_Yu(LeggedRobotCfgPPO):
         entropy_coef = 0.01
         num_learning_epochs = 5
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 1.e-4 #5.e-4
+        learning_rate = 1.e-5 #5.e-4
         schedule = 'adaptive' # could be adaptive, fixed
         gamma = 0.99
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
         sym_loss = True
-        obs_permutation = [-0.0001, -1, 2, -3, -4,
-                           -5,6,-7,-8,9,-10,
-                       -14,15,16,-11,12,13,-20,21,22,-17,18,19,
-                       -26,27,28,-23,24,25,-32,33,34,-29,30,31,
-                       -38,39,40,-35,36,37,-44,45,46,-41,42,43]
-        #-sin -cos vx,-vy,-wz
-        #euler -wx,wy,-wz -x ,y,-z
-
+        obs_permutation = [0.0001, -1, 2, 
+                           -3,4,-5,-6,7,-8,
+                       -12,13,14,-9,10,11,-18,19,20,-15,16,17,
+                       -24,25,26,-21,22,23,-30,31,32,-27,28,29,
+                       -36,37,38,-33,34,35,-42,43,44,-39,40,41]
         act_permutation = [ -3, 4, 5, -0.0001, 1, 2, -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
         frame_stack = 10
         sym_coef = 1.0
@@ -326,7 +281,7 @@ class GO2_JUMP_PPO_Yu(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 15000 # number of policy updates
+        max_iterations =50000 # number of policy updates
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations

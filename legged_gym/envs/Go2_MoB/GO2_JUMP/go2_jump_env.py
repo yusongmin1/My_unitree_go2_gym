@@ -817,6 +817,7 @@ class GO2_JUMP_Robot(BaseTask):
         body_names = self.gym.get_asset_rigid_body_names(robot_asset)
         # print("body_names", body_names)
         self.dof_names = self.gym.get_asset_dof_names(robot_asset)
+        print("dof_names", self.dof_names)
         self.num_bodies = len(body_names)
         self.num_dofs = len(self.dof_names)
         feet_names = [s for s in body_names if self.cfg.asset.foot_name in s]

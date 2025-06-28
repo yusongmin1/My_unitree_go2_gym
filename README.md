@@ -34,6 +34,11 @@ python legged_gym/scripts/train.py --task=go2_jump --headless
 ```bash
 python legged_gym/scripts/train.py --task=go2_handstand --headless
 ```
+```bash
+python legged_gym/scripts/train.py --task=go2_handstand_command --headless
+```
+
+handstand 需要把mirror loss注释掉
 #### ⚙️  参数说明
 - `--task`: 必选参数，值可选(go2, g1, h1, h1_2)
 - `--headless`: 默认启动图形界面，设为 true 时不渲染图形界面（效率更高）
@@ -57,11 +62,15 @@ python legged_gym/scripts/train.py --task=go2_handstand --headless
 如果想要在 Gym 中查看训练效果，可以运行以下命令：
 
 ```bash
-python legged_gym/scripts/play.py --task=go2_handstand
+python legged_gym/scripts/play.py --task=go2_spring_jump
 ```
 
 ```bash
 python legged_gym/scripts/play.py --task=go2_jump
+```
+
+```bash
+python legged_gym/scripts/play.py --task=go2_handstand_command
 ```
 **说明**：
 
