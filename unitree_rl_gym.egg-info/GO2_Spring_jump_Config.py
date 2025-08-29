@@ -1,6 +1,6 @@
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
+class GO2_Spring_jump_Cfg_Yu( LeggedRobotCfg ):
     class env:
         # change the observation dim
         frame_stack = 10 #action stack
@@ -52,15 +52,9 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         num_commands = 3 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
-        class ranges: 
-            pos_dx_lim = [-0.0,0.8]
-            pos_dy_lim = [-0.1,0.1]
-            pos_dz_lim = [-0.0,0.8]
-            # These are the steps for the jump distance changes every curriculum update.
-            pos_variation_increment = [0.01,0.01,0.01]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.32] # x,y,z [m]
+        pos = [0.0, 0.0, 0.35] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -83,20 +77,20 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         }
         lie_joint_angles = { # = target angles [rad] when action = 0.0
 
-            'FL_hip_joint': 0.,   # [rad]
-            'RL_hip_joint': 0.,   # [rad]
-            'FR_hip_joint': -0. ,  # [rad]
-            'RR_hip_joint': -0.,   # [rad]
+            'FL_hip_joint': 0.158,   # [rad]
+            'RL_hip_joint': 0.137,   # [rad]
+            'FR_hip_joint': -0.158 ,  # [rad]
+            'RR_hip_joint': -0.137,   # [rad]
 
-            'FL_thigh_joint': 0.9,     # [rad]
-            'RL_thigh_joint': 1.,#1.,   # [rad]
-            'FR_thigh_joint': 0.9,     # [rad]
-            'RR_thigh_joint': 1.,#1.,   # [rad]
+            'FL_thigh_joint': 0.731,     # [rad]
+            'RL_thigh_joint': 0.987,#1.,   # [rad]
+            'FR_thigh_joint': 0.731,     # [rad]
+            'RR_thigh_joint': 0.987,#1.,   # [rad]
 
-            'FL_calf_joint': -2.25,   # [rad]
-            'RL_calf_joint': -2.25,    # [rad]
-            'FR_calf_joint': -2.25,  # [rad]
-            'RR_calf_joint': -2.25,    # [rad]
+            'FL_calf_joint': -1.81,   # [rad]
+            'RL_calf_joint': -1.83,    # [rad]
+            'FR_calf_joint': -1.81,  # [rad]
+            'RR_calf_joint': -1.83,    # [rad]
         }
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
@@ -168,26 +162,26 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
     class rewards:
         class scales:
             before_setting=5.0
-            # setting=5.0
-            line_z=12.
-            angle_y=2.
-            base_height_flight=10.0
-            base_height_stance=20.0
-            orientation=25.0
-            dof_pose_air=-0.2
-            dof_pos_stance=20.0
-            ang_vel_xy=-0.05
+            line_z=8.
+            flight=2.
+            base_height_flight=2.0
+            base_height_stance=8.0
+            dof_pos_stance=10.0
+            orientation=2.
+            dof_pos=-0.3
+            dof_vel_stance= 5.
+            line_vel_stance=5.
+            ang_vel_xy=-0.25
             torques=-0.0001
-            dof_pos_limits=-5.
-            dof_vel_limits=-5.
+            dof_pos_limits=-1.
+            dof_vel_limits=-1.
             dof_vel=-0.001
             torque_limits=-1.
             termination=0.0
-            collision=-10.
-            action_rate=-0.005
-            feet_contact_forces=-0.1
-            symmetric_joints=-0.5
-            dof_hip_pos=-10.
+            collision=-1.
+            action_rate=-0.01
+            feet_contact_forces=-0.05
+            land_pos=25.0
 
         max_contact_force=150
         only_positive_rewards=False
@@ -244,7 +238,7 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 
-class GO2_BackFlip_PPO_Yu(LeggedRobotCfgPPO):
+class GO2_Spring_jump_PPO_Yu(LeggedRobotCfgPPO):
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:
@@ -285,7 +279,7 @@ class GO2_BackFlip_PPO_Yu(LeggedRobotCfgPPO):
         max_iterations =50000 # number of policy updates
 
         # logging
-        save_interval = 250 # check for potential saves every this many iterations
+        save_interval = 200 # check for potential saves every this many iterations
         experiment_name = 'go2_spring_jump'
         run_name = ''
         # load and resume

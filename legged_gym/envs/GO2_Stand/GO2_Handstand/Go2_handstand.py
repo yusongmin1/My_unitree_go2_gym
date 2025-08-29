@@ -92,11 +92,6 @@ class Go2_stand(BaseTask):
         period = 1.2
         offset = 0.5
         self._post_physics_step_callback()
-        self.phase = (self.episode_length_buf * self.dt) % period / period
-        self.phase_left = self.phase
-        self.phase_right = (self.phase + offset) % 1
-        self.leg_phase = torch.cat([self.phase_left.unsqueeze(1), self.phase_right.unsqueeze(1)], dim=-1)
-        
         # compute observations, rewards, resets, ...
         self.check_termination()
         self.compute_reward()
@@ -104,10 +99,6 @@ class Go2_stand(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
 
-        self.phase = (self.episode_length_buf * self.dt) % period / period
-        self.phase_left = self.phase
-        self.phase_right = (self.phase + offset) % 1
-        self.leg_phase = torch.cat([self.phase_left.unsqueeze(1), self.phase_right.unsqueeze(1)], dim=-1)
         
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
@@ -190,11 +181,29 @@ class Go2_stand(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     
+    def _get_phase(self):
+        cycle_time = self.cfg.rewards.cycle_time
+        phase = (self.episode_length_buf * self.dt)%cycle_time/cycle_time
+        return phase
+
+    def _get_gait_phase(self):
+        # return float mask 1 is stance, 0 is swing
+        phase = self._get_phase()
+        stance_mask = torch.zeros((self.num_envs, 2), device=self.device)
+        stance_mask[:, 0] = phase<0.5
+        stance_mask[:, 1] = phase>0.5
+        return stance_mask
+    
     def compute_observations(self):
         """ Computes observations
         """
-        sin_phase = torch.sin(2 * np.pi * self.phase ).unsqueeze(1)
-        cos_phase = torch.cos(2 * np.pi * self.phase ).unsqueeze(1)
+        phase = self._get_phase()
+
+        sin_phase = torch.sin(2 * torch.pi * phase).unsqueeze(1)
+        cos_phase = torch.cos(2 * torch.pi * phase).unsqueeze(1)
+
+        # stance_mask = self._get_gait_phase()
+        # contact_mask = self.contact_forces[:, self.feet_indices, 2] > 5.
         self.obs_buf = torch.cat((  
                                     sin_phase,
                                     cos_phase,
@@ -986,9 +995,25 @@ class Go2_stand(BaseTask):
     def _reward_contact(self):
         res = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         for i in range(2):
-            is_stance = self.leg_phase[:, i] < 0.51
+            is_stance = self._get_gait_phase()
             contact = self.contact_forces[:, self.contact_foot_indices[i], 2] > 1
             res += ~(contact ^ is_stance)
         return res*(torch.mean(self.rew_hanstand)>0.8)
 
+    def _reward_feet_clearance(self):#鼓励抬脚高度
+        """
+        Calculates reward based on the clearance of the swing leg from the ground during movement.
+        Encourages appropriate lift of the feet during the swing phase of the gait.
+        """
+        # Compute feet contact mask
+        self.feet_height =self.rigid_state[:, self.contact_foot_indices, 2] - 0.02
+        swing_mask = (1 - self._get_gait_phase())
+        phase=self._get_phase()
+        # feet height should larger than target feet height at the peak
+        target_height=(torch.abs(torch.sin(2*torch.pi*phase))*self.cfg.rewards.target_foot_height)
+        # print(left_feet_height.shape,right_feet_height.shape,target_height.shape)
+        rew=torch.exp(-torch.abs(self.feet_height[:,0]-target_height)*swing_mask[:,0]*10)
+        # print(rew[0],torch.sum(torch.abs(left_feet_height-target_height),dim=1)[0])
+        rew+=torch.exp(-torch.abs(self.feet_height[:,1]-target_height)*swing_mask[:,1]*10)
+        return rew*(torch.mean(self.rew_hanstand)>0.8)
     

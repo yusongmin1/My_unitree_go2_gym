@@ -59,7 +59,9 @@ python legged_gym/scripts/train.py --task=go2_handstand --headless
 ```bash
 python legged_gym/scripts/train.py --task=go2_spring_jump --headless
 ```
-
+```bash
+python legged_gym/scripts/train.py --task=go2_backflip --headless
+```
 handstand 需要把mirror loss注释掉
 #### ⚙️  参数说明
 - `--task`: 必选参数，值可选(go2, g1, h1, h1_2)
@@ -101,6 +103,10 @@ python legged_gym/scripts/play.py --task=go2_stairs
 
 ```bash
 python legged_gym/scripts/play.py --task=go2_jump
+```
+
+```bash
+python legged_gym/scripts/play.py --task=go2_backflip
 ```
 **说明**：
 

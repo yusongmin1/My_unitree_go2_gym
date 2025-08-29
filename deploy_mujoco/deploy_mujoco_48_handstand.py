@@ -17,6 +17,7 @@ def get_gravity_orientation(quaternion):
 
     gravity_orientation[0] = 2 * (-qz * qx + qw * qy)
     gravity_orientation[1] = -2 * (qz * qy + qw * qx)
+    
     gravity_orientation[2] = 1 - 2 * (qw * qw + qz * qz)
 
     return gravity_orientation

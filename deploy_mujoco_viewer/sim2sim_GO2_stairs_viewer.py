@@ -10,7 +10,7 @@ import torch
 import keyboard  # 导入keyboard库
 from pynput import keyboard
 
-x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.0, 0.0, 0.0
+x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.6, 0.0, 0.0
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 3.0
 
 joystick_use = True

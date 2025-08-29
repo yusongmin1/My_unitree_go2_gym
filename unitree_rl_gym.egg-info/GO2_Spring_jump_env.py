@@ -9,7 +9,7 @@ from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi
 from legged_gym.utils.helpers import class_to_dict
-from legged_gym.envs.GO2_Flip.GO2_BackFlip.GO2_BackFlip_Config import GO2_BackFlip_Cfg_Yu
+from legged_gym.envs.GO2_Flip.GO2_Spring_jump.GO2_Spring_jump_Config import GO2_Spring_jump_Cfg_Yu
 
 def get_euler_xyz_tensor(quat):
     r, p, w = get_euler_xyz(quat)
@@ -17,8 +17,8 @@ def get_euler_xyz_tensor(quat):
     euler_xyz = torch.stack((r, p, w), dim=1)
     euler_xyz[euler_xyz > np.pi] -= 2 * np.pi
     return euler_xyz
-class Go2_BackFlip(BaseTask):
-    def __init__(self, cfg: GO2_BackFlip_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
+class GO2_Spring_jump_Robot(BaseTask):
+    def __init__(self, cfg: GO2_Spring_jump_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
@@ -92,7 +92,7 @@ class Go2_BackFlip(BaseTask):
         
         return action_delayed
 
-    def update_obs_latency_buffer(self):#????为什么这个的调用频率1000HZ
+    def update_obs_latency_buffer(self):
         if self.cfg.domain_rand.randomize_obs_motor_latency:
             q = (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos
             dq = self.dof_vel * self.obs_scales.dof_vel
@@ -119,10 +119,10 @@ class Go2_BackFlip(BaseTask):
         self.base_quat[:] = self.root_states[:, 3:7]
         self.base_lin_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
-        self.max_ang_vel_y=torch.maximum(self.max_ang_vel_y, self.base_ang_vel[:,2])
-        self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
         # self.ori_error=torch.abs(self.base_euler_xyz[:,2]-)
+
+        self.commands[self.episode_length_buf==50,2]=1.0
         self.check_jump()
         self.check_termination()
         self.compute_reward()
@@ -136,7 +136,9 @@ class Go2_BackFlip(BaseTask):
         self.last_dof_vel[:] = self.dof_vel[:]
         if self.cfg.env.test:
             self._draw_debug_goal()
-        env_ids = self.not_pushed_up * ~self.has_jumped * (self.was_in_flight)
+        env_ids = self.not_pushed_up * ~self.has_jumped * (self.commands[:,2]==1)
+        self.max_height=torch.maximum(self.max_height,self.root_states[:,2])
+
         if self.cfg.domain_rand.push_towards_goal and torch.any(env_ids):
             self._push_robots_upwards(env_ids)
             self.not_pushed_up[env_ids] = False        
@@ -150,7 +152,7 @@ class Go2_BackFlip(BaseTask):
         self.prob=max(8-int(self.count/(24*50)),0)
         env_ids = torch.logical_and(random_push<self.prob,env_ids)
 
-        self.root_states[env_ids,9] += torch_rand_float(1.0, 1.5, (self.num_envs, 1), device=self.device).flatten()[env_ids]
+        self.root_states[env_ids,9] += torch_rand_float(1.5, 2.0, (self.num_envs, 1), device=self.device).flatten()[env_ids]
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
 
     def _push_robots_desired(self,env_ids):
@@ -158,30 +160,22 @@ class Go2_BackFlip(BaseTask):
         """
         
         random_push = torch.randint(0,10,(self.num_envs,1),device=self.device).squeeze()
-        # self.prob=max(8-int(self.count/(24*200)),0)
         env_ids = torch.logical_and(random_push<self.prob,env_ids)
-        self.root_states[env_ids,11] -= torch_rand_float(1.0,1.5, (self.num_envs, 1), device=self.device).flatten()[env_ids]
+        self.root_states[env_ids,7] += torch_rand_float(0.0,0.2, (self.num_envs, 1), device=self.device).flatten()[env_ids]
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))  
-        # print("cnm~~~~~~~~~~~~~~~~~~~~~~~~")
+
     def check_jump(self):
         """ Check if the robot has jumped
         """
-        
         contact = self.contact_forces[:, self.feet_indices, 2] > 1.
-        contact_filt = torch.logical_or(contact, self.last_contacts) #当前帧和上一帧的接触力都大于1
-        self.contact_filt = contact_filt.clone() # Store it for the rewards that use it
+        self.contact_filt =torch.logical_or(contact, self.last_contacts)
         self.last_contacts=contact.clone()
-        # Handle starting in mid-air (initialise in air):
-        # settled_after_init = torch.logical_and(torch.all(contact_filt,dim=1), torch.sum(torch.abs(self.dof_pos-self.lie_joint_pos),dim=1)<1.5)#初始化完成，与默认关节角度的距离小于一个值就算初始化完成
-        settled_after_init = torch.logical_and(torch.all(contact_filt,dim=1), self.root_states[:,2]<0.25)#初始化完成，与默认关节角度的距离小于一个值就算初始化完成
-        jump_filter = torch.all(~contact_filt, dim=1)
 
-        self.settled_after_init[settled_after_init] = True#*(~self.has_jumped[settled_after_init]) #初始化完成
-        self.setted_frames=torch.where(self.settled_after_init,self.max_episode_length - self.episode_length_buf,  self.max_episode_length)
+        jump_filter = torch.all(~self.contact_filt , dim=1)
 
-        was_in_flight=torch.logical_and(jump_filter,self.settled_after_init)
-        self.was_in_flight[was_in_flight] = True#*(~self.has_jumped[was_in_flight]) # 已经在天上并且 从地上跳起（初始化过说明在地上过）
-        has_jumped = torch.logical_and(torch.any(contact_filt,dim=1), self.was_in_flight) #飞起来过并且落地就是已经跳跃过了
+        was_in_flight=torch.logical_and(jump_filter,self.commands[:,2]>0)
+        self.was_in_flight[was_in_flight] = True
+        has_jumped = torch.logical_and(torch.any(self.contact_filt ,dim=1), self.was_in_flight) #飞起来过并且落地就是已经跳跃过了
         
         self.landing_poses[torch.logical_and(has_jumped,~self.has_jumped)] = self.root_states[torch.logical_and(has_jumped,~self.has_jumped),:2]
         # Only count the first time flight is achieved:
@@ -209,26 +203,29 @@ class Go2_BackFlip(BaseTask):
         if len(env_ids) == 0:
             return
 
-        self._reset_dofs(env_ids)# 关节角度设置为0.5 15 倍的默认关节角度。速度设置为0
-        self._reset_root_states(env_ids)#根节点位置设置 平地就默认位置，随机地形就要随机位置 线速度，角速度随机 -0.5 0.5
-        # fill extras        self.setted_frames[env_ids] = 250
+        self._reset_dofs(env_ids)
+        self._reset_root_states(env_ids)
         self.was_in_flight[env_ids] = False
         self.has_jumped[env_ids] = False
-        self.settled_after_init[env_ids] = False
         self.landing_poses[env_ids,:] = self.init_state[env_ids,:2]
         self.actions[env_ids] = 0.
         self.last_actions[env_ids] = 0.
         self.last_last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
-        self.max_ang_vel_y[env_ids]=0
+        self.max_height[env_ids]=0.0
         self.last_contacts[env_ids] = 0
         self.not_pushed_up[env_ids] = True
         self.not_pushed_rotot=True
-        self.commands[env_ids, 0] = 0
-        self.commands[env_ids, 1] = 0
-        self.commands[env_ids, 2] = torch_rand_float(self.cfg.rewards.target_height,self.cfg.rewards.target_height+0.1, (len(env_ids),1), device=self.device).squeeze(-1)
-        self.setted_frames=self.max_episode_length
+
+
+        self.commands[env_ids, 0] = 0.7
+        # self.commands[env_ids, 1] = torch_rand_float(0,self.max_x, (len(env_ids),1), device=self.device).squeeze(-1)
+        self.commands[env_ids, 1] = 0.0
+
+
+        self.commands[env_ids, 2] = 0
+
         self._reset_latency_buffer(env_ids)
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
@@ -245,7 +242,6 @@ class Go2_BackFlip(BaseTask):
         # fix reset gravity bug
         self.base_quat[env_ids] = self.root_states[env_ids, 3:7]
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
-        self.projected_gravity[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.gravity_vec[env_ids])
         self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
@@ -327,7 +323,8 @@ class Go2_BackFlip(BaseTask):
             self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1)
 
         obs_buf = torch.cat((
-            self.command_input,  # 5 = 3D(x, y, height)
+            torch.zeros((self.num_envs, 2), device=self.device),
+            self.commands,
             self.obs_imu,#6 角速度，欧拉角XYZ
             self.obs_motor,#24
             self.actions,   # 12
@@ -501,11 +498,9 @@ class Go2_BackFlip(BaseTask):
         # base position
         self.root_states[env_ids] = self.base_init_state
         self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        self.root_states[env_ids, :2] += torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device) # xy position within 1m of the center
         self.init_state[env_ids]=self.root_states[env_ids]
 
         # base velocities
-        self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -645,22 +640,22 @@ class Go2_BackFlip(BaseTask):
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
 
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) 
-
+        self.commands[:, 0] = 0.6
+        self.max_height=torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
         self.contact_filt = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
         self.was_in_flight = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
         self.has_jumped = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
-        self.settled_after_init = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
-        self.setted_frames= torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.ori_error = torch.zeros(self.num_envs,dtype=torch.float, device=self.device, requires_grad=False)
         self.reset_idx_landing_error= torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.landing_poses = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
         self.count=torch.zeros(1, dtype=torch.float, device=self.device, requires_grad=False)
+
         self.success_rate = -torch.ones(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
+
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
-        self.max_ang_vel_y=torch.zeros(self.num_envs,dtype=torch.float, device=self.device, requires_grad=False)
-        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
+
         self.not_pushed_up = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
         self.not_pushed_rotot = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
 
@@ -893,7 +888,6 @@ class Go2_BackFlip(BaseTask):
         self.dt = self.cfg.control.decimation * self.sim_params.dt
         self.obs_scales = self.cfg.normalization.obs_scales
         self.reward_scales = class_to_dict(self.cfg.rewards.scales)
-        self.command_ranges = class_to_dict(self.cfg.commands.ranges)
         if self.cfg.terrain.mesh_type not in ['heightfield', 'trimesh']:
             self.cfg.terrain.curriculum = False
         self.max_episode_length_s = self.cfg.env.episode_length_s
@@ -903,7 +897,6 @@ class Go2_BackFlip(BaseTask):
         """ Draws desired goal points for debugging.
             Default behaviour: draws goal position
         """
-        
         self.gym.clear_lines(self.viewer)
         sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(1, 1, 0))
         sphere_geom_start = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(0, 1, 0))
@@ -921,70 +914,44 @@ class Go2_BackFlip(BaseTask):
     #------------ reward functions----------------
     def _reward_before_setting(self):
         #切换到蹲姿状态之前的奖励函数
-        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.default_dof_pos),dim=1))*(~self.settled_after_init)
+        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.lie_joint_pos),dim=1))*(self.commands[:, 2] == 0)
         return rew
-    def _reward_setting(self):
-        #切换到蹲姿状态之前的奖励函数
-        rew = torch.clip(150-self.setted_frames,min=0)/16
-        return rew
+    
     def _reward_line_z(self):
         #在初始化后和落地之前z轴线速度越大越好
-        rew=(self.root_states[:, 9]>0)*self.root_states[:, 9] *(self.settled_after_init*~self.was_in_flight)
-        rew+=(self.root_states[:, 9]>0)*self.root_states[:, 9] *(self.was_in_flight*~self.has_jumped)
+        rew=(self.root_states[:, 9]>0)*self.root_states[:, 9] *(~self.has_jumped)*(self.commands[:, 2] == 1)
         return rew
-    def _reward_angle_y(self):
-        #在初始化后和落地之前z轴线速度越大越好
-        rew=(self.base_ang_vel[:, 1]<0)*(-self.base_ang_vel[:, 1]) *(self.settled_after_init*~self.was_in_flight)
-        rew+=3*(self.base_ang_vel[:, 1]<0)*(-self.base_ang_vel[:, 1]) *(self.was_in_flight*~self.has_jumped)
-        # print(self.base_ang_vel[:, 1])
-        # print(rew[0])
-        rew = torch.clip(rew,max=20.)
-        return rew
+    
+    def _reward_land_pos(self):
+        #xy轴角速度奖励
+        land_err=self.init_state[:,:2]+self.commands[:,:2]-self.root_states[:, :2]
+        return torch.exp(-torch.sum(torch.abs(land_err),dim=1)*5)*(self.has_jumped) 
+
 
     def _reward_base_height_flight(self):
         #跳跃的高度奖励
-        base_height_flight = (self.root_states[:, 2] - self.commands[:, 2])
-        # print(self.root_states[0,:3])
-        rew= torch.exp(-torch.abs(base_height_flight)*5)*self.was_in_flight
+        base_height_flight = (self.root_states[:, 2] - 0.55)
+        rew= torch.exp(-torch.abs(base_height_flight)*5)*(self.was_in_flight)*~self.has_jumped*6
         return rew 
     
-    def _reward_dof_pose_air(self):
-        #在空中的默认关节奖励
-        angle_diff = torch.square(self.dof_pos - self.lie_joint_pos).sum(dim=1)*self.was_in_flight
-        return angle_diff
-    def _reward_dof_hip_pos(self):
-        #在空中的默认关节奖励
-        angle_diff = torch.square(self.dof_pos - self.lie_joint_pos)
-        return angle_diff[:,0]+angle_diff[:,3]+angle_diff[:,6]+angle_diff[:,9]
     def _reward_base_height_stance(self):
         #落地后的高度奖励和默认关节角度的奖励
-        base_height_flight = (self.root_states[:, 2] - 0.32)
+        base_height_flight = (self.root_states[:, 2] - 0.3)
         # print(self.root_states[0,:3])
-        rew= torch.exp(-torch.abs(base_height_flight)*10)*self.has_jumped*(self.max_ang_vel_y>7)
+        rew= torch.exp(-torch.abs(base_height_flight)*10)*self.has_jumped*self.max_height>0.45
         return rew 
     
-    def _reward_dof_pos_stance(self):
+    def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励
-        rew = torch.exp(-torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1))*self.has_jumped*(self.max_ang_vel_y>7)
-        return rew 
+        return torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)+0.5*+torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)*self.has_jumped
     
 
     def _reward_orientation(self):
-        return torch.exp(-torch.abs(self.base_euler_xyz).sum(dim=1))*self.has_jumped*(self.max_ang_vel_y>7)
+        return torch.exp(-torch.abs(self.base_euler_xyz).sum(dim=1))
 
     def _reward_ang_vel_xy(self):
-        rew=torch.norm(self.base_ang_vel[:, ::2],dim=1)
+        rew=torch.sum(torch.abs(self.base_ang_vel[:, :2]),dim=1)
         return rew
-
-    def _reward_symmetric_joints(self):
-        # Reward the joint angles to be symmetric on each side of the body:
-        dof = self.dof_pos.clone().view(self.num_envs, 4, int(self.num_dof/4))
-        # # Multiply the right side hips by -1 to match the sign of the left side:
-        dof[:,1,0] *= -1
-        dof[:,3,0] *= -1
-        
-        err = torch.sum(torch.abs(dof[:,0,:] - dof[:,1,:]),axis=1) + torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1)
-        return err
 
     def _reward_torques(self):
         # Penalize torques
@@ -1021,4 +988,21 @@ class Go2_BackFlip(BaseTask):
     def _reward_dof_vel(self):
         # Penalize dof velocities
         self.count+=1
-        return torch.sum(torch.square(self.dof_vel), dim=1)*self.was_in_flight
+        return torch.sum(torch.square(self.dof_vel), dim=1)
+    
+    def _reward_dof_vel_stance(self):
+        # Penalize dof velocities
+        # print(torch.sum(torch.abs(self.dof_vel), dim=1)[0],torch.exp(-torch.sum(torch.abs(self.dof_vel), dim=1)/50)[0],torch.exp(-torch.sum(torch.abs(self.dof_vel), dim=1)/50)[0]*self.has_jumped[0]*(self.max_height>0.45)[0],self.max_height.shape)
+        return torch.exp(-torch.sum(torch.abs(self.dof_vel), dim=1)/50)*self.was_in_flight*self.max_height>0.45
+    
+    def _reward_line_vel_stance(self):
+        # Penalize dof velocities
+        return torch.exp(-torch.sum(torch.abs(self.base_lin_vel), dim=1)/2)*self.has_jumped*self.max_height>0.45
+    
+    def _reward_flight(self):
+        # Penalize dof velocities
+        return self.was_in_flight
+    
+    def _reward_dof_pos_stance(self):
+        # Penalize dof velocities
+        return torch.exp(-torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)/10)*self.has_jumped*self.max_height>0.45
