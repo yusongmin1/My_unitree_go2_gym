@@ -867,7 +867,7 @@ class GO2_Trot_Robot(BaseTask):
         # print(self.feet_indices)['FL_foot', 'FR_foot', 'RL_foot', 'RR_foot'] tensor([ 6, 12, 20, 26], device='cuda:0')
         self.trot=TROT.to(torch.float32).mean()
         # print(stance_mask[0,0],stance_mask[0,1],phase)
-        return TROT*(torch.norm(self.commands[:, :2], dim=1) > 0.2)
+        return TROT*(torch.norm(self.commands[:, :2], dim=1) > 0.1)
 
     def _reward_default_hip_pos(self):
         """
@@ -896,24 +896,25 @@ class GO2_Trot_Robot(BaseTask):
         rew=torch.exp(-torch.sum(torch.abs(left_feet_height-target_height)*swing_mask[:,0].unsqueeze(1).repeat(1,2),dim=1)*10)
         # print(rew[0],torch.sum(torch.abs(left_feet_height-target_height),dim=1)[0])
         rew+=torch.exp(-torch.sum(torch.abs(right_feet_height-target_height)*swing_mask[:,1].unsqueeze(1).repeat(1,2),dim=1)*10)
-        return rew*(torch.norm(self.commands[:, :2], dim=1) > 0.2)
+        return rew*(torch.norm(self.commands[:, :2], dim=1) > 0.1)
     
+    #------------ reward functions----------------
     def _reward_lin_vel_z(self):
-        return torch.exp(-torch.abs(self.base_lin_vel[:, 2])*5)
+        # Penalize z axis base linear velocity
+        return torch.square(self.base_lin_vel[:, 2])
     
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
         return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
     
     def _reward_orientation(self):
-
-        return torch.exp(-torch.norm(self.projected_gravity[:, :2], dim=1)*10)
+        # Penalize non flat base orientation
+        return torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
 
     def _reward_base_height(self):
         # Penalize base height away from target
-        base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) , dim=1)
-
-        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10)
+        base_height = self.root_states[:, 2]
+        return torch.square(base_height - self.cfg.rewards.base_height_target)
     
     def _reward_torques(self):
         # Penalize torques

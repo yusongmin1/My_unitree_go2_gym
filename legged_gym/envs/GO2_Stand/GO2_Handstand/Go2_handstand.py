@@ -79,7 +79,7 @@ class Go2_stand(BaseTask):
         """
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
-
+        self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -399,7 +399,7 @@ class Go2_stand(BaseTask):
         p_gains = self.p_gains * self.p_gains_multiplier
         d_gains = self.d_gains * self.d_gains_multiplier
 
-        act=(actions + self.motor_zero_offsets)*(self.episode_length_buf>50).unsqueeze(1).repeat(1,12)
+        act=(actions + self.motor_zero_offsets)#*(self.episode_length_buf>50).unsqueeze(1).repeat(1,12)
         torques = p_gains * ( self.default_dof_pos - self.dof_pos +act) - d_gains * self.dof_vel
 
         return torch.clip(torques, -self.torque_limits, self.torque_limits)
@@ -512,22 +512,24 @@ class Go2_stand(BaseTask):
 
     #----------------------------------------
     def _init_buffers(self):
-        """ Initialize torch tensors which will contain simulation states and processed quantities
-        """
-        # get gym GPU state tensors
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
+        rigid_body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
+
         self.gym.refresh_dof_state_tensor(self.sim)
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
+        self.gym.refresh_rigid_body_state_tensor(self.sim)
 
         # create some wrapper tensors for different slices
-        self.root_states = gymtorch.wrap_tensor(actor_root_state) # (num_envs, 13)基座的 位置姿态 线速度角速度 3 4 3 3
+        self.root_states = gymtorch.wrap_tensor(actor_root_state)
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[:, 3:7]
+        self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
+        self.rigid_state = gymtorch.wrap_tensor(rigid_body_state).view(self.num_envs, self.num_bodies, 13)
 
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         self.stand_command=torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
@@ -946,19 +948,26 @@ class Go2_stand(BaseTask):
         x_error = torch.square(self.commands[:, 0] + self.base_lin_vel[:, 2])#站立起来的话，本体的x轴对应世界系的z，本体z轴对应世界系的-x
         y_error = torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1])
         # print(torch.mean(self.rew_hanstand),self.rew_hanstand.shape)
-        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
+        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.75)
     
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
         # print(torch.mean(self.episode_sums["handstand_orientation"]))
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.8)
+        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.75)
 
     
     def _reward_default_pos(self):
         # Penalize motion at zero commands
         return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1) #* (torch.norm(self.commands[:, :2], dim=1) < 0.1)
-    
+    def _reward_default_hip_pos(self):
+        """
+        Calculates the reward for keeping joint positions close to default positions, with a focus 
+        on penalizing deviation in yaw and roll directions. Excludes yaw and roll from the main penalty.
+        """
+        joint_diff = torch.abs(self.dof_pos[:,0])+torch.abs(self.dof_pos[:,3])+torch.abs(self.dof_pos[:,6])+torch.abs(self.dof_pos[:,9])
+        # print("!!!!!1",torch.exp(-joint_diff * 4).shape)
+        return joint_diff
     
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
@@ -995,8 +1004,9 @@ class Go2_stand(BaseTask):
     def _reward_contact(self):
         res = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         for i in range(2):
-            is_stance = self._get_gait_phase()
+            is_stance = self._get_gait_phase()[:,i].bool()
             contact = self.contact_forces[:, self.contact_foot_indices[i], 2] > 1
+            # print(contact[0],is_stance[0])
             res += ~(contact ^ is_stance)
         return res*(torch.mean(self.rew_hanstand)>0.8)
 

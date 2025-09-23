@@ -3,15 +3,15 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
     class env:
         # change the observation dim
-        frame_stack = 3 #action stack
-        c_frame_stack = 3 #critic 网络的堆叠帧数
+        frame_stack =1 #action stack
+        c_frame_stack = 1 #critic 网络的堆叠帧数
         num_envs = 4096
-        num_single_obs = 47 #这个是传感器可以获得到的信息
+        num_single_obs = 45 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 68  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        single_num_privileged_obs = 45+3+187  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
-        episode_length_s = 24 # episode length in seconds
+        episode_length_s = 20 # episode length in seconds
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts=True
     class terrain:
@@ -32,15 +32,15 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
         max_init_terrain_level = 5 # starting curriculum state
         terrain_length = 8.
         terrain_width = 8.
-        num_rows= 20 # number of terrain rows (levels)
+        num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0., 0., 1.0, 0.0, 0.0]
+        terrain_proportions = [0.15, 0.15, 0.7, 0.0, 0.0]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
-        curriculum = True
-        max_curriculum = 1.5
+        curriculum = False
+        max_curriculum = 2.0
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
@@ -51,20 +51,20 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class init_state:
-        pos = [0.0, 0.0, 0.5] # x,y,z [m]
+        pos = [0.0, 0.0, 0.42] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
-        default_joint_angles = {
-            'FL_hip_joint': 0.0,   # [rad]
-            'RL_hip_joint': 0.0,   # [rad]
-            'FR_hip_joint': -0.0 ,  # [rad]
-            'RR_hip_joint': -0.0,   # [rad]
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1 ,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 0.8,   # [rad]
+            'RL_thigh_joint': 1.,   # [rad]
             'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 0.8,   # [rad]
+            'RR_thigh_joint': 1.,   # [rad]
 
             'FL_calf_joint': -1.5,   # [rad]
             'RL_calf_joint': -1.5,    # [rad]
@@ -85,7 +85,7 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf"]
+        penalize_contacts_on = ["thigh", "calf","base"]
         terminate_after_contacts_on = ["base"]
         disable_gravity = False
         collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
@@ -104,7 +104,7 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.4,0.8]
+        friction_range = [0.2,1.25]
 
         push_robots = True
         push_interval_s = 4
@@ -118,7 +118,7 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.02, 0.02]
+        added_base_com_range = [-0.03, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -130,41 +130,38 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
 
    # range to contain the real joint armature 
 
-        add_obs_latency = True # no latency for obs_action
-        randomize_obs_motor_latency = True
-        randomize_obs_imu_latency = True
+        add_obs_latency = False # no latency for obs_action
+        randomize_obs_motor_latency = False
+        randomize_obs_imu_latency = False
         range_obs_motor_latency = [1, 3]
         range_obs_imu_latency = [1, 3]
         
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
+        add_cmd_action_latency = False
+        randomize_cmd_action_latency = False
         range_cmd_action_latency = [1, 3]
 
     class rewards:
         class scales:
             termination = -0.0
-            tracking_lin_vel = 4.
-            tracking_ang_vel = 4.
-            lin_vel_z = 0.2
-            ang_vel_xy = -0.02
-            orientation = 0.2
-            torques = -0.0002#
-            dof_acc = -1.5e-7#-7
-            dof_vel=-0.0005
+            tracking_lin_vel = 1.
+            tracking_ang_vel = 0.5
+            lin_vel_z = -2.0
+            ang_vel_xy = -0.05
+            orientation = -0.2
+            base_height=-1.0
+            torques = -0.0001#
+            dof_acc = -2.5e-7#-7
+            dof_vel=0.0
             collision = -1.
             action_rate = -0.01
-            base_height=0.2
-            trot=1.0
-            feet_clearance=1.0
-            default_pos=-0.15
-            stumble=-6.
-
+            feet_air_time =  1.0
+            default_pos=-0.02
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.29
+        base_height_target = 0.35
         max_contact_force = 100. # forces above this value are penalized
         cycle_time=0.5
         target_foot_height=0.2
@@ -225,10 +222,6 @@ class GO2_Stairs_PPO_Yu(LeggedRobotCfgPPO):
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        # only for 'ActorCriticRecurrent':
-        # rnn_type = 'lstm'
-        # rnn_hidden_size = 512
-        # rnn_num_layers = 1
         
     class algorithm:
         # training params
@@ -244,15 +237,14 @@ class GO2_Stairs_PPO_Yu(LeggedRobotCfgPPO):
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
-        sym_loss = True
-        obs_permutation = [-0.0001, -1, 2, -3, -4,
-                           -5,6,-7,-8,9,-10,
-                       -14,15,16,-11,12,13,-20,21,22,-17,18,19,
-                       -26,27,28,-23,24,25,-32,33,34,-29,30,31,
-                       -38,39,40,-35,36,37,-44,45,46,-41,42,43]
-
+        sym_loss = False
+        obs_permutation = [0.0001, -1, -2, 
+                           -3,4,-5,-6,7,-8,
+                       -12,13,14,-9,10,11,-18,19,20,-15,16,17,
+                       -24,25,26,-21,22,23,-30,31,32,-27,28,29,
+                       -36,37,38,-33,34,35,-42,43,44,-39,40,41]
         act_permutation = [ -3, 4, 5, -0.0001, 1, 2, -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
-        frame_stack = 3
+        frame_stack = 10
         sym_coef = 1.0
     class runner:
         policy_class_name = 'ActorCritic'
@@ -262,7 +254,7 @@ class GO2_Stairs_PPO_Yu(LeggedRobotCfgPPO):
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
-        experiment_name = 'go2_stairs'
+        experiment_name = 'go2_stairs_raw'
         run_name = ''
         # load and resume
         resume = False

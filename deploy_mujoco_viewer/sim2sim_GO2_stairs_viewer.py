@@ -10,7 +10,7 @@ import torch
 import keyboard  # 导入keyboard库
 from pynput import keyboard
 
-x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.6, 0.0, 0.0
+x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.3, 0.0, 0.0
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 3.0
 
 joystick_use = True
@@ -19,7 +19,7 @@ def on_press(key):
     global x_vel_cmd, y_vel_cmd, yaw_vel_cmd
     try:
         if key.char == '6':
-            x_vel_cmd += 0.3
+            x_vel_cmd += 0.1
         elif key.char == '7':
             x_vel_cmd -= 0.3
         elif key.char == '8':
@@ -148,19 +148,28 @@ def run_mujoco(policy, cfg):
             eu_ang = quaternion_to_euler_array(quat)
             eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
-            obs[0, 0] = math.sin(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
-            obs[0, 1] = math.cos(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
-            obs[0, 2] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
-            obs[0, 3] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
-            obs[0, 4] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
-            obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
-            obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
+            # obs[0, 0] = math.sin(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
+            # obs[0, 1] = math.cos(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
+            # obs[0, 2] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            # obs[0, 3] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            # obs[0, 4] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
+            # obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
+            # obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
 
-            obs[0, 11:23] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
-            obs[0, 23:35] = dq * cfg.normalization.obs_scales.dof_vel
-            obs[0, 35:47] = action
+            # obs[0, 11:23] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
+            # obs[0, 23:35] = dq * cfg.normalization.obs_scales.dof_vel
+            # obs[0, 35:47] = action
 
 
+            obs[0, 0] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            obs[0, 1] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            obs[0, 2] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
+            obs[0, 3:6] = omega*cfg.normalization.obs_scales.ang_vel
+            obs[0, 6:9] = eu_ang*cfg.normalization.obs_scales.quat
+
+            obs[0, 9:21] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
+            obs[0, 21:33] = dq * cfg.normalization.obs_scales.dof_vel
+            obs[0, 33:45] = action
             obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)
 
             hist_obs.append(obs)
@@ -275,13 +284,13 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, default="logs/go2_stairs/exported/policies/policy_1.pt",help='Run to load from.')
+    parser.add_argument('--load_model', type=str, default="logs/go2_stairs_raw/exported/policies/policy_1.pt",help='Run to load from.')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
     class Sim2simCfg(GO2_Stairs_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
+            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene_terrain.xml'
             sim_duration = 120.0
             dt = 0.005
             decimation = 4
@@ -290,10 +299,10 @@ if __name__ == '__main__':
             kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
             kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
             tau_limit = 45 * np.ones(12, dtype=np.double)
-            default_dof_pos = np.array( [0.0,0.8,-1.5,
-                -0.0,0.8,-1.5,
-                 0.0,0.8,-1.5,
-                -0.,0.8 ,-1.5], dtype=np.double)
+            default_dof_pos = np.array( [0.1,0.8,-1.5,
+                -0.1,0.8,-1.5,
+                 0.1,1.0,-1.5,
+                -0.1,1.0 ,-1.5], dtype=np.double)
 
 
     policy = torch.jit.load(args.load_model)

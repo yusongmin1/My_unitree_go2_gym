@@ -3,7 +3,7 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
     class env:
         # change the observation dim
-        frame_stack = 3 #action stack
+        frame_stack = 10 #action stack
         c_frame_stack = 3 #critic 网络的堆叠帧数
         num_envs = 4096
         num_single_obs = 47 #这个是传感器可以获得到的信息
@@ -143,21 +143,21 @@ class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
     class rewards:
         class scales:
             termination = -0.0
-            tracking_lin_vel = 4.
-            tracking_ang_vel = 4.
-            lin_vel_z = 0.2
-            ang_vel_xy = -0.02
-            orientation = 0.2
-            torques = -0.0002#
+            tracking_lin_vel = 2.
+            tracking_ang_vel = 2.
+            lin_vel_z = -2.
+            ang_vel_xy = -0.05
+            orientation = -2.
+            torques = -0.0001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
             stand_still = -1.
-            base_height=0.2
-            trot=1.0
-            feet_clearance=1.0
-            default_hip_pos=-1.0
-            default_pos=-0.15
+            base_height=-5.
+            trot=0.8
+            feet_clearance=0.1 #feet clearance can increase for more
+            default_hip_pos=-0.2
+            default_pos=-0.1
 
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
@@ -167,7 +167,7 @@ class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
         base_height_target = 0.29
         max_contact_force = 100. # forces above this value are penalized
         cycle_time=0.5
-        target_foot_height=0.2
+        target_foot_height=0.06  #feet height
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -252,7 +252,7 @@ class GO2_Trot_PPO_Yu(LeggedRobotCfgPPO):
                        -38,39,40,-35,36,37,-44,45,46,-41,42,43]
 
         act_permutation = [ -3, 4, 5, -0.0001, 1, 2, -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
-        frame_stack = 3
+        frame_stack = 10
         sym_coef = 1.0
     class runner:
         policy_class_name = 'ActorCritic'
@@ -262,7 +262,7 @@ class GO2_Trot_PPO_Yu(LeggedRobotCfgPPO):
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
-        experiment_name = 'go2_trot'
+        experiment_name = 'go2_trot_2'
         run_name = ''
         # load and resume
         resume = False

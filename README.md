@@ -1,7 +1,7 @@
 <div align="center">
   <h1 align="center">Unitree GO2 GYM --YuSongmin</h1>
   <p align="center">
-    <a href="README.md">🌎 English</a> | <span>🇨🇳 中文</span>
+
   </p>
 </div>
 
@@ -62,7 +62,7 @@ python legged_gym/scripts/train.py --task=go2_spring_jump --headless
 ```bash
 python legged_gym/scripts/train.py --task=go2_backflip --headless
 ```
-handstand 需要把mirror loss注释掉
+handstand 需要把mirror loss注释掉,
 #### ⚙️  参数说明
 - `--task`: 必选参数，值可选(go2, g1, h1, h1_2)
 - `--headless`: 默认启动图形界面，设为 true 时不渲染图形界面（效率更高）
@@ -120,29 +120,19 @@ Play 会导出 Actor 网络，保存于 `logs/{experiment_name}/exported/policie
 - 普通网络（MLP）导出为 `policy_1.pt`
 
 
-### 3. Sim2Sim (Mujoco)
-mujoco_viewer mujoco.viewer two vision mujoco_viewer time sync is better 
-
-
-## 运行说明
-
-纯强化学习代码，不含模仿学习
-
-deploy_mujoco_48_handstand.py go2的handstand版本，没有base_line_vel，状态sin cos command ,command此时默认为0，后续可能加入起身下落的控制
-对于站立控制的建议，不要把追踪速度作为最大值，否则他很容易学习到一前一后的叉开腿的动作。
-
-
-目前只有handstand jump trot stairs是有效的，其他的还没有做完，我的想法是把其他的项目比方说BACKFLIP，难以阅读的代码整合到legged_gym框架，方便后来者进行学习
-staris单训练比较困难，可以使用trot预训练抬脚高度20cm，然后再训练，我trot训练10000轮，stairs 8000轮可以爬20cm台阶,15cm 较为稳定
 # 问题 与后续修改的计划
 
-pakour
+handstand frequency not slove and add command for land
+
+staris level up slow not slove
+
+pakour(PIE)
+
+Perspective RL
 
 backflip
 
-spring_jump
 
-部署成功后开源部署代码，py
 
 # 参考文章
 https://arxiv.org/pdf/2205.02824

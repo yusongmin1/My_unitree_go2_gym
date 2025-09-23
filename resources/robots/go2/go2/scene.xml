@@ -29,8 +29,8 @@
     <geom pos="3.6 0 0.0" type="box"  size="0.24 2 0.8" quat="1.0 0 0 0"/>
     <geom pos="4.0 0 0.0" type="box"  size="0.25 2 1.0" quat="1.0 0 0 0"/>
     <geom pos="4.4 0 0.0" type="box"  size="0.26 2 1.2" quat="1.0 0 0 0"/>  -->
-
-    <!-- <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.2" quat="1.0 0 0 0"/>
+<!-- 
+    <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.2" quat="1.0 0 0 0"/>
     <geom pos="2.61 0 0.0" type="box"  size="0.22 2 0.4" quat="1.0 0 0 0"/>
     <geom pos="2.92 0 0.0" type="box"  size="0.23 2 0.6" quat="1.0 0 0 0"/>
     <geom pos="3.23 0 0.0" type="box"  size="0.24 2 0.8" quat="1.0 0 0 0"/>
@@ -44,5 +44,12 @@
     <geom pos="3.54 0 0.0" type="box"  size="0.25 2 0.75" quat="1.0 0 0 0"/>
     <geom pos="3.85 0 0.0" type="box"  size="0.26 2 0.9" quat="1.0 0 0 0"/>  -->
 
+
+    <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.15" quat="1.0 0 0 0"/>
+    <geom pos="2.6 0 0.0" type="box"  size="0.22 2 0.3" quat="1.0 0 0 0"/>
+    <geom pos="2.9 0 0.0" type="box"  size="0.23 2 0.45" quat="1.0 0 0 0"/>
+    <geom pos="3.2 0 0.0" type="box"  size="0.24 2 0.6" quat="1.0 0 0 0"/>
+    <geom pos="3.5 0 0.0" type="box"  size="0.25 2 0.75" quat="1.0 0 0 0"/>
+    <geom pos="3.8 0 0.0" type="box"  size="0.26 2 0.9" quat="1.0 0 0 0"/> 
   </worldbody>
 </mujoco>

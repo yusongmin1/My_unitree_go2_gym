@@ -152,11 +152,11 @@ def run_mujoco(policy, cfg):
             eu_ang = quaternion_to_euler_array(quat)
             eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
-            obs[0, 0] = math.sin(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
-            obs[0, 1] = math.cos(2 * math.pi * count_lowlevel * cfg.sim_config.dt  / cfg.rewards.cycle_time)
-            obs[0, 2] = x_vel_cmd 
+            obs[0, 0] = 0
+            obs[0, 1] = 0
+            obs[0, 2] = 0
             obs[0, 3] = y_vel_cmd 
-            obs[0, 4] = 0.6
+            obs[0, 4] = x_vel_cmd
             obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
             obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
 
@@ -182,9 +182,9 @@ def run_mujoco(policy, cfg):
         target_dq = np.zeros((cfg.env.num_actions), dtype=np.double)
 
         # Generate PD control
-        if _ <300:
-            tau = pd_control(np.zeros((cfg.env.num_actions)), q, cfg.robot_config.kps,
-                            target_dq, dq, cfg.robot_config.kds, cfg)  # Calc torques
+        if _ <500:
+            tau = pd_control(np.zeros((cfg.env.num_actions)), q, cfg.robot_config.kps_,
+                            target_dq, dq, cfg.robot_config.kds_, cfg)  # Calc torques
             tau = np.clip(tau, -cfg.robot_config.tau_limit, cfg.robot_config.tau_limit)  # Clamp torques
         else:
             tau = pd_control(target_q, q, cfg.robot_config.kps,
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, default="logs/go2_backflip/exported/policies/policy_4.pt",help='Run to load from.')
+    parser.add_argument('--load_model', type=str, default="logs/go2_backflip/exported/policies/policy_1.pt",help='Run to load from.')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
@@ -218,7 +218,9 @@ if __name__ == '__main__':
 
         class robot_config:
             kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
+            kps_ = np.array([40,40,40,40,40,40,40,40,40,40,40,40], dtype=np.double)
             kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
+            kds_ = np.array([1,1,1,1,1,1,1,1,1,1,1,1], dtype=np.double)
             tau_limit = 45 * np.ones(12, dtype=np.double)
             default_dof_pos = np.array( [0.0,0.8,-1.5,
                 -0.0,0.8,-1.5,

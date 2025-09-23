@@ -1,7 +1,0 @@
-isaacgym
-rsl-rl
-matplotlib
-numpy==1.24.4
-tensorboard
-mujoco==3.2.3
-pyyaml

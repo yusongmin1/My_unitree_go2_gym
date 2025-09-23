@@ -53,15 +53,14 @@ def play(args):
     camera_vel = np.array([1., 1., 0.])
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
-    env.commands[:, 0]=1.
+    env.commands[:, 0]=1.0
     env.commands[:, 1]=0.
     env.commands[:, 2]=0.
     for i in range(10*int(env.max_episode_length)):
         actions = policy(obs.detach())
         obs, _, rews, dones, infos = env.step(actions.detach())
         # print(obs[0])
-        # print(env.dof_pos[0])
-        # print(env.was_in_flight[0],env.commands[0],env.max_height[0])
+        # print(env.commands[0],env.landing_poses[0],env.was_in_flight[0],env.has_jumped[0])
         if RECORD_FRAMES:
                     if i % 2:
                         filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")

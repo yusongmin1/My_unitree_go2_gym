@@ -50,7 +50,7 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
         class ranges:
             lin_vel_x = [-0.8,0.8] # min max [m/s]
             lin_vel_y = [-0.05, 0.05]   # min max [m/s]
-            ang_vel_yaw = [-0.8, 0.8]    # min max [rad/s]
+            ang_vel_yaw = [-0.4, 0.4]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
@@ -167,16 +167,17 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
             collision = -1.
             feet_stumble = -0.0 
             action_rate = -0.01
-            default_pos =-0.3####
-            contact=0.3
-
+            default_pos =-0.15####
+            default_hip_pos=-0.05
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
         base_height_target = 0.52#0.25
+        target_foot_height=0.05
         max_contact_force = 200. # forces above this value are penalized
+        cycle_time=0.5
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -268,7 +269,7 @@ class GO2CfgPPO_Handstand(LeggedRobotCfgPPO):
         max_iterations = 15000 # number of policy updates
 
         # logging
-        save_interval = 200 # check for potential saves every this many iterations
+        save_interval = 100 # check for potential saves every this many iterations
         experiment_name = 'go2_handstand_first'
         run_name = ''
         # load and resume

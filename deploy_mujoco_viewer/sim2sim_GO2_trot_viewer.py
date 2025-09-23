@@ -275,7 +275,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, default="logs/go2_trot/exported/policies/policy_1.pt",help='Run to load from.')
+    parser.add_argument('--load_model', type=str, default="logs/go2_trot_2/exported/policies/policy_1.pt",help='Run to load from.')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
