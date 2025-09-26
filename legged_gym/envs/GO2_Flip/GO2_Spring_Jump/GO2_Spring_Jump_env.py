@@ -144,10 +144,10 @@ class GO2_Spring_Jump_Robot(BaseTask):
         if self.cfg.domain_rand.push_towards_goal and torch.any(env_ids):
             self._push_robots_upwards(env_ids)
             self.not_pushed_up[env_ids] = False        
-        env_ids =~self.not_pushed_up*(self.commands[:,2]==1)*self.not_pushed_rotot
-        if self.cfg.domain_rand.push_towards_goal and torch.any(env_ids):
-            self._push_robots_desired(env_ids)
-            self.not_pushed_rotot[env_ids] =False
+        # env_ids =~self.not_pushed_up*(self.commands[:,2]==1)*self.not_pushed_rotot
+        # if self.cfg.domain_rand.push_towards_goal and torch.any(env_ids):
+        #     self._push_robots_desired(env_ids)
+        #     self.not_pushed_rotot[env_ids] =False
     def _push_robots_upwards(self,env_ids):
 
         random_push = torch.randint(0,10,(self.num_envs,1),device=self.device).squeeze()
@@ -163,7 +163,7 @@ class GO2_Spring_Jump_Robot(BaseTask):
         
         random_push = torch.randint(0,10,(self.num_envs,1),device=self.device).squeeze()
         env_ids = torch.logical_and(random_push<self.prob,env_ids)
-        self.root_states[env_ids,7] += torch_rand_float(0.0,0.4, (self.num_envs, 1), device=self.device).flatten()[env_ids]
+        self.root_states[env_ids,7] += torch_rand_float(0.0,1.0, (self.num_envs, 1), device=self.device).flatten()[env_ids]
         # self.root_states[env_ids,11] -= 0.1
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))  
 
@@ -224,7 +224,7 @@ class GO2_Spring_Jump_Robot(BaseTask):
         self.command_frame=torch.randint(50,60,(self.num_envs,),device=self.device)
         # self.height_buf[env_ids] = 0.0
 
-        self.commands[env_ids, 0] = 1.0
+        self.commands[env_ids, 0] = torch_rand_float(0.8,1.2, (1,1), device=self.device)
         self.commands[env_ids, 1] = 0.0
 
         self.commands[env_ids, 2] = 0
@@ -894,7 +894,7 @@ class GO2_Spring_Jump_Robot(BaseTask):
     #------------ reward functions----------------
     def _reward_before_setting(self):
         #切换到蹲姿状态之前的奖励函数
-        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.lie_joint_pos),dim=1)/2)*(self.commands[:, 2] == 0)
+        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.default_dof_pos),dim=1)/2)*(self.commands[:, 2] == 0)
         return rew
     
     def _reward_line_z(self):
@@ -912,7 +912,7 @@ class GO2_Spring_Jump_Robot(BaseTask):
     def _reward_base_height_flight(self):
         #跳跃的高度奖励
         base_height_flight = (self.root_states[:, 2] - 0.47)
-        rew= torch.exp(-torch.abs(base_height_flight)*5)*(self.was_in_flight)*~self.has_jumped*3
+        rew= torch.exp(-torch.abs(base_height_flight)*5)*(self.was_in_flight)*~self.has_jumped*6
         return rew 
     
     def _reward_base_height_stance(self):
@@ -921,7 +921,13 @@ class GO2_Spring_Jump_Robot(BaseTask):
     
     def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励
-        return torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)*~self.was_in_flight+1.0*torch.abs(self.dof_pos - self.lie_joint_pos).sum(dim=1)*self.was_in_flight
+        return torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)
+
+    def _reward_dof_hip_pos(self):
+        #落地后的高度奖励和默认关节角度的奖励
+        rew=torch.abs(self.dof_pos - self.default_dof_pos)
+        return rew[:,0]+rew[:,3]+rew[:,6]+rew[:,9]
+        
     def _reward_orientation(self):
         #rewer=self.base_euler_xyz
         rew=torch.exp(-torch.abs(self.base_euler_xyz).sum(dim=1))
@@ -973,7 +979,7 @@ class GO2_Spring_Jump_Robot(BaseTask):
     
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
-        lin_vel_error = torch.square(self.commands[:, 0]*2 - self.base_lin_vel[:, 0])
+        lin_vel_error = torch.square(self.commands[:, 0]*1.6 - self.base_lin_vel[:, 0])
         # print(self.commands[0, 0]*2 , self.base_lin_vel[0, 0])
         return torch.exp(-lin_vel_error)*self.was_in_flight*~self.has_jumped*5
     

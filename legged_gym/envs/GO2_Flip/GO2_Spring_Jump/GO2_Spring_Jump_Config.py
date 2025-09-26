@@ -159,24 +159,25 @@ class GO2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
     class rewards:
         class scales:
             before_setting=5.0
-            line_z=12.
+            line_z=16.
             flight=2.
-            base_height_flight=2.
+            base_height_flight=3.
             base_height_stance=-10
             orientation=2.
-            dof_pos=-0.3
+            dof_pos=-0.1
+            dof_hip_pos=-1.0
             ang_vel_xy=-0.2
             torques=-0.0001
             dof_pos_limits=-10.
             dof_vel_limits=-1.
             dof_vel=-0.001
             termination=0.0
-            collision=-10.
+            collision=-50.
             action_rate=-0.01
             feet_contact_forces=-0.1
             land_pos=25.0
-            tracking_lin_vel=1.0
-            line_vel_stance=-1.
+            tracking_lin_vel=5.0
+            line_vel_stance=-3.
             foot_clearance=-3.
         max_contact_force=150
         only_positive_rewards=False
