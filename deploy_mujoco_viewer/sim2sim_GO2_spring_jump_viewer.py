@@ -158,7 +158,7 @@ def run_mujoco(policy, cfg):
 
             obs[0, 0] = 0
             obs[0, 1] = 0
-            obs[0, 2] = 0.6
+            obs[0, 2] = 0.7
             obs[0, 3] = 0
             obs[0, 4] = x_vel_cmd
             obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
@@ -226,7 +226,7 @@ if __name__ == '__main__':
         class robot_config:
             kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
             kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
-            tau_limit = 33.5 * np.ones(12, dtype=np.double)
+            tau_limit = 25 * np.ones(12, dtype=np.double)
             default_dof_pos = np.array( [0.,0.8,-1.5,
                 -0.,0.8,-1.5,
                  0.,1.0,-1.5,

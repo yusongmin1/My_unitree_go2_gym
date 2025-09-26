@@ -7,7 +7,7 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         c_frame_stack = 3 #critic 网络的堆叠帧数
         num_single_obs = 47 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 69  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        single_num_privileged_obs = 50  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         num_envs = 4096
@@ -123,7 +123,7 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.4,0.8]
+        friction_range = [0.2,1.25]
 
         push_robots = True
         push_interval_s = 4
@@ -137,7 +137,7 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.02, 0.02]
+        added_base_com_range = [-0.03, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -161,33 +161,30 @@ class GO2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         class scales:
             before_setting=5.0
             line_z=25.
-            angle_y=5.
+            angle_y=10.
             base_height_flight=5.0
-            base_height_stance=20.0
-            dof_pos_stance=10.0
-            orientation=25.
-            orientation_before=4.
-            dof_pos=-0.3
-            dof_vel_stance= 10
-            line_vel_stance=10.
-            ang_vel_xy=-0.1
+            base_height_stance=10.0
+            orientation=10.
+            orientation_before=2.
+            dof_pos=-0.2
+            line_vel_stance=-1.
+            ang_vel_xy=-0.2
             torques=-0.0001
             dof_pos_limits=-10.
-            dof_vel_limits=-10.
+            dof_vel_limits=-2.
             dof_vel=-0.001
             termination=0.0
-            collision=-20.
-            action_rate=-0.001
-            feet_contact_forces=-0.5
-            land_pos=5.0
-            symmetric_joints=-1
-            default_hip_pos=-5
+            collision=-10.
+            action_rate=-0.01
+            feet_contact_forces=-0.1
+            land_pos=1.0
+            symmetric_joints=-0.3
+            default_hip_pos=-0.5
 
         max_contact_force=150
         only_positive_rewards=False
         reward_sigma=0.25
         target_height=0.6
-        cycle_time=1.0
         soft_dof_pos_limit=0.9
     class normalization:
         class obs_scales:

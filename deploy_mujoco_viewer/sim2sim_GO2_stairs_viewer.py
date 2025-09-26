@@ -10,7 +10,7 @@ import torch
 import keyboard  # 导入keyboard库
 from pynput import keyboard
 
-x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.3, 0.0, 0.0
+x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.2, 0.0, 0.0
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 3.0
 
 joystick_use = True
@@ -290,7 +290,7 @@ if __name__ == '__main__':
 
     class Sim2simCfg(GO2_Stairs_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene_terrain.xml'
+            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 120.0
             dt = 0.005
             decimation = 4

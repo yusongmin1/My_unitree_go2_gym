@@ -122,7 +122,7 @@ class GO2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.4,0.8]
+        friction_range = [0.3,1.0]
 
         push_robots = True
         push_interval_s = 4
@@ -136,7 +136,7 @@ class GO2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.02, 0.02]
+        added_base_com_range = [-0.03, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -161,22 +161,23 @@ class GO2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
             before_setting=5.0
             line_z=12.
             flight=2.
-            base_height_flight=3.
+            base_height_flight=2.
             base_height_stance=-10
             orientation=2.
             dof_pos=-0.3
-            ang_vel_xy=-0.25
+            ang_vel_xy=-0.2
             torques=-0.0001
-            dof_pos_limits=-1.
+            dof_pos_limits=-10.
             dof_vel_limits=-1.
-            dof_vel=-0.002
+            dof_vel=-0.001
             termination=0.0
             collision=-10.
             action_rate=-0.01
             feet_contact_forces=-0.1
             land_pos=25.0
-            tracking_lin_vel=5.0
-            line_vel_stance=-3.
+            tracking_lin_vel=1.0
+            line_vel_stance=-1.
+            foot_clearance=-3.
         max_contact_force=150
         only_positive_rewards=False
         reward_sigma=0.25

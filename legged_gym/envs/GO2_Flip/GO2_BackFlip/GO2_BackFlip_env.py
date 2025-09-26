@@ -122,7 +122,7 @@ class Go2_BackFlip(BaseTask):
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
         # self.ori_error=torch.abs(self.base_euler_xyz[:,2]-)
         # print(self.episode_length_buf.shape,self.commands.shape,self.command_frame.shape)
-        self.commands[self.episode_length_buf==50,2]=1.0
+        self.commands[self.episode_length_buf==self.command_frame,2]=1.0
         self.check_jump()
         self.check_termination()
         self.compute_reward()
@@ -137,7 +137,7 @@ class Go2_BackFlip(BaseTask):
         if self.cfg.env.test:
             self._draw_debug_goal()
         env_ids = self.not_pushed_up * ~self.has_jumped * (self.commands[:,2]==1.0)
-        self.max_ang_vel_y=torch.maximum(self.max_ang_vel_y,self.base_ang_vel[:,1])
+        self.max_ang_vel_y=torch.maximum(self.max_ang_vel_y,torch.abs(self.base_ang_vel[:,1]))
         
         if self.cfg.domain_rand.push_towards_goal and torch.any(env_ids):
             self._push_robots_upwards(env_ids)
@@ -152,7 +152,7 @@ class Go2_BackFlip(BaseTask):
         self.prob=max(8-int(self.count/(24*50)),0)
         env_ids = torch.logical_and(random_push<self.prob,env_ids)
 
-        self.root_states[env_ids,9] += torch_rand_float(1.5, 2., (self.num_envs, 1), device=self.device).flatten()[env_ids]
+        self.root_states[env_ids,9] += torch_rand_float(2.0, 3.5, (self.num_envs, 1), device=self.device).flatten()[env_ids]
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
 
     def _push_robots_desired(self,env_ids):
@@ -161,7 +161,7 @@ class Go2_BackFlip(BaseTask):
         
         random_push = torch.randint(0,10,(self.num_envs,1),device=self.device).squeeze()
         env_ids = torch.logical_and(random_push<self.prob,env_ids)
-        self.root_states[env_ids,11] += torch_rand_float(1.5,2.0, (self.num_envs, 1), device=self.device).flatten()[env_ids]
+        self.root_states[env_ids,11] += torch_rand_float(2.0,2.5, (self.num_envs, 1), device=self.device).flatten()[env_ids]
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))  
 
     def check_jump(self):
@@ -217,15 +217,10 @@ class Go2_BackFlip(BaseTask):
         self.last_contacts[env_ids] = 0
         self.not_pushed_up[env_ids] = True
         self.not_pushed_rotot[env_ids] =True
-        self.command_frame=torch.randint(50,100,(self.num_envs,),device=self.device)
+        self.command_frame=torch.randint(50,60,(self.num_envs,),device=self.device)
 
 
-        self.commands[env_ids, 0] = 0.0
-        # self.commands[env_ids, 1] = torch_rand_float(0,self.max_x, (len(env_ids),1), device=self.device).squeeze(-1)
-        self.commands[env_ids, 1] = 0.0
-
-
-        self.commands[env_ids, 2] = 0
+        self.commands[env_ids, :] = 0.0
 
         self._reset_latency_buffer(env_ids)
         self.extras["episode"] = {}
@@ -269,47 +264,24 @@ class Go2_BackFlip(BaseTask):
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
-    def _get_phase(self):
-        cycle_time = self.cfg.rewards.cycle_time
-        phase = (self.episode_length_buf * self.dt)%cycle_time/cycle_time
-        return phase
-
-    def _get_gait_phase(self):
-        # return float mask 1 is stance, 0 is swing
-        phase = self._get_phase()
-        stance_mask = torch.zeros((self.num_envs, 2), device=self.device)
-        stance_mask[:, 0] = phase<0.5
-        stance_mask[:, 1] = phase>0.5
-        return stance_mask
     
     def compute_observations(self):
 
-        phase = self._get_phase()
-
-        sin_pos = torch.sin(2 * torch.pi * phase).unsqueeze(1)
-        cos_pos = torch.cos(2 * torch.pi * phase).unsqueeze(1)
-
-        stance_mask = self._get_gait_phase()
-        contact_mask = self.contact_forces[:, self.feet_indices, 2] > 5.
 
         self.command_input = torch.cat(
-            (sin_pos, cos_pos, self.commands[:, :3]), dim=1)#???? command_sacle不加会怎么样 1，1，1
+            (torch.zeros((self.num_envs, 2), device=self.device),self.commands[:, :3]), dim=1)#???? command_sacle不加会怎么样 1，1，1
 
         self.privileged_obs_buf = torch.cat((
             self.command_input,  # 2 + 3 控制输入 ，相位，目标速度，角速度
             (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,  # 12  当前关节位置与默认关节位置之差
-            self.dof_pos * self.obs_scales.dof_pos,  # 12
             self.dof_vel * self.obs_scales.dof_vel,  # 速度乘以缩放因子 12
             self.actions,  # 12
             self.base_lin_vel * self.obs_scales.lin_vel,  # 3
             self.base_ang_vel * self.obs_scales.ang_vel,  # 3
             self.base_euler_xyz *self.cfg.normalization.obs_scales.quat,  # 3
-            stance_mask,  # 2
-            contact_mask,  # 2    
-            self.has_jumped.unsqueeze(1),
             
         ), dim=-1)#5 12 12 12 12 3 3 3 1 1 2 2 =68
-        # print("self.privileged_obs_buf",self.privileged_obs_buf.shape)
+        # print(self.privileged_obs_buf.shape)
         q = (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos
         dq = self.dof_vel * self.obs_scales.dof_vel
 
@@ -552,41 +524,6 @@ class Go2_BackFlip(BaseTask):
                                                    torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
     
-    def update_command_curriculum(self,env_ids):
-        """ Implements a curriculum of increasing commands
-
-        Args:
-            env_ids (List[int]): ids of environments being reset
-        """
-        if not self.init_done:
-            # don't change on initial reset
-            return
-        success_rate = torch.sum(self.success_rate[env_ids], dim=1)/(self.success_rate.shape[-1])
-        # robots that were sucessful for enough trials should be moved to harder jumps:
-        # Currently if it succeeds once it's moved up
-        move_up = torch.logical_and(success_rate > 0.0, torch.all(self.success_rate[env_ids] >= 0.))
-        # robots that were not successful for enough trials should be moved to easier jumps:
-        # if it fails in both trials it's moved down
-        move_down = torch.logical_and(success_rate <= 0.0, torch.all(self.success_rate[env_ids] >= 0.)) * ~move_up
-       
-        self.command_dist_levels[env_ids] += 1 * move_up #- 1 * move_down
-        self.command_dist_levels[env_ids] -= 1 * move_down
-        
-
-        max_command_dist_level = self.cfg.commands.num_levels - 1
-
-        self.reset_landing_error[env_ids * (self.command_dist_levels[env_ids] >= max_command_dist_level/2)] -= 1 * move_up
-        self.reset_landing_error[env_ids * (self.command_dist_levels[env_ids] >= max_command_dist_level/2)] += 1 * move_down
-        self.reset_landing_error[env_ids * (self.command_dist_levels[env_ids] < max_command_dist_level/2)] = max_command_dist_level
-        
-
-        self.command_dist_levels = torch.clip(self.command_dist_levels, min=0, max=max_command_dist_level) # (the minumum level is zero)
-        self.reset_landing_error = torch.clip(self.reset_landing_error, min=0, max=max_command_dist_level)
-        # Reset success rate for robots that have changed difficulty levels
-        self.success_rate[env_ids[torch.logical_or(move_up,move_down)]] = -1.
-
-
-
     def _get_noise_scale_vec(self, cfg):
         """ Sets a vector used to scale the noise added to the observations.
             [NOTE]: Must be adapted when changing the observations structure
@@ -641,7 +578,7 @@ class Go2_BackFlip(BaseTask):
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
 
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) 
-        self.command_frame=torch.randint(50,100,(self.num_envs,),device=self.device)
+        self.command_frame=torch.randint(50,60,(self.num_envs,),device=self.device)
         self.max_ang_vel_y=torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
         self.contact_filt = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
@@ -911,9 +848,10 @@ class Go2_BackFlip(BaseTask):
             sphere_pose_start = gymapi.Transform(gymapi.Vec3(self.init_state[i, 0], self.init_state[i, 1], 0.0), r=None)
             gymutil.draw_lines(sphere_geom_start, self.gym, self.viewer, self.envs[i], sphere_pose_start)
     #------------ reward functions----------------
+
     def _reward_before_setting(self):
         #切换到蹲姿状态之前的奖励函数
-        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.lie_joint_pos),dim=1)/2)*(self.commands[:, 2] == 0)
+        rew = torch.exp(-torch.sum(torch.abs(self.dof_pos-self.default_dof_pos),dim=1)/4)*(self.commands[:, 2] == 0)
         return rew
     
     def _reward_line_z(self):
@@ -923,15 +861,15 @@ class Go2_BackFlip(BaseTask):
     
     def _reward_angle_y(self):
         #在初始化后和落地之前z轴线速度越大越好
-        rew=(self.base_ang_vel[:, 1]) *(self.commands[:, 2] == 1*~self.was_in_flight)
-        rew+=3*(self.base_ang_vel[:, 1]) *(self.was_in_flight*~self.has_jumped)
+        rew=(self.base_ang_vel[:, 1])*(self.base_ang_vel[:, 1]>0) *(self.commands[:, 2] == 1)*(~self.was_in_flight)
+        rew+=3*(self.base_ang_vel[:, 1]) *(self.base_ang_vel[:, 1]>0) *(self.was_in_flight*~self.has_jumped)
         rew = torch.clip(rew,max=20.)
         return rew
 
     def _reward_land_pos(self):
         #xy轴角速度奖励
         land_err=self.init_state[:,:2]-self.root_states[:, :2]
-        return torch.exp(-torch.sum(torch.abs(land_err),dim=1)*5)*(self.has_jumped) 
+        return torch.exp(-torch.sum(torch.abs(land_err),dim=1))*(self.has_jumped) 
     
 
     def _reward_symmetric_joints(self):
@@ -940,7 +878,6 @@ class Go2_BackFlip(BaseTask):
         # # Multiply the right side hips by -1 to match the sign of the left side:
         dof[:,1,0] *= -1
         dof[:,3,0] *= -1
-        
         err = torch.sum(torch.abs(dof[:,0,:] - dof[:,1,:]),axis=1) + torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1)
         return err
 
@@ -960,9 +897,7 @@ class Go2_BackFlip(BaseTask):
     
     def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励
-        rew=torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)*self.has_jumped
-        rew+=torch.abs(self.dof_pos - self.lie_joint_pos).sum(dim=1)*(self.was_in_flight)*~self.has_jumped
-        rew+=torch.abs(self.dof_pos - self.lie_joint_pos).sum(dim=1)*self.commands[:,2]==1
+        rew=torch.abs(self.dof_pos - self.default_dof_pos).sum(dim=1)
         return rew
     def _reward_default_hip_pos(self):
         """
@@ -970,7 +905,6 @@ class Go2_BackFlip(BaseTask):
         on penalizing deviation in yaw and roll directions. Excludes yaw and roll from the main penalty.
         """
         joint_diff = torch.abs(self.dof_pos[:,0])+torch.abs(self.dof_pos[:,3])+torch.abs(self.dof_pos[:,6])+torch.abs(self.dof_pos[:,9])
-        # print("!!!!!1",torch.exp(-joint_diff * 4).shape)
         return joint_diff
 
     def _reward_orientation(self):
@@ -980,7 +914,7 @@ class Go2_BackFlip(BaseTask):
         return torch.exp(-torch.abs(self.base_euler_xyz).sum(dim=1))*(self.commands[:, 2] == 0)
     
     def _reward_ang_vel_xy(self):
-        rew=(torch.abs(self.base_ang_vel[:, 2])+torch.abs(self.base_ang_vel[:, 0]))*self.commands[:,2]==1
+        rew=(torch.abs(self.base_ang_vel[:, 2])+torch.abs(self.base_ang_vel[:, 0]))
         return rew
 
     def _reward_torques(self):
@@ -1003,8 +937,6 @@ class Go2_BackFlip(BaseTask):
         return torch.sum(out_of_limits, dim=1)
 
     def _reward_dof_vel_limits(self):
-        # Penalize dof velocities too close to the limit
-        # clip to max error = 1 rad/s per joint to avoid huge penalties
         return torch.sum((torch.abs(self.dof_vel) - self.dof_vel_limits).clip(min=0.), dim=1)
 
     def _reward_torque_limits(self):
@@ -1020,18 +952,11 @@ class Go2_BackFlip(BaseTask):
         self.count+=1
         return torch.sum(torch.square(self.dof_vel), dim=1)
     
-    def _reward_dof_vel_stance(self):
-        # Penalize dof velocities
-        return torch.exp(-torch.sum(torch.abs(self.dof_vel), dim=1)/100)*self.was_in_flight*(self.max_ang_vel_y>7)
-    
     def _reward_line_vel_stance(self):
         # Penalize dof velocities
-        return torch.exp(-torch.sum(torch.abs(self.base_lin_vel), dim=1)/2)*self.has_jumped*(self.max_ang_vel_y>7)
+        return torch.sum(torch.abs(self.base_lin_vel), dim=1)
     
     def _reward_flight(self):
         # Penalize dof velocities
         return self.was_in_flight
     
-    def _reward_dof_pos_stance(self):
-        # Penalize dof velocities
-        return torch.exp(-torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)/2)*self.has_jumped*(self.max_ang_vel_y>7)

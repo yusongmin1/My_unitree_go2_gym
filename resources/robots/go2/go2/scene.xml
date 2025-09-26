@@ -9,47 +9,119 @@
     <global azimuth="-130" elevation="-20"/>
   </visual>
 
-  <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
-    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
-      markrgb="0.8 0.8 0.8" width="300" height="300"/>
-    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
-  </asset>
+<asset>
+  <!-- 1 高度场 -->
+  <hfield name="rough_terrain"
+          nrow="10" ncol="10" file="rough_10x10.png" 
+          size="2.5 2.5 0.15 0.15"/>
+
+  <!-- 2 纹理 / 材料 -->
+  <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+  <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+  <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+
+  <texture type="2d" name="rough_tex" builtin="checker" rgb1="0.7 0.7 0.7" rgb2="0.3 0.3 0.3" width="100" height="100"/>
+  <material name="rough_mat" texture="rough_tex" texrepeat="10 10"/>
+</asset>
 
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
 
-    <!-- <geom pos="1.2 0 0.0" type="box"  size="0.1 2 0.1" quat="1.0 0 0 0"/>
-    <geom pos="1.6 0 0.0" type="box"  size="0.1 2 0.1" quat="1.0 0 0 0"/> -->
-
-    <!-- <geom pos="2.4 0 0.0" type="box"  size="0.2 2 0.2" quat="1.0 0 0 0"/>
-    <geom pos="2.8 0 0.0" type="box"  size="0.22 2 0.4" quat="1.0 0 0 0"/>
-    <geom pos="3.2 0 0.0" type="box"  size="0.23 2 0.6" quat="1.0 0 0 0"/>
-    <geom pos="3.6 0 0.0" type="box"  size="0.24 2 0.8" quat="1.0 0 0 0"/>
-    <geom pos="4.0 0 0.0" type="box"  size="0.25 2 1.0" quat="1.0 0 0 0"/>
-    <geom pos="4.4 0 0.0" type="box"  size="0.26 2 1.2" quat="1.0 0 0 0"/>  -->
-<!-- 
-    <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.2" quat="1.0 0 0 0"/>
-    <geom pos="2.61 0 0.0" type="box"  size="0.22 2 0.4" quat="1.0 0 0 0"/>
-    <geom pos="2.92 0 0.0" type="box"  size="0.23 2 0.6" quat="1.0 0 0 0"/>
-    <geom pos="3.23 0 0.0" type="box"  size="0.24 2 0.8" quat="1.0 0 0 0"/>
-    <geom pos="3.54 0 0.0" type="box"  size="0.25 2 1.0" quat="1.0 0 0 0"/>
-    <geom pos="3.85 0 0.0" type="box"  size="0.26 2 1.2" quat="1.0 0 0 0"/>  -->
-
-    <!-- <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.15" quat="1.0 0 0 0"/>
-    <geom pos="2.61 0 0.0" type="box"  size="0.22 2 0.3" quat="1.0 0 0 0"/>
-    <geom pos="2.92 0 0.0" type="box"  size="0.23 2 0.45" quat="1.0 0 0 0"/>
-    <geom pos="3.23 0 0.0" type="box"  size="0.24 2 0.6" quat="1.0 0 0 0"/>
-    <geom pos="3.54 0 0.0" type="box"  size="0.25 2 0.75" quat="1.0 0 0 0"/>
-    <geom pos="3.85 0 0.0" type="box"  size="0.26 2 0.9" quat="1.0 0 0 0"/>  -->
 
 
-    <geom pos="2.3 0 0.0" type="box"  size="0.2 2 0.15" quat="1.0 0 0 0"/>
-    <geom pos="2.6 0 0.0" type="box"  size="0.22 2 0.3" quat="1.0 0 0 0"/>
-    <geom pos="2.9 0 0.0" type="box"  size="0.23 2 0.45" quat="1.0 0 0 0"/>
-    <geom pos="3.2 0 0.0" type="box"  size="0.24 2 0.6" quat="1.0 0 0 0"/>
-    <geom pos="3.5 0 0.0" type="box"  size="0.25 2 0.75" quat="1.0 0 0 0"/>
-    <geom pos="3.8 0 0.0" type="box"  size="0.26 2 0.9" quat="1.0 0 0 0"/> 
+<!-- 15m -->
+<!-- <geom pos="2.15 0 0.075" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="2.45 0 0.225" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="2.75 0 0.375" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="3.05 0 0.525" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="3.35 0 0.675" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="3.65 0 0.825" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="3.95 0 0.975" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="4.25 0 1.125" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="4.55 0 1.275" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="4.85 0 1.425" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+
+<geom pos="5.6 0 1.425" type="box" size="0.6 2 0.075" quat="1 0 0 0"/>
+
+<geom pos="6.35 0 1.425" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="6.65 0 1.275" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="6.95 0 1.125" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="7.25 0 0.975" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="7.55 0 0.825" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="7.85 0 0.675" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="8.15 0 0.525" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="8.45 0 0.375" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="8.75 0 0.225" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+<geom pos="9.05 0 0.075" type="box" size="0.15 2 0.075" quat="1 0 0 0"/> -->
+
+
+
+<!-- 1~10 级上台阶（每级高 0.17 m，总高 1.7 m） -->
+<!-- <geom pos="2.15 0 0.085" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="2.45 0 0.255" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="2.75 0 0.425" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="3.05 0 0.595" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="3.35 0 0.765" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="3.65 0 0.935" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="3.95 0 1.105" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="4.25 0 1.275" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="4.55 0 1.445" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="4.85 0 1.615" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+
+<geom pos="5.6 0 1.615" type="box" size="0.6 2 0.085" quat="1 0 0 0"/>
+
+<geom pos="6.35 0 1.615" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="6.65 0 1.445" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="6.95 0 1.275" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="7.25 0 1.105" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="7.55 0 0.935" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="7.85 0 0.765" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="8.15 0 0.595" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="8.45 0 0.425" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="8.75 0 0.255" type="box" size="0.15 2 0.085" quat="1 0 0 0"/>
+<geom pos="9.05 0 0.085" type="box" size="0.15 2 0.085" quat="1 0 0 0"/> -->
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 20cm -->
+<!-- <geom pos="2.15 0 0.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="2.45 0 0.3" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="2.75 0 0.5" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="3.05 0 0.7" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="3.35 0 0.9" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="3.65 0 1.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="3.95 0 1.3" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="4.25 0 1.5" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="4.55 0 1.7" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="4.85 0 1.9" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+
+<geom pos="5.6 0 1.9" type="box" size="0.6 2 0.1" quat="1 0 0 0"/>
+
+<geom pos="6.35 0 1.9" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="6.65 0 1.7" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="6.95 0 1.5" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="7.25 0 1.3" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="7.55 0 1.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="7.85 0 0.9" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="8.15 0 0.7" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="8.45 0 0.5" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="8.75 0 0.3" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+<geom pos="9.05 0 0.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/> -->
+
+
+    <geom type="hfield" hfield="rough_terrain"
+          pos="-5 0 0" material="rough_mat"/>
+
+
   </worldbody>
 </mujoco>

@@ -149,19 +149,19 @@ class GO2_Stairs_Cfg_Yu( LeggedRobotCfg ):
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-1.0
-            torques = -0.0001#
-            dof_acc = -2.5e-7#-7
+            torques = -0.00005#
+            dof_acc = -1.5e-7#-7
             dof_vel=0.0
             collision = -1.
             action_rate = -0.01
             feet_air_time =  1.0
-            default_pos=-0.02
+            default_pos=-0.01#-0.01
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.35
+        base_height_target = 0.3
         max_contact_force = 100. # forces above this value are penalized
         cycle_time=0.5
         target_foot_height=0.2
