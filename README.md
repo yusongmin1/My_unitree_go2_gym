@@ -29,11 +29,11 @@
 略
 #### rsl 
 ```bash
-cd ./rsl_rl && pip install -e .
+pip install -e ./rsl_rl
 ```
 #### legged_gym
 ```bash
-cd .. && pip install -e .
+pip install -e .
 ```
 
 
@@ -62,7 +62,12 @@ python legged_gym/scripts/train.py --task=go2_spring_jump --headless
 ```bash
 python legged_gym/scripts/train.py --task=go2_backflip --headless
 ```
-handstand 需要把mirror loss注释掉,
+目前可用的任务有：
+- go2_trot
+- go2_jump
+- go2_spring_jump
+
+其他任务或多或少有点问题，有时间的话会修复的。
 #### ⚙️  参数说明
 - `--task`: 必选参数，值可选(go2, g1, h1, h1_2)
 - `--headless`: 默认启动图形界面，设为 true 时不渲染图形界面（效率更高）
@@ -131,8 +136,6 @@ pakour(PIE)
 Perspective RL
 
 backflip
-
-
 
 # 参考文章
 https://arxiv.org/pdf/2205.02824

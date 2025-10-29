@@ -104,7 +104,7 @@ class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.4,0.8]
+        friction_range = [0.2,1.2]
 
         push_robots = True
         push_interval_s = 4
@@ -112,13 +112,13 @@ class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
         max_push_ang_vel = 0.6
 
         randomize_base_mass = True
-        added_base_mass_range = [-1,1]
+        added_base_mass_range = [-1,2]
 
         randomize_link_mass = True
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.02, 0.02]
+        added_base_com_range = [-0.03, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -158,6 +158,7 @@ class GO2_Trot_Cfg_Yu( LeggedRobotCfg ):
             feet_clearance=0.1 #feet clearance can increase for more
             default_hip_pos=-0.2
             default_pos=-0.1
+            contact_without_command=1.
 
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)

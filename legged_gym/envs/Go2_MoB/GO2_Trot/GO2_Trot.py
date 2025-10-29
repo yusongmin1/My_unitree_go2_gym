@@ -425,8 +425,14 @@ class GO2_Trot_Robot(BaseTask):
             self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         else:
             self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        # 3. 新增：5% 全部命令归零
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[all_zero_mask]] = 0.0
 
-        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+        # 4. 新增：另外 5% 仅前两项（x,y 线速度）归零
+        xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[xy_zero_mask], :2] = 0.0
+        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -865,9 +871,9 @@ class GO2_Trot_Robot(BaseTask):
             (contact[:,1] == stance_mask[:,1])
         # print( JUMP.to(torch.float32).mean())
         # print(self.feet_indices)['FL_foot', 'FR_foot', 'RL_foot', 'RR_foot'] tensor([ 6, 12, 20, 26], device='cuda:0')
-        self.trot=TROT.to(torch.float32).mean()
+        self.trot=TROT.to(torch.float32).mean()*(torch.norm(self.commands[:, :3], dim=1) > 0.1)+(torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) > 0.1),dim=1)==4)*(torch.norm(self.commands[:, :3], dim=1) < 0.1)
         # print(stance_mask[0,0],stance_mask[0,1],phase)
-        return TROT*(torch.norm(self.commands[:, :2], dim=1) > 0.1)
+        return TROT*(torch.norm(self.commands[:, :3], dim=1) > 0.1)
 
     def _reward_default_hip_pos(self):
         """
@@ -896,7 +902,7 @@ class GO2_Trot_Robot(BaseTask):
         rew=torch.exp(-torch.sum(torch.abs(left_feet_height-target_height)*swing_mask[:,0].unsqueeze(1).repeat(1,2),dim=1)*10)
         # print(rew[0],torch.sum(torch.abs(left_feet_height-target_height),dim=1)[0])
         rew+=torch.exp(-torch.sum(torch.abs(right_feet_height-target_height)*swing_mask[:,1].unsqueeze(1).repeat(1,2),dim=1)*10)
-        return rew*(torch.norm(self.commands[:, :2], dim=1) > 0.1)
+        return rew*(torch.norm(self.commands[:, :3], dim=1) > 0.1)
     
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):
@@ -947,16 +953,21 @@ class GO2_Trot_Robot(BaseTask):
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*(self.trot>0.78)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*(self.trot>0.7)
     
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(self.trot>0.78)
+        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(self.trot>0.7)
 
+
+    def _reward_contact_without_command(self):
+        # Penalize contact without command
+        return (torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) > 0.1),dim=1)==4)*(torch.norm(self.commands[:, :3], dim=1) < 0.1)
+    
     def _reward_stand_still(self):
         # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*(torch.norm(self.commands[:, :2], dim=1) < 0.1)
+        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*(torch.norm(self.commands[:, :3], dim=1) < 0.1)
 
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
