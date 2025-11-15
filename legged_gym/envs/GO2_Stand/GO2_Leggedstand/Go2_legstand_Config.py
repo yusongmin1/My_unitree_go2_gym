@@ -1,6 +1,6 @@
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class GO2Cfg_Leggedstand( LeggedRobotCfg ):
+class GO2Cfg_Handstand( LeggedRobotCfg ):
 
     class env:
         frame_stack = 1 #action stack
@@ -208,7 +208,7 @@ class GO2Cfg_Leggedstand( LeggedRobotCfg ):
             feet_air_time=2.0
             symmetric_joints=-0.1
             handstand_feet_height_exp=5.0
-            # default_pos_reward=0.5
+            default_pos_reward=0.5
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
@@ -265,7 +265,7 @@ class GO2Cfg_Leggedstand( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 
-class GO2CfgPPO_Leggedstand(LeggedRobotCfgPPO):
+class GO2CfgPPO_Handstand(LeggedRobotCfgPPO):
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:

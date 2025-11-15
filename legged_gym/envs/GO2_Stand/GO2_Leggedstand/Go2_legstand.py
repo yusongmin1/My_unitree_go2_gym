@@ -24,7 +24,7 @@ def get_euler_xyz_tensor(quat):
     euler_xyz = torch.stack((r, p, w), dim=1)
     euler_xyz[euler_xyz > np.pi] -= 2 * np.pi
     return euler_xyz
-class Go2_legstand(BaseTask):
+class Go2_stand(BaseTask):
     def __init__(self, cfg: GO2Cfg_Handstand, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
