@@ -1,15 +1,13 @@
-from legged_gym.envs.GO2_Flip.GO2_BackFlip.GO2_BackFlip_Config import GO2_BackFlip_Cfg_Yu
+from legged_gym.envs.GO2_Stand.GO2_Handstand.Go2_handstand_Config import GO2Cfg_Handstand
 import math
 import numpy as np
 import mujoco, mujoco_viewer
-from tqdm import tqdm
 from collections import deque
 from scipy.spatial.transform import Rotation as R
 from legged_gym import LEGGED_GYM_ROOT_DIR
 # from legged_gym.envs import *
 from legged_gym.utils import  Logger
 import torch
-import pygame
 from threading import Thread
 import keyboard  # 导入keyboard库
 from pynput import keyboard
@@ -23,17 +21,17 @@ def on_press(key):
     global x_vel_cmd, y_vel_cmd, yaw_vel_cmd
     try:
         if key.char == '6':
-            x_vel_cmd =1
+            x_vel_cmd += 0.1
         elif key.char == '7':
-            x_vel_cmd =0
+            x_vel_cmd -= 0.1
         elif key.char == '8':
-            y_vel_cmd =0
+            y_vel_cmd += 0.3
         elif key.char == '9':
-            y_vel_cmd=1
+            y_vel_cmd -= 0.3
         elif key.char == '-':
-            yaw_vel_cmd += 0.5
+            yaw_vel_cmd += 0.1
         elif key.char == '=':
-            yaw_vel_cmd -= 0.5
+            yaw_vel_cmd -= 0.1
         elif key.char == '1':
             x_vel_cmd=0
             y_vel_cmd=0
@@ -41,7 +39,6 @@ def on_press(key):
         print(f"Updated velocities: vx={x_vel_cmd}, vy={y_vel_cmd}, dyaw={yaw_vel_cmd}")
     except AttributeError:
         pass
-    
 def quaternion_to_euler_array(quat):
     # Ensure quaternion is in the correct format [x, y, z, w]
     x, y, z, w = quat
@@ -144,7 +141,9 @@ def run_mujoco(policy, cfg):
         q, dq, quat, v, omega, gvec, base_pos, foot_positions, foot_forces = get_obs(data,model)
         # q = q[-cfg.env.num_actions:]
         # dq = dq[-cfg.env.num_actions:]
-        
+            #         obs[0, 2] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            # obs[0, 3] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            # obs[0, 4] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
         # 1000hz -> 100hz
         if count_lowlevel % cfg.sim_config.decimation == 0:
 
@@ -155,14 +154,15 @@ def run_mujoco(policy, cfg):
             obs[0, 0] = 0
             obs[0, 1] = 0
             obs[0, 2] = 0
-            obs[0, 3] = y_vel_cmd 
-            obs[0, 4] = x_vel_cmd
-            obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
-            obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
+            obs[0, 3:6] = omega*cfg.normalization.obs_scales.ang_vel
+            obs[0, 6:9] = gvec
+            obs[0, 9] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            obs[0, 10] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
+            obs[0, 11] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
 
-            obs[0, 11:23] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
-            obs[0, 23:35] = dq * cfg.normalization.obs_scales.dof_vel
-            obs[0, 35:47] = action
+            obs[0, 12:24] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
+            obs[0, 24:36] = dq * cfg.normalization.obs_scales.dof_vel
+            obs[0, 36:48] = action
 
 
             obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)
@@ -205,11 +205,11 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, default="logs/go2_backflip/exported/policies/policy_1.pt",help='Run to load from.')
+    parser.add_argument('--load_model', type=str, default="logs/go2_handstand/exported/policies/policy_1.pt",help='Run to load from.')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
-    class Sim2simCfg(GO2_BackFlip_Cfg_Yu):
+    class Sim2simCfg(GO2Cfg_Handstand):
         class sim_config:
             mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 120.0
@@ -217,13 +217,13 @@ if __name__ == '__main__':
             decimation = 4
 
         class robot_config:
-            kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
-            kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
-            tau_limit = 45 * np.ones(12, dtype=np.double)
-            default_dof_pos = np.array( [0.0,0.8,-1.5,
-                -0.0,0.8,-1.5,
-                 0.0,0.8,-1.5,
-                -0.,0.8 ,-1.5], dtype=np.double)
+            kps = np.array([40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40], dtype=np.double)
+            kds = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.double)
+            tau_limit = 33.5 * np.ones(12, dtype=np.double)
+            default_dof_pos = np.array( [0.1,0.8,-1.5,
+                -0.1,0.8,-1.5,
+                 0.1,1.0,-1.5,
+                -0.1,1. ,-1.5], dtype=np.double)
 
     policy = torch.jit.load(args.load_model)
     run_mujoco(policy, Sim2simCfg())

@@ -57,6 +57,10 @@ python legged_gym/scripts/train.py --task=go2_handstand --headless
 ```
 
 ```bash
+python legged_gym/scripts/train.py --task=go2_leggedstand --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_spring_jump --headless
 ```
 ```bash
@@ -101,7 +105,9 @@ python legged_gym/scripts/play.py --task=go2_spring_jump
 ```bash
 python legged_gym/scripts/play.py --task=go2_handstand
 ```
-
+```bash
+python legged_gym/scripts/play.py --task=go2_leggedstand
+```
 ```bash
 python legged_gym/scripts/play.py --task=go2_stairs
 ```
