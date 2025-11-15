@@ -24,9 +24,12 @@
 
 ## 🛠️ 使用指南
 ### 0. 安装依赖
-
+python环境：3.8
 #### Isaacgym 安装
-略
+
+```bash
+pip install -e ~/isaacgym/python
+```
 #### rsl 
 ```bash
 pip install -e ./rsl_rl
@@ -70,6 +73,10 @@ python legged_gym/scripts/train.py --task=go2_backflip --headless
 - go2_trot
 - go2_jump
 - go2_spring_jump
+
+- go2_handstand
+- go2_leggedstand
+下面这两个任务仿真中没问题了，我认为实物上应该没问题，但是目前没有实物，所以暂时没有测试，月底会测试的。
 
 其他任务或多或少有点问题，有时间的话会修复的。
 #### ⚙️  参数说明
@@ -133,8 +140,6 @@ Play 会导出 Actor 网络，保存于 `logs/{experiment_name}/exported/policie
 
 # 问题 与后续修改的计划
 
-handstand frequency not slove and add command for land
-
 staris level up slow not slove
 
 pakour(PIE)
@@ -142,6 +147,8 @@ pakour(PIE)
 Perspective RL
 
 backflip
+
+sideflip
 
 # 参考文章
 https://arxiv.org/pdf/2205.02824
@@ -153,3 +160,7 @@ https://arxiv.org/abs/2212.03238
 https://arxiv.org/abs/2409.15755
 
 https://arxiv.org/abs/2401.16337
+
+https://arxiv.org/abs/2301.10602
+
+https://arxiv.org/abs/2312.11460
