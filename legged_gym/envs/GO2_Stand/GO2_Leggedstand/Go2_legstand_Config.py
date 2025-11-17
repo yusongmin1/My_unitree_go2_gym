@@ -1,6 +1,6 @@
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class GO2Cfg_Handstand( LeggedRobotCfg ):
+class GO2Cfg_Leggedstand( LeggedRobotCfg ):
 
     class env:
         frame_stack = 1 #action stack
@@ -265,7 +265,7 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 
-class GO2CfgPPO_Handstand(LeggedRobotCfgPPO):
+class GO2CfgPPO_Leggedstand(LeggedRobotCfgPPO):
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:

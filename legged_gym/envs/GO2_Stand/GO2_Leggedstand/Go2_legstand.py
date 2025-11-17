@@ -17,15 +17,15 @@ from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
-from legged_gym.envs.GO2_Stand.GO2_Handstand.Go2_handstand_Config import GO2Cfg_Handstand,GO2CfgPPO_Handstand
+from legged_gym.envs.GO2_Stand.GO2_Leggedstand.Go2_legstand_Config import GO2Cfg_Leggedstand,GO2CfgPPO_Leggedstand
 def get_euler_xyz_tensor(quat):
     r, p, w = get_euler_xyz(quat)
     # stack r, p, w in dim1
     euler_xyz = torch.stack((r, p, w), dim=1)
     euler_xyz[euler_xyz > np.pi] -= 2 * np.pi
     return euler_xyz
-class Go2_stand(BaseTask):
-    def __init__(self, cfg: GO2Cfg_Handstand, sim_params, physics_engine, sim_device, headless):
+class Go2_legstand(BaseTask):
+    def __init__(self, cfg: GO2Cfg_Leggedstand, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
@@ -177,7 +177,6 @@ class Go2_stand(BaseTask):
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
             rew = self.reward_functions[i]() * self.reward_scales[name]
-            # print(name)
             self.rew_buf += rew
             self.episode_sums[name] += rew
         if self.cfg.rewards.only_positive_rewards:
@@ -353,7 +352,7 @@ class Go2_stand(BaseTask):
             self.multiplied_link_masses_ratio[env_id, :] = torch_rand_float(self.cfg.domain_rand.multiplied_link_mass_range[0], self.cfg.domain_rand.multiplied_link_mass_range[1], (1, self.num_bodies-1), device=self.device)
     
             for i in range(1, len(props)):
-                props[i].mass *= self.multiplied_link_masses_ratio[0,i-1]
+                props[i].mass *= self.multiplied_link_masses_ratio[env_id,i-1]
 
         # randomize base com
         if self.cfg.domain_rand.randomize_base_com:
@@ -925,7 +924,6 @@ class Go2_stand(BaseTask):
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        # print(self.root_states[:, 2])
         self.rew_hanstand=torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*10))
         return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*5)
 
@@ -983,12 +981,12 @@ class Go2_stand(BaseTask):
 
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
-        ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
+        ang_vel_error = torch.square(self.commands[:, 2] + self.base_ang_vel[:, 0])
         return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.78)
 
     def _reward_tracking_ang_vel_zero(self):
         # Tracking of angular velocity commands (yaw) 
-        ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
+        ang_vel_error = torch.square(self.commands[:, 2] + self.base_ang_vel[:, 0])
         return ang_vel_error*(torch.mean(self.rew_hanstand)>0.78)*(torch.abs(self.commands[:,2])<0.1)   
     
     def _reward_default_pos(self):
@@ -1050,8 +1048,6 @@ class Go2_stand(BaseTask):
         left_feet_height=self.feet_height[:,0]
         right_feet_height=self.feet_height[:,1]
         # Compute swing mask
-        # print(self.contact_foot_indices,self.feet_name_reward_indices)
-        # print(self.feet_height[0])
         swing_mask = (1 - self._get_gait_phase())
         phase=self._get_phase()
         # feet height should larger than target feet height at the peak
@@ -1060,19 +1056,10 @@ class Go2_stand(BaseTask):
         rew=torch.exp(-torch.abs(left_feet_height-target_height)*10)*swing_mask[:,0]
         # print(rew[0],torch.sum(torch.abs(left_feet_height-target_height),dim=1)[0])
         rew+=torch.exp(-torch.abs(right_feet_height-target_height)*10)*swing_mask[:,1]
-        # print(rew[0],(left_feet_height-target_height)[0],swing_mask[:,0],torch.abs(left_feet_height-target_height)*swing_mask[:,0]*80)
         # print(rew.shape,left_feet_height.shape)
         return rew*(torch.mean(self.rew_hanstand)>0.78)
 
 
-    # def _reward_hand_pos(self):
-    #     cur_footpos_translated = self.feet_pos - self.root_states[:, 0:3].unsqueeze(1)
-    #     footpos_in_body_frame = torch.zeros(self.num_envs, len(self.contact_foot_indices), 3, device=self.device)
-    #     for i in range(len(self.contact_foot_indices)):
-    #         footpos_in_body_frame[:, i, :] = quat_rotate_inverse(self.base_quat, cur_footpos_translated[:, i, :])
-    #     footpos_in_body_frame
-    #     height_error = torch.abs(footpos_in_body_frame.view(self.num_envs, -1)-torch.tensor([0.1778 , 0.142  ,-0.3113,0.1778 ,-0.142  ,-0.3113],device=self.device))
-    #     return torch.exp(-torch.sum(height_error, dim=1)*8) *(self.rew_hanstand>0.78)#*(self.root_states[:,2]>0.45)
 
     def _reward_contact(self):
         contact = self.contact_forces[:, self.contact_foot_indices, 2] > 1
@@ -1099,19 +1086,7 @@ class Go2_stand(BaseTask):
         dof[:,3,0] *= -1
         err = torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1) #+ torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1)
         return err*(self.rew_hanstand>0.78)
-    def _reward_handstand_orientation_l2(self):
-        """
-        姿态奖励：
-        1. 使用 self.projected_gravity（机器人基座坐标系下的重力投影）来评估姿态。
-        2. 目标重力方向通过配置传入（例如 [1, 0, 0] 表示目标为竖直向上）。
-        3. 对比当前和目标重力方向的 L2 距离，偏差越大惩罚越大。
-        """
-        target_gravity = torch.tensor(
-            self.cfg.params.handstand_orientation_l2["target_gravity"],
-            device=self.device
-        )
 
-        return torch.sum((self.projected_gravity - target_gravity) ** 2, dim=1)
     
     def _reward_handstand_feet_height_exp(self):
         # feet_indices_tensor = torch.tensor(feet_indices, dtype=torch.long, device=self.rigid_body_pos.device)

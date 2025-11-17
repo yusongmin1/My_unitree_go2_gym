@@ -188,17 +188,17 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
             tracking_ang_vel_zero=-0.2
             lin_vel_z = 0.2
             ang_vel_xy = 0.2
-            handstand_orientation = 5.0#0.1 1.0
+            handstand_orientation = -1.0
             torques = -0.0002
             dof_vel = -0.
             dof_acc = -2.5e-4
-            base_height = 0.6#0.1 
+            base_height = 1.5
             handstand_feet_on_air =  0.4
-            collision = -1.
+            collision = -2.
             feet_stumble = -0.0 
             action_rate = -0.05
-            default_pos =-0.05####
-            default_hip_pos=-0.05
+            default_pos =-0.1####
+            default_hip_pos=-0.1
             # contact=0.3
             # hand_pos=0.5
             feet_clearance=0.4
@@ -206,7 +206,10 @@ class GO2Cfg_Handstand( LeggedRobotCfg ):
             contact=0.3
             feet_air_time=2.0
             symmetric_joints=-0.1
-            # default_pos_reward=0.5
+            handstand_feet_height_exp=5.0
+            default_pos_reward=0.5
+            dof_pos_limits=-2.0
+            alive=1.0
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
