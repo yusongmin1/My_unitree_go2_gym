@@ -164,3 +164,7 @@ https://arxiv.org/abs/2401.16337
 https://arxiv.org/abs/2301.10602
 
 https://arxiv.org/abs/2312.11460
+
+Learning Robust and Agile Legged Locomotion Using Adversarial Motion Priors
+
+Learning Multiple Gaits within Latent Space for Quadruped Robots
