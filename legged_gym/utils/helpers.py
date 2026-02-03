@@ -74,9 +74,10 @@ def get_load_path(root, load_run=-1, checkpoint=-1):
     try:
         runs = os.listdir(root)
         #TODO sort by date to handle change of month
-        runs.sort()
         if 'exported' in runs: runs.remove('exported')
-        last_run = os.path.join(root, runs[-1])
+        # Sort by modification time (most recent first)
+        runs.sort(key=lambda x: os.path.getmtime(os.path.join(root, x)), reverse=True)
+        last_run = os.path.join(root, runs[0])
     except:
         raise ValueError("No runs in this directory: " + root)
     if load_run==-1:

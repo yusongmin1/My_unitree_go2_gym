@@ -16,6 +16,18 @@
             ],
             "default": "go2_jump"
         },
+        {
+            "id": "run",
+            "type": "promptString",
+            "description": "Input run",
+            "default": ""
+        },
+        {
+            "id": "model_num",
+            "type": "promptString",
+            "description": "Input model number",
+            "default": ""
+        },
     ],  
     "tasks": [
         {
@@ -39,6 +51,8 @@
             "args": [
                 "run","python", "legged_gym/scripts/play.py",
                 "--task", "${input:task}",
+                "--load_run", "${input:run}",
+                "--checkpoint", "${input:model_num}",
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
