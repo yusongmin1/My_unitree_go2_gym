@@ -1,0 +1,63 @@
+{
+    "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "task",
+            "type": "pickString",
+            "description": "Select task",
+            "options": [
+                "go2_trot", 
+                "go2_stairs", 
+                "go2_jump", 
+                "go2_handstand", 
+                "go2_leggedstand",
+                "go2_spring_jump",
+                "go2_backflip",
+            ],
+            "default": "go2_jump"
+        },
+        {
+            "id": "run",
+            "type": "promptString",
+            "description": "Input run",
+            "default": ""
+        },
+        {
+            "id": "model_num",
+            "type": "promptString",
+            "description": "Input model number",
+            "default": ""
+        },
+    ],  
+    "tasks": [
+        {
+            "label": "Train",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run","python", "legged_gym/scripts/train.py",
+                "--task", "${input:task}",
+                "--headless"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Play",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run","python", "legged_gym/scripts/play.py",
+                "--task", "${input:task}",
+                "--load_run", "${input:run}",
+                "--checkpoint", "${input:model_num}",
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+    ],
+}
