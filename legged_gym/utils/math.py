@@ -118,6 +118,11 @@ def points_in_nominal_pose_rectangle(points):
 
     return points
 
+def get_scale_shift(range):
+    scale = 2. / (range[1] - range[0])
+    shift = (range[1] + range[0]) / 2.
+    return scale, shift
+
 # def torch_rand_float_seeded(lower, upper, shape, device):
 #     # type: (float, float, Tuple[int, int], str) -> Tensor
 #     return (upper - lower) * torch.rand(*shape, device=device) + lower

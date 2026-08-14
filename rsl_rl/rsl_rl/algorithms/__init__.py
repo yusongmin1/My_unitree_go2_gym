@@ -29,3 +29,9 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from .ppo import PPO
+from .ppo_dreamwaq import PPO_DreamWaQ
+from .ppo_dreamwaq_amp import PPO_DreamWaQ_AMP
+from .amp_discriminator import AMPDiscriminator
+from .cts import CTS
+from .amp_cts import AMPCTS
+from .ppo_amp_ts import PPO_AMP_TS

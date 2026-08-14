@@ -30,3 +30,8 @@
 
 from .actor_critic import ActorCritic
 from .actor_critic_recurrent import ActorCriticRecurrent
+from .actor_critic_dreamwaq import ActorCriticDreamWaQ
+from .actor_critic_cts import ActorCriticCTS
+from .vae import VAE
+from .actor_critic_amp_ts import ActorCriticAMP_TS
+from .actor_critic_distill import ActorCritic_Distill, LSTMEncoder
