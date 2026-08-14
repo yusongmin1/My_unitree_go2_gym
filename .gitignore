@@ -14,4 +14,4 @@ dist/
 .venv/
 venv/
 
-logs/
+# logs/

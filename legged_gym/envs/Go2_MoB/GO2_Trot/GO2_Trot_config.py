@@ -263,7 +263,7 @@ class GO2_Trot_PPO_Yu(LeggedRobotCfgPPO):
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
-        experiment_name = 'go2_trot_2'
+        experiment_name = 'go2_trot'
         run_name = ''
         # load and resume
         resume = False
