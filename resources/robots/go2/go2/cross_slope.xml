@@ -1,0 +1,43 @@
+<mujoco model="cross_slope_1_4_7_10">
+  <include file="go2.xml"/>
+  <!-- Terrain: Cross Slope Arch, Levels: 1,4,7,10. Cross Layout: Center Gap 2.0m. Slope angle: 8.36deg Slope angle: 23.22deg Slope angle: 29.68deg Slope angle: 16.07deg -->
+  <statistic center="0 0 0.1" extent="0.8" />
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global azimuth="-130" elevation="-20" />
+  </visual>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.0" />
+    <texture name="tex_label_1" type="2d" file="./imgs/label_1.png" />
+    <material name="mat_label_1" texture="tex_label_1" specular="0" shininess="0" emission="1" texrepeat="1 1" rgba="1 1 1 1" />
+    <texture name="tex_label_7" type="2d" file="./imgs/label_7.png" />
+    <material name="mat_label_7" texture="tex_label_7" specular="0" shininess="0" emission="1" texrepeat="1 1" rgba="1 1 1 1" />
+    <texture name="tex_label_10" type="2d" file="./imgs/label_10.png" />
+    <material name="mat_label_10" texture="tex_label_10" specular="0" shininess="0" emission="1" texrepeat="1 1" rgba="1 1 1 1" />
+    <texture name="tex_label_4" type="2d" file="./imgs/label_4.png" />
+    <material name="mat_label_4" texture="tex_label_4" specular="0" shininess="0" emission="1" texrepeat="1 1" rgba="1 1 1 1" />
+  </asset>
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" />
+    <geom pos="-3.5072718512065544 1.8458756480250123e-16 0.1710316244452101" type="box" size="1.5161201304646015 1.75 0.05" quat="6.106936001461366e-17 0.07291258089041118 -4.464607940250726e-18 0.9973383355451144" />
+    <geom pos="-2.593329632609217 7.266192354141525e-17 0.08924094950084102" type="box" size="1.0 0.35064935064935066 0.001" quat="0.7052247002012548 0.05155698038142243 0.05155698038142242 0.7052247002012547" contype="0" conaffinity="0" group="1" material="mat_label_1" rgba="1 1 1 1" />
+    <geom pos="-5.75 4.592425496802575e-16 0.39100000000000007" type="box" size="0.75 1.75 0.05" quat="6.123233995736766e-17 0.0 0.0 1.0" />
+    <geom pos="-7.992728148793446 7.338975345580137e-16 0.1710316244452101" type="box" size="1.5161201304646015 1.75 0.05" quat="6.106936001461366e-17 -0.07291258089041118 4.464607940250726e-18 0.9973383355451144" />
+    <geom pos="9.305555860662829e-17 3.519712600750146 0.5975498817012911" type="box" size="1.6322047206156463 1.75 0.05" quat="0.69264030455464 0.1423004163959321 -0.14230041639593213 0.6926403045546399" />
+    <geom pos="3.371531723015055e-17 2.5506129155545008 0.23838921373370156" type="box" size="1.0 0.35064935064935066 0.001" quat="0.9795413125474028 0.20124317879846595 0.0 0.0" contype="0" conaffinity="0" group="1" material="mat_label_7" rgba="1 1 1 1" />
+    <geom pos="2.2962127484012875e-16 5.75 1.2369999999999999" type="box" size="0.75 1.75 0.05" quat="0.7071067811865476 0.0 0.0 0.7071067811865475" />
+    <geom pos="3.661869910736292e-16 7.980287399249854 0.5975498817012911" type="box" size="1.6322047206156463 1.75 0.05" quat="0.69264030455464 -0.1423004163959321 0.14230041639593213 0.6926403045546399" />
+    <geom pos="3.524760152200491 0.0 0.811561136490367" type="box" size="1.7265645079173844 1.75 0.05" quat="0.9666377993314406 0.0 -0.25614715478347516 0.0" />
+    <geom pos="2.520275956027577 0.0 0.2988593809462753" type="box" size="1.0 0.35064935064935066 0.001" quat="0.6835161428585028 0.1811233901290355 -0.18112339012903547 -0.6835161428585027" contype="0" conaffinity="0" group="1" material="mat_label_10" rgba="1 1 1 1" />
+    <geom pos="5.75 0.0 1.66" type="box" size="0.75 1.75 0.05" quat="1.0 0.0 0.0 0.0" />
+    <geom pos="7.975239847799509 0.0 0.811561136490367" type="box" size="1.7265645079173844 1.75 0.05" quat="0.9666377993314406 0.0 0.25614715478347516 0.0" />
+    <geom pos="9.269581606609379e-17 -3.5138375592151503 0.38395291939183823" type="box" size="1.5609689298637561 1.75 0.05" quat="0.7001681248391769 -0.09881597522258663 -0.09881597522258664 -0.7001681248391768" />
+    <geom pos="3.5270529839894456e-17 -2.5760114649293357 0.16797259380613377" type="box" size="1.0 0.35064935064935066 0.001" quat="6.063148280875342e-17 8.557029219681535e-18 -0.13974689233890575 -0.9901872580889023" contype="0" conaffinity="0" group="1" material="mat_label_4" rgba="1 1 1 1" />
+    <geom pos="2.2962127484012875e-16 -5.75 0.8140000000000001" type="box" size="0.75 1.75 0.05" quat="0.7071067811865476 0.0 0.0 -0.7071067811865475" />
+    <geom pos="3.665467336141637e-16 -7.98616244078485 0.38395291939183823" type="box" size="1.5609689298637561 1.75 0.05" quat="0.7001681248391769 0.09881597522258663 0.09881597522258664 -0.7001681248391768" />
+  </worldbody>
+</mujoco>

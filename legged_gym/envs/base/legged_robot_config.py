@@ -32,10 +32,10 @@ from .base_config import BaseConfig
 
 class LeggedRobotCfg(BaseConfig):
     class env:
-        short_frame_stack = 4
         num_envs = 4096
-        num_observations = 235
-        num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        num_observations = 45
+        num_obs_hist = 5
+        num_privileged_obs = 239 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
@@ -62,16 +62,16 @@ class LeggedRobotCfg(BaseConfig):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
+        terrain_proportions = [0.1, 0.1, 0.35, 0.35, 0.1]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
 
     class commands:
-        curriculum = True
+        curriculum = False
         max_curriculum = 1.
-        num_commands = 3 # default: x ,y,height
-        resampling_time = 10. # time before command are changed[s]
-        heading_command = True # if true: compute ang vel command from heading error
+        num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
+        resampling_time = 6. # time before command are changed[s]
+        heading_command = False # if true: compute ang vel command from heading error
         class ranges:
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
             lin_vel_y = [-1.0, 1.0]   # min max [m/s]
@@ -79,37 +79,49 @@ class LeggedRobotCfg(BaseConfig):
             heading = [-3.14, 3.14]
 
     class init_state:
-        pos = [0.0, 0.0, 1.] # x,y,z [m]
+        pos = [0.0, 0.0, 0.42] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
-        default_joint_angles = { # target angles when action = 0.0
-            "joint_a": 0., 
-            "joint_b": 0.}
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1 ,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
+
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.,   # [rad]
+
+            'FL_calf_joint': -1.5,   # [rad]
+            'RL_calf_joint': -1.5,    # [rad]
+            'FR_calf_joint': -1.5,  # [rad]
+            'RR_calf_joint': -1.5,    # [rad]
+        }
 
     class control:
-        control_type = 'P' # P: position, V: velocity, T: torques
-        # PD Drive parameters:
-        stiffness = {'joint_a': 10.0, 'joint_b': 15.}  # [N*m/rad]
-        damping = {'joint_a': 1.0, 'joint_b': 1.5}     # [N*m*s/rad]
+        control_type = 'P'
+        stiffness = {'joint': 20.}  # [N*m/rad]
+        damping = {'joint': 0.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 0.5
+        action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
 
     class asset:
         file = ""
-        name = "legged_robot"  # actor name
-        foot_name = "None" # name of the feet bodies, used to index body state and contact force tensors
-        penalize_contacts_on = []
-        terminate_after_contacts_on = []
+        name = "go2"
+        foot_name = "foot"
+        penalize_contacts_on = ["thigh", "calf","base"]
+        terminate_after_contacts_on = ["base"]
         disable_gravity = False
-        collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
+        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
         default_dof_drive_mode = 3 # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         replace_cylinder_with_capsule = True # replace collision cylinders with capsules, leads to faster/more stable simulation
-        flip_visual_attachments = True # Some .obj meshes must be flipped from y-up to z-up
+        flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
         
         density = 0.001
         angular_damping = 0.
@@ -118,61 +130,56 @@ class LeggedRobotCfg(BaseConfig):
         max_linear_velocity = 1000.
         armature = 0.
         thickness = 0.01
-
     class domain_rand:
-        randomize_friction = False
-        friction_range = [0.2, 1.3]
-
-        push_robots = False
+        randomize_friction = True
+        friction_range = [0.15,1.25]
+        randomize_restitution = True
+        restitution_range = [0.0, 0.3]
+        push_robots = True
         push_interval_s = 4
-        max_push_vel_xy = 0.4
+        max_push_vel_xy = 0.6
         max_push_ang_vel = 0.6
 
-        continuous_push = False
-        max_push_force = 0.5
-        max_push_torque = 0.5
-        push_force_noise = 0.5
-        push_torque_noise = 0.5
+        randomize_base_mass = True
+        added_base_mass_range = [-1,3]
 
-        randomize_base_mass = False
-        added_base_mass_range = [-2.5, 2.5]
-
-        randomize_link_mass = False
+        randomize_link_mass = True
         multiplied_link_mass_range = [0.9, 1.1]
 
-        randomize_base_com = False
+        randomize_base_com = True
         added_base_com_range = [-0.05, 0.05]
 
-        randomize_pd_gains = False
-        stiffness_multiplier_range = [0.8, 1.2]  
-        damping_multiplier_range = [0.8, 1.2]    
+        randomize_pd_gains = True
+        stiffness_multiplier_range = [0.9, 1.1]  
+        damping_multiplier_range = [0.9, 1.1]    
 
-        randomize_calculated_torque = False
-        torque_multiplier_range = [0.8, 1.2]
 
-        randomize_motor_zero_offset = False
+        randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
-        randomize_joint_friction = False
-        joint_friction_range = [0.01, 1.15]   
+        randomize_joint_friction = True
+        joint_friction_range = [0.01, 0.2]
 
-        randomize_joint_damping = False
-        joint_damping_range = [0.3, 1.5]       
-        
-        randomize_joint_armature = False
-        joint_armature_range = [0.0001, 0.05]     # range to contain the real joint armature 
+        randomize_joint_damping = True
+        joint_damping_range = [0.0,0.2]
 
-        add_obs_latency = False
+        randomize_joint_armature = True
+        joint_armature_range = [0.005, 0.015]    #
+
+        add_obs_latency = False # no latency for obs_action
         randomize_obs_motor_latency = False
-        range_obs_motor_latency = [2, 10]
         randomize_obs_imu_latency = False
-        range_obs_imu_latency = [1, 2]
+        range_obs_motor_latency = [1, 3]
+        range_obs_imu_latency = [1, 3]
         
         add_cmd_action_latency = False
         randomize_cmd_action_latency = False
-        range_cmd_action_latency = [2, 4]
-
-
+        range_cmd_action_latency = [1, 3]
+    class safety:
+        # safety factors
+        pos_limit = 0.9
+        vel_limit = 0.9
+        torque_limit = 1.0
     class rewards:
         class scales:
             termination = -0.0
@@ -180,21 +187,26 @@ class LeggedRobotCfg(BaseConfig):
             tracking_ang_vel = 0.5
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            orientation = -0.
+            orientation = -0.2
+            base_height = -3.0 
             torques = -0.00001
-            dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -0. 
             feet_air_time =  1.0
             collision = -1.
-            feet_stumble = -0.0 
-            action_rate = -0.
-            stand_still = -0.
+            action_rate = -0.01
+            #stand_still = -0.
+            # joint_power=-2e-5
+            smoothness=-0.005
+            foot_clearance=-0.01
+            # power_distribution=-10e-6
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
-        tracking_sigma = 0.25 
-        max_contact_force = 100. 
-
+        tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 1.
+        soft_torque_limit = 1.
+        clearance_height_target = 0.09
+        max_contact_force = 100. # forces above this value are penalized
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -225,7 +237,7 @@ class LeggedRobotCfg(BaseConfig):
     class sim:
         dt =  0.005
         substeps = 1
-        gravity = [0., 0. ,-9.81]  
+        gravity = [0., 0. ,-9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
 
         class physx:
@@ -242,13 +254,18 @@ class LeggedRobotCfg(BaseConfig):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 class LeggedRobotCfgPPO(BaseConfig):
-    seed = 1
+    seed = 5
     runner_class_name = 'OnPolicyRunner'
     class policy:
         init_noise_std = 1.0
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
-
+        activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+        # only for 'ActorCriticRecurrent':
+        # rnn_type = 'lstm'
+        # rnn_hidden_size = 512
+        # rnn_num_layers = 1
+        
     class algorithm:
         # training params
         value_loss_coef = 1.0
@@ -257,7 +274,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         entropy_coef = 0.01
         num_learning_epochs = 5
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 1.e-3 #5.e-4
+        learning_rate = 1.e-5 #5.e-4
         schedule = 'adaptive' # could be adaptive, fixed
         gamma = 0.99
         lam = 0.95
@@ -268,15 +285,14 @@ class LeggedRobotCfgPPO(BaseConfig):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 1500 # number of policy updates
+        max_iterations = 10000 # number of policy updates
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
-        experiment_name = 'test'
+        experiment_name = 'dreamwaq_yu'
         run_name = ''
         # load and resume
         resume = False
         load_run = -1 # -1 = last run
         checkpoint = -1 # -1 = last saved model
         resume_path = None # updated from load_run and chkpt
-
