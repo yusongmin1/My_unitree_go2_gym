@@ -112,12 +112,6 @@ python legged_gym/scripts/train.py --task=go2_amp_ts --headless          # teach
 python legged_gym/scripts/train.py --task=go2_amp_ts_student --headless  # student（从 teacher 蒸馏 LSTM）
 ```
  
-#### 任务成熟度说明
-- **较为稳定**：`go2_trot`、`go2_jump`、`go2_spring_jump`、`go2_handstand`、`go2_leggedstand`（仿真中没问题，实物待测）
-- **DreamwaQ**：下楼梯不稳定，平地会走歪，鲁棒性待提升
-- **AMP + DreamwaQ**：不稳定版本，vae 仍需调优
-- **CTS / AMP + CTS**：不稳定版本，开发中
-- 其他任务或多或少有点问题，有时间的话会修复的。
  
 #### ⚙️  参数说明
 - `--task`: 必选参数，可选值见上方任务总览表
