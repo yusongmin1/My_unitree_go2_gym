@@ -4,9 +4,9 @@ Sim2Sim 配置加载器：直接从文件路径加载配置类，绕过 legged_g
 
 用法（在 sim2sim 脚本里）：
     from sim2sim_config_loader import load_cfg
-    GO2_Trot_Cfg_Yu = load_cfg(
-        "legged_gym/envs/Go2_MoB/GO2_Trot/GO2_Trot_config.py",
-        "GO2_Trot_Cfg_Yu",
+    Go2_Trot_Cfg_Yu = load_cfg(
+        "legged_gym/envs/Go2_MoB/Go2_Trot/Go2_Trot_Config.py",
+        "Go2_Trot_Cfg_Yu",
     )
 """
 import importlib.util
@@ -20,7 +20,7 @@ def load_cfg(config_rel_path, class_name):
 
     Args:
         config_rel_path: 配置文件相对仓库根的路径，如 "legged_gym/envs/.../xxx_config.py"。
-        class_name: 要加载的配置类名，如 "GO2_Trot_Cfg_Yu"。
+        class_name: 要加载的配置类名，如 "Go2_Trot_Cfg_Yu"。
 
     Returns:
         配置类（未实例化）。

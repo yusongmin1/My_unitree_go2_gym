@@ -21,18 +21,18 @@
  
 | 算法 | task 名 | 环境目录 | 算法类 / Runner |
 |---|---|---|---|
-| **标准 PPO** | `go2_trot` | `Go2_MoB/GO2_Trot/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_jump` | `Go2_MoB/GO2_JUMP/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_spring_jump` | `GO2_Flip/GO2_Spring_Jump/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_backflip` | `GO2_Flip/GO2_BackFlip/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_handstand` | `GO2_Stand/GO2_Handstand/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_leggedstand` | `GO2_Stand/GO2_Leggedstand/` | `PPO` / `OnPolicyRunner` |
-| **DreamwaQ** | `go2_stairs_dreamwaq` | `GO2_DreamWaQ/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
-| **AMP + DreamwaQ** | `go2_amp_dreamwaq` | `GO2_AMP_DreamWaQ/` | `PPO_DreamWaQ_AMP` / `DreamWaQRunner_AMP` |
-| **CTS** | `go2_cts` | `GO2_CTS/` | `CTS` / `OnPolicyRunnerCTS` |
-| **AMP + CTS** | `go2_amp_cts` | `GO2_AMP_CTS/` | `AMPCTS` / `OnPolicyRunnerCTSAMP` |
-| **AMP Teacher（特权）** | `go2_amp_ts` | `GO2_AMP_TS/` | `PPO_AMP_TS` / `OnPolicyRunnerAMP_TS` |
-| **AMP Student（蒸馏）** | `go2_amp_ts_student` | `GO2_AMP_TS/` | `DistillPolicyRunner` + `ActorCritic_Distill`（LSTM） |
+| **标准 PPO** | `go2_trot` | `Go2_MoB/Go2_Trot/` | `PPO` / `OnPolicyRunner` |
+| **标准 PPO** | `go2_jump` | `Go2_MoB/Go2_Jump/` | `PPO` / `OnPolicyRunner` |
+| **标准 PPO** | `go2_spring_jump` | `Go2_Flip/Go2_Spring_Jump/` | `PPO` / `OnPolicyRunner` |
+| **标准 PPO** | `go2_backflip` | `Go2_Flip/Go2_BackFlip/` | `PPO` / `OnPolicyRunner` |
+| **标准 PPO** | `go2_handstand` | `Go2_Stand/Go2_Handstand/` | `PPO` / `OnPolicyRunner` |
+| **标准 PPO** | `go2_leggedstand` | `Go2_Stand/Go2_Leggedstand/` | `PPO` / `OnPolicyRunner` |
+| **DreamwaQ** | `go2_stairs_dreamwaq` | `Go2_DreamWaQ/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
+| **AMP + DreamwaQ** | `go2_amp_dreamwaq` | `Go2_AMP_DreamWaQ/` | `PPO_DreamWaQ_AMP` / `DreamWaQRunner_AMP` |
+| **CTS** | `go2_cts` | `Go2_Cts/` | `CTS` / `OnPolicyRunnerCTS` |
+| **AMP + CTS** | `go2_amp_cts` | `Go2_AMP_Cts/` | `AMPCTS` / `OnPolicyRunnerCTSAMP` |
+| **AMP Teacher（特权）** | `go2_amp_ts` | `Go2_AMP_Ts/` | `PPO_AMP_TS` / `OnPolicyRunnerAMP_TS` |
+| **AMP Student（蒸馏）** | `go2_amp_ts_student` | `Go2_AMP_Ts/` | `DistillPolicyRunner` + `ActorCritic_Distill`（LSTM） |
  
 ### 算法简介
 - **标准 PPO**：ETH legged_gym 原版 PPO，用于各类特技动作（trot/jump/backflip/handstand 等）。
@@ -193,37 +193,37 @@ Play 会导出 Actor 网络，保存于 `logs/{experiment_name}/exported/policie
 
 #### 标准 PPO 任务
 ```bash
-python deploy_mujoco/sim2sim_GO2_trot_viewer.py
-python deploy_mujoco/sim2sim_GO2_jump_viewer.py
-python deploy_mujoco/sim2sim_GO2_spring_jump_viewer.py
-python deploy_mujoco/sim2sim_GO2_backflip_viewer.py
-python deploy_mujoco/sim2sim_handstand_viewer.py
-python deploy_mujoco/sim2sim_legstand_viewer.py
+python deploy_mujoco/sim2sim_go2_trot.py
+python deploy_mujoco/sim2sim_go2_jump.py
+python deploy_mujoco/sim2sim_go2_spring_jump.py
+python deploy_mujoco/sim2sim_go2_backflip.py
+python deploy_mujoco/sim2sim_go2_handstand.py
+python deploy_mujoco/sim2sim_go2_leggedstand.py
 ```
 
 #### DreamwaQ 任务（加载 policy_dwaq.pt）
 ```bash
-python deploy_mujoco/sim2sim_GO2_stairs_dreamwaq_viewer.py
+python deploy_mujoco/sim2sim_go2_stairs_dreamwaq.py
 ```
 
 #### AMP + DreamwaQ 任务（加载 policy_dwaq.pt）
 ```bash
-python deploy_mujoco/sim2sim_GO2_amp_dreamwaq_viewer.py
+python deploy_mujoco/sim2sim_go2_amp_dreamwaq.py
 ```
 
 #### CTS 任务（加载 policy_cts.pt）
 ```bash
-python deploy_mujoco/sim2sim_GO2_cts_viewer.py
+python deploy_mujoco/sim2sim_go2_cts.py
 ```
 
 #### AMP + CTS 任务（加载 policy_cts.pt）
 ```bash
-python deploy_mujoco/sim2sim_GO2_amp_cts_viewer.py
+python deploy_mujoco/sim2sim_go2_amp_cts.py
 ```
 
 #### AMP Teacher-Student 任务（student LSTM 部署，加载 policy_amp_ts.pt）
 ```bash
-python deploy_mujoco/sim2sim_GO2_amp_ts_viewer.py
+python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 ```
 
 **说明**：
@@ -240,13 +240,13 @@ python deploy_mujoco/sim2sim_GO2_amp_ts_viewer.py
 │   ├── envs/
 │   │   ├── base/                 # 基类（BaseTask / LeggedRobotCfg 等）
 │   │   ├── Go2_MoB/              # 标准 PPO: trot / stairs / jump
-│   │   ├── GO2_Flip/             # 标准 PPO: backflip / spring_jump
-│   │   ├── GO2_Stand/            # 标准 PPO: handstand / leggedstand
-│   │   ├── GO2_DreamWaQ/         # DreamwaQ 任务
-│   │   ├── GO2_AMP_DreamWaQ/     # AMP + DreamwaQ 任务
-│   │   ├── GO2_CTS/              # CTS 任务
-│   │   ├── GO2_AMP_CTS/          # AMP + CTS 任务
-│   │   ├── GO2_AMP_TS/           # AMP Teacher-Student 任务（teacher + student 配置）
+│   │   ├── Go2_Flip/             # 标准 PPO: backflip / spring_jump
+│   │   ├── Go2_Stand/            # 标准 PPO: handstand / leggedstand
+│   │   ├── Go2_DreamWaQ/         # DreamwaQ 任务
+│   │   ├── Go2_AMP_DreamWaQ/     # AMP + DreamwaQ 任务
+│   │   ├── Go2_Cts/              # CTS 任务
+│   │   ├── Go2_AMP_Cts/          # AMP + CTS 任务
+│   │   ├── Go2_AMP_Ts/           # AMP Teacher-Student 任务（teacher + student 配置）
 │   │   └── __init__.py           # 注册全部 12 个 task
 │   ├── scripts/                  # train.py + 各算法的 play 脚本
 │   └── utils/                    # task_registry（动态 runner 调度）/ helpers / terrain
@@ -266,7 +266,10 @@ python deploy_mujoco/sim2sim_GO2_amp_ts_viewer.py
 ---
  
 # TODO List
-- [ ] jump任务原地转圈不行
+- [X] jump任务原地转圈不行，参考go2_trot的修改command即可解决此问题  2026/8/16
+- [ ] jump和trot 原地转圈会偏离原始位置，原地站立由于相位的原因会抖动
+- [ ] 原始PPO的全部在平坦地形上进行训练，后续需要迁移至不平坦地形
+- [ ] trot 的原地转圈在isaacgym中看到基座有点晃动，需要修改
 - [ ] stand 任务关节抖动，静止时后退，没有下落控制，粗糙地面没有加入训练
 - [ ] 跳远要修改为可以在走路的时候直接切换以及连跳，以及可以控制下落位置和起跳高度
 - [ ] DreamwaQ 下楼梯不稳定、平地走歪
