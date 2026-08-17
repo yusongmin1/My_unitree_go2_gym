@@ -9,10 +9,72 @@ import mujoco, mujoco.viewer
 from collections import deque
 from scipy.spatial.transform import Rotation as R
 from legged_gym import LEGGED_GYM_ROOT_DIR
-from legged_gym.utils import  Logger
 import torch
 import time
+import matplotlib
+matplotlib.use('TkAgg')  # 本机 Qt 的 xcb 插件不可用，强制使用 Tk 后端
+import matplotlib.pyplot as plt
 from viewer_utils import VelocityArrowViewer
+
+
+class HipAnglePlotter:
+    """实时滚动绘制四条腿髋关节（hip）角度曲线。
+
+    MuJoCo 关节顺序为 FL, FR, RL, RR，每条腿 [hip, thigh, calf]，
+    因此髋关节索引为 [0, 3, 6, 9]。
+    """
+    HIP_IDX = [0, 3, 6, 9]
+    LABELS = ['FL hip', 'FR hip', 'RL hip', 'RR hip']
+
+    def __init__(self, dt=0.005, window_s=10.0, refresh_every=10):
+        """
+        Args:
+            dt: 仿真步长 [s]
+            window_s: 曲线滚动窗口长度 [s]
+            refresh_every: 每多少个仿真步刷新一次绘图（10 步 = 20Hz）
+        """
+        self.refresh_every = refresh_every
+        self.max_points = max(2, int(window_s / (dt * refresh_every)))
+        self.t_buf = deque(maxlen=self.max_points)
+        self.q_buf = deque(maxlen=self.max_points)
+        self._count = 0
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(8, 4.5))
+        try:
+            self.fig.canvas.manager.set_window_title('Hip Joint Angles (real-time)')
+        except Exception:
+            pass
+        self.lines = []
+        for label in self.LABELS:
+            line, = self.ax.plot([], [], label=label, linewidth=1.2)
+            self.lines.append(line)
+        self.ax.set_xlabel('time [s]')
+        self.ax.set_ylabel('hip angle [rad]')
+        self.ax.set_title('Hip joint angles (rolling window)')
+        self.ax.grid(True, alpha=0.4)
+        self.ax.legend(loc='upper right', ncol=4)
+        self.fig.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.001)
+
+    def update(self, t, q):
+        """每个仿真步调用一次：缓存数据，按 refresh_every 频率重绘。"""
+        self.t_buf.append(float(t))
+        self.q_buf.append(np.asarray(q)[self.HIP_IDX].copy())
+        self._count += 1
+        if self._count % self.refresh_every != 0:
+            return
+        ts = np.asarray(self.t_buf)
+        qs = np.asarray(self.q_buf)
+        for line, col in zip(self.lines, qs.T):
+            line.set_data(ts, col)
+        self.ax.relim()
+        self.ax.autoscale_view()
+        plt.pause(0.001)
+
+    def close(self):
+        plt.close(self.fig)
 
 # 命令最大值：前进速度 1.5
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 1.5
@@ -104,14 +166,16 @@ def run_mujoco(policy, cfg):
             hist_obs.append(np.zeros([1, 45], dtype=np.double))
 
         count_lowlevel = 1
-        logger = Logger(cfg.sim_config.dt)
 
-        stop_state_log = 4000
 
         np.set_printoptions(formatter={'float': '{:0.4f}'.format})
         policy_input = np.zeros([1, cfg.env.num_observations*6], dtype=np.float32)
 
-        for sim_step in range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)):
+        # 实时髋关节角度曲线窗口
+        hip_plotter = HipAnglePlotter(dt=cfg.sim_config.dt, window_s=10.0, refresh_every=10)
+
+        sim_step = 0
+        while True:  # 无限循环，直到手动关闭程序
             # 每帧更新命令（手柄优先，无手柄则用键盘累积值）
             step_start = time.time()  # 实时同步：记录本步开始时间
             cmd = vel_arrow.update_cmd()
@@ -169,85 +233,17 @@ def run_mujoco(policy, cfg):
             # 绘制速度箭头（绿色=目标命令，蓝色=实际速度）并刷新 viewer
             vel_arrow.draw_arrows(viewer, data)
             viewer.sync()
+            # 实时更新髋关节角度曲线
+            hip_plotter.update(data.time, q)
             # 实时同步：若本步耗时小于仿真步长则等待补足，防止加速播放
             time_until_next_step = model.opt.timestep - (time.time() - step_start)
             if time_until_next_step > 0:
                 time.sleep(time_until_next_step)
             count_lowlevel += 1
+            sim_step += 1
             idx = 5
             dof_pos_target = target_q + cfg.robot_config.default_dof_pos
-            if sim_step < stop_state_log:
-                logger.log_states(
-                    {
-                        'base_vel_x': v[0],
-                        'command_x': x_vel_cmd,
-                        'base_vel_y': v[1],
-                        'command_y': y_vel_cmd,
-                        'base_vel_z': v[2],
-                        'base_vel_yaw': omega[2],
-                        'command_yaw': yaw_vel_cmd,
-                        'dof_pos_target': dof_pos_target[idx],
-                        'dof_pos': q[idx],
-                        'dof_vel': dq[idx],
-                        'dof_torque': applied_tau[idx],
-                        'cmd_dof_torque': tau[idx],
-                        "contact_forces_z": foot_forces,
-                        'dof_pos_target[0]': dof_pos_target[0].item(),
-                        'dof_pos_target[1]': dof_pos_target[1].item(),
-                        'dof_pos_target[2]': dof_pos_target[2].item(),
-                        'dof_pos_target[3]': dof_pos_target[3].item(),
-                        'dof_pos_target[4]': dof_pos_target[4].item(),
-                        'dof_pos_target[5]': dof_pos_target[5].item(),
-                        'dof_pos_target[6]': dof_pos_target[6].item(),
-                        'dof_pos_target[7]': dof_pos_target[7].item(),
-                        'dof_pos_target[8]': dof_pos_target[8].item(),
-                        'dof_pos_target[9]': dof_pos_target[9].item(),
-                        'dof_pos_target[10]': dof_pos_target[10].item(),
-                        'dof_pos_target[11]': dof_pos_target[11].item(),
-                        'dof_pos':    q[0].item(),
-                        'dof_pos[0]': q[0].item(),
-                        'dof_pos[1]': q[1].item(),
-                        'dof_pos[2]': q[2].item(),
-                        'dof_pos[3]': q[3].item(),
-                        'dof_pos[4]': q[4].item(),
-                        'dof_pos[5]': q[5].item(),
-                        'dof_pos[6]': q[6].item(),
-                        'dof_pos[7]': q[7].item(),
-                        'dof_pos[8]': q[8].item(),
-                        'dof_pos[9]': q[9].item(),
-                        'dof_pos[10]': q[10].item(),
-                        'dof_pos[11]': q[11].item(),
-                        'dof_torque': applied_tau[0].item(),
-                        'dof_torque[0]': applied_tau[0].item(),
-                        'dof_torque[1]': applied_tau[1].item(),
-                        'dof_torque[2]': applied_tau[2].item(),
-                        'dof_torque[3]': applied_tau[3].item(),
-                        'dof_torque[4]': applied_tau[4].item(),
-                        'dof_torque[5]': applied_tau[5].item(),
-                        'dof_torque[6]': applied_tau[6].item(),
-                        'dof_torque[7]': applied_tau[7].item(),
-                        'dof_torque[8]': applied_tau[8].item(),
-                        'dof_torque[9]': applied_tau[9].item(),
-                        'dof_torque[10]': applied_tau[10].item(),
-                        'dof_torque[11]': applied_tau[11].item(),
-                        'dof_vel': dq[0].item(),
-                        'dof_vel[0]': dq[0].item(),
-                        'dof_vel[1]': dq[1].item(),
-                        'dof_vel[2]': dq[2].item(),
-                        'dof_vel[3]': dq[3].item(),
-                        'dof_vel[4]': dq[4].item(),
-                        'dof_vel[5]': dq[5].item(),
-                        'dof_vel[6]': dq[6].item(),
-                        'dof_vel[7]': dq[7].item(),
-                        'dof_vel[8]': dq[8].item(),
-                        'dof_vel[9]': dq[9].item(),
-                        'dof_vel[10]': dq[10].item(),
-                        'dof_vel[11]': dq[11].item(),
-                    }
-                    )
-
-            elif sim_step == stop_state_log:
-                logger.plot_states()
+        hip_plotter.close()
 
 
 if __name__ == '__main__':

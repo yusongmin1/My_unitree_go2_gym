@@ -11,7 +11,6 @@ from collections import deque
 from scipy.spatial.transform import Rotation as R
 from legged_gym import LEGGED_GYM_ROOT_DIR
 # from legged_gym.envs import *
-from legged_gym.utils import  Logger
 import torch
 import time
 from viewer_utils import VelocityArrowViewer
@@ -111,13 +110,12 @@ def run_mujoco(policy, cfg):
             hist_obs.append(np.zeros([1, cfg.env.num_single_obs], dtype=np.double))
 
         count_lowlevel = 1
-        logger = Logger(cfg.sim_config.dt)
     
-        stop_state_log = 4000
 
         np.set_printoptions(formatter={'float': '{:0.4f}'.format})
 
-        for _ in range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)):
+        sim_step = 0
+        while True:  # 无限循环，直到手动关闭程序
             # 每帧更新命令（手柄优先，无手柄则用键盘累积值）
             step_start = time.time()  # 实时同步：记录本步开始时间
             cmd = vel_arrow.update_cmd()
@@ -165,7 +163,7 @@ def run_mujoco(policy, cfg):
             target_dq = np.zeros((cfg.env.num_actions), dtype=np.double)
 
             # Generate PD control
-            if _ <100:
+            if sim_step <100:
                 tau = pd_control(np.zeros((cfg.env.num_actions)), q, cfg.robot_config.kps,
                                 target_dq, dq, cfg.robot_config.kds, cfg)  # Calc torques
                 tau = np.clip(tau, -cfg.robot_config.tau_limit, cfg.robot_config.tau_limit)  # Clamp torques
@@ -186,6 +184,7 @@ def run_mujoco(policy, cfg):
             if time_until_next_step > 0:
                 time.sleep(time_until_next_step)
             count_lowlevel += 1
+            sim_step += 1
         
 
 if __name__ == '__main__':

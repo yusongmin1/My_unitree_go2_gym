@@ -9,7 +9,6 @@ import mujoco, mujoco.viewer
 from collections import deque
 from scipy.spatial.transform import Rotation as R
 from legged_gym import LEGGED_GYM_ROOT_DIR
-from legged_gym.utils import  Logger
 import torch
 import time
 from viewer_utils import VelocityArrowViewer
@@ -109,13 +108,12 @@ def run_mujoco(policy, cfg):
             hist_obs.append(np.zeros([1, cfg.env.num_single_obs], dtype=np.double))
 
         count_lowlevel = 1
-        logger = Logger(cfg.sim_config.dt)
 
-        stop_state_log = 4000
 
         np.set_printoptions(formatter={'float': '{:0.4f}'.format})
 
-        for _ in range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)):
+        sim_step = 0
+        while True:  # 无限循环，直到手动关闭程序
 
             # 每帧更新命令（手柄优先，无手柄则用键盘累积值）
             step_start = time.time()  # 实时同步：记录本步开始时间
@@ -164,7 +162,7 @@ def run_mujoco(policy, cfg):
             target_dq = np.zeros((cfg.env.num_actions), dtype=np.double)
 
             # Generate PD control
-            if _ <100:
+            if sim_step <100:
                 tau = pd_control(np.zeros((cfg.env.num_actions)), q, cfg.robot_config.kps,
                                 target_dq, dq, cfg.robot_config.kds, cfg)  # Calc torques
                 tau = np.clip(tau, -cfg.robot_config.tau_limit, cfg.robot_config.tau_limit)  # Clamp torques
@@ -186,80 +184,9 @@ def run_mujoco(policy, cfg):
             if time_until_next_step > 0:
                 time.sleep(time_until_next_step)
             count_lowlevel += 1
+            sim_step += 1
             idx = 5
             dof_pos_target = target_q + cfg.robot_config.default_dof_pos
-            if _ < stop_state_log:
-                logger.log_states(
-                    {
-                        'base_vel_x': v[0],
-                        'command_x': x_vel_cmd,
-                        'base_vel_y': v[1],
-                        'command_y': y_vel_cmd,
-                        'base_vel_z': v[2],
-                        'base_vel_yaw': omega[2],
-                        'command_yaw': yaw_vel_cmd,
-                        'dof_pos_target': dof_pos_target[idx] ,
-                        'dof_pos': q[idx],
-                        'dof_vel': dq[idx],
-                        'dof_torque': applied_tau[idx],
-                        'cmd_dof_torque': tau[idx],
-                        "contact_forces_z":foot_forces,
-                        'dof_pos_target[0]': dof_pos_target[0].item(),
-                        'dof_pos_target[1]': dof_pos_target[1].item(),
-                        'dof_pos_target[2]': dof_pos_target[2].item(),
-                        'dof_pos_target[3]': dof_pos_target[3].item(),
-                        'dof_pos_target[4]': dof_pos_target[4].item(),
-                        'dof_pos_target[5]': dof_pos_target[5].item(),
-                        'dof_pos_target[6]': dof_pos_target[6].item(),
-                        'dof_pos_target[7]': dof_pos_target[7].item(),
-                        'dof_pos_target[8]': dof_pos_target[8].item(),
-                        'dof_pos_target[9]': dof_pos_target[9].item(),
-                        'dof_pos_target[10]': dof_pos_target[10].item(),
-                        'dof_pos_target[11]': dof_pos_target[11].item(),
-                        'dof_pos':    q[0].item(),
-                        'dof_pos[0]': q[0].item(),
-                        'dof_pos[1]': q[1].item(),
-                        'dof_pos[2]': q[2].item(),
-                        'dof_pos[3]': q[3].item(),
-                        'dof_pos[4]': q[4].item(),
-                        'dof_pos[5]': q[5].item(),
-                        'dof_pos[6]': q[6].item(),
-                        'dof_pos[7]': q[7].item(),
-                        'dof_pos[8]': q[8].item(),
-                        'dof_pos[9]': q[9].item(),
-                        'dof_pos[10]': q[10].item(),
-                        'dof_pos[11]': q[11].item(),
-                        'dof_torque': applied_tau[0].item(),
-                        'dof_torque[0]': applied_tau[0].item(),
-                        'dof_torque[1]': applied_tau[1].item(),
-                        'dof_torque[2]': applied_tau[2].item(),
-                        'dof_torque[3]': applied_tau[3].item(),
-                        'dof_torque[4]': applied_tau[4].item(),
-                        'dof_torque[5]': applied_tau[5].item(),
-                        'dof_torque[6]': applied_tau[6].item(),
-                        'dof_torque[7]': applied_tau[7].item(),
-                        'dof_torque[8]': applied_tau[8].item(),
-                        'dof_torque[9]': applied_tau[9].item(),
-                        'dof_torque[10]': applied_tau[10].item(),
-                        'dof_torque[11]': applied_tau[11].item(),
-                        'dof_vel': dq[0].item(),
-                        'dof_vel[0]': dq[0].item(),
-                        'dof_vel[1]': dq[1].item(),
-                        'dof_vel[2]': dq[2].item(),
-                        'dof_vel[3]': dq[3].item(),
-                        'dof_vel[4]': dq[4].item(),
-                        'dof_vel[5]': dq[5].item(),
-                        'dof_vel[6]': dq[6].item(),
-                        'dof_vel[7]': dq[7].item(),
-                        'dof_vel[8]': dq[8].item(),
-                        'dof_vel[9]': dq[9].item(),
-                        'dof_vel[10]': dq[10].item(),
-                        'dof_vel[11]': dq[11].item(),
-                    }
-                    )
-
-            elif _== stop_state_log:
-                logger.plot_states()
 
 if __name__ == '__main__':
     import argparse
