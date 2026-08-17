@@ -85,9 +85,17 @@ class Go2_AMP_Cts_Robot(BaseTask):
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
+        # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
+        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放已缩放的目标角）
+        actions_scaled = self.actions * self.cfg.control.action_scale
+        last_scaled = self.last_actions * self.cfg.control.action_scale
+        self.delayed_actions = actions_scaled.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+        delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
+        if self.cfg.domain_rand.delay:
+            for i in range(self.cfg.control.decimation):
+                self.delayed_actions[:, i] = last_scaled + (actions_scaled - last_scaled) * (i >= delay_steps)
         for _ in range(self.cfg.control.decimation):
-            action_delayed = self.update_cmd_action_latency_buffer()
-            self.torques = self._compute_torques(action_delayed).view(self.torques.shape)
+            self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             if self.device == 'cpu':
@@ -110,17 +118,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
             self.num_envs, self.num_actions, device=self.device, requires_grad=False))
         return obs, privileged_obs, obs_hist_buf, critic_obs
     
-    def update_cmd_action_latency_buffer(self):
-        actions_scaled = self.actions * self.cfg.control.action_scale
-        if self.cfg.domain_rand.add_cmd_action_latency:
-            self.cmd_action_latency_buffer[:,:,1:] = self.cmd_action_latency_buffer[:,:,:self.cfg.domain_rand.range_cmd_action_latency[1]].clone()
-            self.cmd_action_latency_buffer[:,:,0] = actions_scaled.clone()
-            action_delayed = self.cmd_action_latency_buffer[torch.arange(self.num_envs),:,self.cmd_action_latency_simstep.long()]
-        else:
-            action_delayed = actions_scaled
-        
-        return action_delayed
-
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
             calls self._post_physics_step_callback() for common computations 
@@ -191,7 +188,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
-        self._reset_latency_buffer(env_ids)
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
@@ -479,14 +475,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
-    def _reset_latency_buffer(self,env_ids):
-        if self.cfg.domain_rand.add_cmd_action_latency:   
-            self.cmd_action_latency_buffer[env_ids, :, :] = 0.0
-            if self.cfg.domain_rand.randomize_cmd_action_latency:
-                self.cmd_action_latency_simstep[env_ids] = torch.randint(self.cfg.domain_rand.range_cmd_action_latency[0], 
-                                                           self.cfg.domain_rand.range_cmd_action_latency[1]+1,(len(env_ids),),device=self.device) 
-            else:
-                self.cmd_action_latency_simstep[env_ids] = self.cfg.domain_rand.range_cmd_action_latency[1]
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
         """
@@ -612,9 +600,8 @@ class Go2_AMP_Cts_Robot(BaseTask):
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
 
         #通信延迟 cmd延迟，obs延迟 ，imu延迟
-        self.cmd_action_latency_buffer = torch.zeros(self.num_envs,self.num_actions,self.cfg.domain_rand.range_cmd_action_latency[1]+1,device=self.device)
-        self.cmd_action_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
-        self._reset_latency_buffer(torch.arange(self.num_envs, device=self.device))
+        # HIMLoco 式 action delay
+        self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, which will be called to compute the total reward.

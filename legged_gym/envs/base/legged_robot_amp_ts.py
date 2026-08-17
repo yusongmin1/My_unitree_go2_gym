@@ -93,8 +93,15 @@ class LeggedRobotAMP_TS(BaseTask):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         # step physics and render each frame
         self.render()
+        # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
+        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放原始动作，_compute_torques 内部缩放）
+        self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+        delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
+        if self.cfg.domain_rand.delay:
+            for i in range(self.cfg.control.decimation):
+                self.delayed_actions[:, i] = self.last_actions + (self.actions - self.last_actions) * (i >= delay_steps)
         for _ in range(self.cfg.control.decimation):
-            self.torques = self._compute_torques(self.actions).view(self.torques.shape)
+            self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             if self.device == 'cpu':
@@ -621,6 +628,9 @@ class LeggedRobotAMP_TS(BaseTask):
 
         self.terrain_obs_buf = torch.zeros(self.num_envs, 187, dtype=torch.float, device=self.device, requires_grad=False)
         self.privileged_buf= torch.zeros((self.num_envs, self.cfg.env.num_domain_rand), dtype=torch.float, device=self.device, requires_grad=False)
+
+        # HIMLoco 式 action delay
+        self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
 
 
     def _prepare_reward_function(self):

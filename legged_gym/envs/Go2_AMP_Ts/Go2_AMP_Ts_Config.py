@@ -134,9 +134,7 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         range_obs_motor_latency = [1, 3]
         range_obs_imu_latency = [1, 3]
         
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
-        range_cmd_action_latency = [1, 3]
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
     class noise:
         add_noise = True

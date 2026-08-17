@@ -140,9 +140,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         disturbance_range = [-30.0, 30.0]
         disturbance_interval = 8 
         
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
-        range_cmd_action_latency = [1, 3]
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
     class safety:
         # safety factors
         pos_limit = 0.9
@@ -159,16 +157,13 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             base_height=-8.0
             torques = -0.0001#
             dof_acc = -2.5e-7#-7
-            dof_vel=-1e-5
+            # dof_vel=-1e-5
             collision = -1.
             action_rate = -0.01
-            feet_air_time =  1.0
-            stand_still=-0.5
+            # stand_still=-0.5
             dof_pos_limits=-2.0
             joint_power=-2e-5
             action_smoothness = -0.01
-            power_distribution=-10e-6
-            # hip_pos=-0.1
             foot_clearance=-0.01
             stumble = -0.1
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)

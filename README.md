@@ -267,6 +267,9 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
  
 # TODO List
 - [X] jump任务原地转圈不行，参考go2_trot的修改command即可解决此问题  2026/8/16
+- [ ] 爬楼梯任务走停住会翻车 
+- [ ] amp后退托地，我认为是amp参数没有调整好
+- [ ] 不平坦地形去掉 feet_air_time和stand_still奖励，不知道会怎么样
 - [ ] jump和trot 原地转圈会偏离原始位置，原地站立由于相位的原因会抖动
 - [ ] 原始PPO的全部在平坦地形上进行训练，后续需要迁移至不平坦地形
 - [ ] trot 的原地转圈在isaacgym中看到基座有点晃动，需要修改

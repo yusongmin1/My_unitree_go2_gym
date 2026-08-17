@@ -173,9 +173,7 @@ class Go2_Stairs_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         disturbance = False
         disturbance_range = [-30.0, 30.0]
         disturbance_interval = 8 
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
-        range_cmd_action_latency = [0, 3]
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
     class safety:
         # safety factors
         pos_limit = 0.9

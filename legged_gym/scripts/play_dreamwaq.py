@@ -84,7 +84,8 @@ def play(args):
         env.commands[:, 1]=0.
         env.commands[:, 2]=0.0
         actions = policy(obs.detach(),obs_hist.detach())
-        obs, _,  obs_hist,_, rews, dones, infos = env.step(actions.detach())
+        # stairs_dreamwaq 的 step 返回 7 个值，amp_dreamwaq 返回 9 个（多 reset_env_ids, terminal_amp_states），取前 7 个兼容两者
+        obs, _,  obs_hist,_, rews, dones, infos = env.step(actions.detach())[:7]
         if RECORD_FRAMES:
             if i % 2:
                 filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")
