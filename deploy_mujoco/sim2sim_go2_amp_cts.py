@@ -253,10 +253,10 @@ if __name__ == '__main__':
             kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
             kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
             tau_limit = 45 * np.ones(12, dtype=np.double)
-            default_dof_pos = np.array( [0.,0.8,-1.5,
-                -0.0,0.8,-1.5,
-                 0.0,1.0,-1.5,
-                -0.0,1.0 ,-1.5], dtype=np.double)
+            default_dof_pos = np.array( [0.1,0.8,-1.5,    # FL
+                -0.1,0.8,-1.5,     # FR
+                 0.1,1.0,-1.5,     # RL
+                -0.1,1.0,-1.5], dtype=np.double)  # RR
 
 
     policy = torch.jit.load(args.load_model)

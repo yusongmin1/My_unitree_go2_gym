@@ -140,6 +140,8 @@ def run_mujoco(policy, cfg):
             if count_lowlevel % cfg.sim_config.decimation == 0:
                 print(data.qpos[:3])
                 obs = np.zeros([1, cfg.env.num_single_obs], dtype=np.float32)
+                eu_ang = quaternion_to_euler_array(quat)
+                eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
                 obs[0, 0] = 0
                 obs[0, 1] = 0
@@ -147,7 +149,7 @@ def run_mujoco(policy, cfg):
                 obs[0, 3] = 0
                 obs[0, 4] = x_vel_cmd
                 obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
-                obs[0, 8:11] = gvec  # 重力投影向量，与训练 obs 一致
+                obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
 
                 obs[0, 11:23] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
                 obs[0, 23:35] = dq * cfg.normalization.obs_scales.dof_vel
