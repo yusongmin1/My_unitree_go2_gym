@@ -175,9 +175,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
-        range_cmd_action_latency = [0, 3]
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
     class rewards:
         class scales:

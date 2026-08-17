@@ -43,7 +43,7 @@ def play(args):
     # export policy as a jit module (used to run it from C++)
     if EXPORT_POLICY:
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
-        export_policy_as_cts(ppo_runner.alg.actor_critic, path)
+        export_policy_as_cts(ppo_runner.alg.model, path)
         print('Exported policy as jit script to: ', path)
     logger = Logger(env.dt)
     robot_index = 0 # which robot is used for logging

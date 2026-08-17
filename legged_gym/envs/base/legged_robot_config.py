@@ -175,6 +175,7 @@ class LeggedRobotCfg(BaseConfig):
         add_cmd_action_latency = False
         randomize_cmd_action_latency = False
         range_cmd_action_latency = [1, 3]
+        delay = False  # HIMLoco 式 action delay（CTS/DreamWaQ/Ts 系任务使用）
     class safety:
         # safety factors
         pos_limit = 0.9
