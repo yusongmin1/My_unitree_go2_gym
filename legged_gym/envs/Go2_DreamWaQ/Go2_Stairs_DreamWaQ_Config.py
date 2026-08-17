@@ -55,21 +55,22 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
-    class init_state:
+    class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.,   # [rad]
-            'RL_hip_joint': 0.,   # [rad]
-            'FR_hip_joint': -0. ,  # [rad]
-            'RR_hip_joint': -0.,   # [rad]
+
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1 ,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 0.8,   # [rad]
+            'RL_thigh_joint': 1.0,#1.,   # [rad]
             'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 0.8,   # [rad]
+            'RR_thigh_joint': 1.0,#1.,   # [rad]
 
             'FL_calf_joint': -1.5,   # [rad]
             'RL_calf_joint': -1.5,    # [rad]
@@ -77,12 +78,14 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             'RR_calf_joint': -1.5,    # [rad]
         }
 
-    class control:
+    class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 25.}  # [N*m/rad]
+        stiffness = {'joint': 20.}  # [N*m/rad]
         damping = {'joint': 0.5}     # [N*m*s/rad]
+        # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
+        # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
     class asset:
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
@@ -139,7 +142,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         
         add_cmd_action_latency = True
         randomize_cmd_action_latency = True
-        range_cmd_action_latency = [0, 3]
+        range_cmd_action_latency = [1, 3]
     class safety:
         # safety factors
         pos_limit = 0.9
@@ -165,19 +168,18 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             joint_power=-2e-5
             action_smoothness = -0.01
             power_distribution=-10e-6
-            hip_pos=-0.1
+            # hip_pos=-0.1
             foot_clearance=-0.01
-            x_command_hip_regular=-0.5
             stumble = -0.1
-        only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
+        only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         foot_clearance_tracking_sigma=0.01
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.40
+        base_height_target = 0.34
         max_contact_force = 100. # forces above this value are penalized
-        clearance_height_target=-0.3
+        clearance_height_target=-0.20
     class normalization:
         class obs_scales:
             lin_vel = 2.0

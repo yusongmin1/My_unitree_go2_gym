@@ -114,12 +114,14 @@ class ActorCriticDreamWaQ(nn.Module):
 
     def update_distribution(self, observations):
         mean = self.actor(observations)
-        self.distribution = Normal(mean, mean * 0.0 + self.std)
+        self.distribution = Normal(mean, mean*0. + self.std)
 
     def act(self, observations, obs_history, **kwargs):
         code,_,_,_= self.vae.cenet_forward(obs_history)
         observations = torch.cat((code,observations),dim=-1)
         self.update_distribution(observations)
+        # if torch.is_grad_enabled():
+        #     print('DEBUG act: obs_history', obs_history.dtype, 'code', code.dtype, 'cat', observations.dtype, flush=True)
         return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):

@@ -106,9 +106,8 @@ class Go2_Spring_Jump_Robot(BaseTask):
             self.base_quat[:] = self.root_states[:, 3:7]
             self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
             self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
-            self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
             self.obs_imu_latency_buffer[:,:,1:] = self.obs_imu_latency_buffer[:,:,:self.cfg.domain_rand.range_obs_imu_latency[1]].clone()
-            self.obs_imu_latency_buffer[:,:,0] = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.projected_gravity), 1).clone()
+            self.obs_imu_latency_buffer[:,:,0] = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1).clone()
 
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
@@ -125,7 +124,6 @@ class Go2_Spring_Jump_Robot(BaseTask):
         self.base_lin_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
-        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
         self.commands[self.episode_length_buf==self.command_frame,2]=1.0
         self.check_jump()
@@ -241,7 +239,6 @@ class Go2_Spring_Jump_Robot(BaseTask):
         # fix reset gravity bug
         self.base_quat[env_ids] = self.root_states[env_ids, 3:7]
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
-        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
@@ -282,7 +279,7 @@ class Go2_Spring_Jump_Robot(BaseTask):
             self.actions,  # 12
             self.base_lin_vel * self.obs_scales.lin_vel,  # 3
             self.base_ang_vel * self.obs_scales.ang_vel,  # 3
-            self.projected_gravity,  # 3 重力投影向量（基座系）
+            self.base_euler_xyz *self.cfg.normalization.obs_scales.quat,  # 3
             contact_mask,  # 2    
             self.has_jumped.unsqueeze(1),
             
@@ -299,12 +296,12 @@ class Go2_Spring_Jump_Robot(BaseTask):
         if self.cfg.domain_rand.randomize_obs_imu_latency:
             self.obs_imu = self.obs_imu_latency_buffer[torch.arange(self.num_envs), :, self.obs_imu_latency_simstep.long()]
         else:              
-            self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.projected_gravity), 1)
+            self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1)
 
         obs_buf = torch.cat((
             torch.zeros((self.num_envs, 2), device=self.device),
             self.commands,
-            self.obs_imu,#6 角速度，重力投影向量XYZ
+            self.obs_imu,#6 角速度，欧拉角XYZ
             self.obs_motor,#24
             self.actions,   # 12
         ), dim=-1)
@@ -580,7 +577,7 @@ class Go2_Spring_Jump_Robot(BaseTask):
         noise_vec[0: 5] = 0.  # commands
 
         noise_vec[5:8] = noise_scales.ang_vel * self.obs_scales.ang_vel   # ang vel
-        noise_vec[8:11] = noise_scales.quat         # gravity projection x,y,z
+        noise_vec[8:11] = noise_scales.quat         # euler x,y
         noise_vec[11: 23] = noise_scales.dof_pos * self.obs_scales.dof_pos
         noise_vec[23: 35] = noise_scales.dof_vel * self.obs_scales.dof_vel
         noise_vec[35: 47] = 0.  # previous actions
@@ -614,7 +611,6 @@ class Go2_Spring_Jump_Robot(BaseTask):
         self.extras = {}
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
-        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
