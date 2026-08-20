@@ -20,6 +20,103 @@ import time
 from viewer_utils import VelocityArrowViewer
 import pygame
 from threading import Thread
+import matplotlib
+matplotlib.use('TkAgg')  # 本机 Qt 的 xcb 插件不可用，强制使用 Tk 后端
+import matplotlib.pyplot as plt
+
+
+class ActionMonitor:
+    """实时滚动绘制策略输出监控图，一个窗口内竖排三个子图：
+      1) 12 维 action 曲线
+      2) 逐时刻 action_rate = sum((action - last_action)^2)（与奖励定义一致）
+      3) 最近 250 个策略步（=5s，一个 episode 长度）内 action_rate 的滚动总和
+    MuJoCo 关节顺序为 FL, FR, RL, RR，每条腿 [hip, thigh, calf]。
+    """
+    ACTION_LABELS = ['FL hip', 'FL thigh', 'FL calf',
+                     'FR hip', 'FR thigh', 'FR calf',
+                     'RL hip', 'RL thigh', 'RL calf',
+                     'RR hip', 'RR thigh', 'RR calf']
+
+    def __init__(self, policy_dt, window_s=10.0, refresh_every=10,
+                 rate_sum_window=250):
+        """
+        Args:
+            policy_dt: 策略推理周期 [s]（= dt * decimation）
+            window_s: 曲线滚动窗口长度 [s]
+            refresh_every: 每多少次策略推理刷新一次绘图
+            rate_sum_window: action_rate 滚动求和的步数（250 步 = 5s = 一个 episode）
+        """
+        self.refresh_every = refresh_every
+        self.max_points = max(2, int(window_s / (policy_dt * refresh_every)))
+        self.t_buf = deque(maxlen=self.max_points)
+        self.a_buf = deque(maxlen=self.max_points)
+        self.rate_buf = deque(maxlen=self.max_points)
+        # 滚动求和窗口（策略步数），与 episode 长度对齐
+        self.rate_hist = deque(maxlen=rate_sum_window)
+        self.sum_buf = deque(maxlen=self.max_points)
+        self._count = 0
+        self.last_action = None
+
+        plt.ion()
+        self.fig, (self.ax_action, self.ax_rate, self.ax_sum) = \
+            plt.subplots(3, 1, figsize=(8, 9), sharex=True)
+        try:
+            self.fig.canvas.manager.set_window_title('Action Monitor (real-time)')
+        except Exception:
+            pass
+
+        self.action_lines = []
+        for label in self.ACTION_LABELS:
+            line, = self.ax_action.plot([], [], label=label, linewidth=1.0)
+            self.action_lines.append(line)
+        self.ax_action.set_ylabel('action')
+        self.ax_action.set_title('Policy action')
+        self.ax_action.grid(True, alpha=0.4)
+        self.ax_action.legend(loc='upper right', ncol=4, fontsize=6)
+
+        self.rate_line, = self.ax_rate.plot([], [], color='tab:red', linewidth=1.2)
+        self.ax_rate.set_ylabel('action rate')
+        self.ax_rate.set_title('sum((action - last_action)^2)')
+        self.ax_rate.grid(True, alpha=0.4)
+
+        self.sum_line, = self.ax_sum.plot([], [], color='tab:purple', linewidth=1.2)
+        self.ax_sum.set_ylabel('rate sum')
+        self.ax_sum.set_xlabel('time [s]')
+        self.ax_sum.set_title('Rolling sum of action_rate over last 250 policy steps (5s, one episode)')
+        self.ax_sum.grid(True, alpha=0.4)
+
+        self.fig.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.001)
+
+    def update(self, t, action):
+        """每次策略推理后调用一次：缓存数据，按 refresh_every 频率重绘。"""
+        action = np.asarray(action)
+        if self.last_action is not None:
+            rate = float(np.sum(np.square(action - self.last_action)))
+            self.rate_hist.append(rate)                     # 定长 250 步队列
+            rate_sum = float(np.sum(self.rate_hist))        # 最近 250 步总和
+            self.t_buf.append(float(t))
+            self.a_buf.append(action.copy())
+            self.rate_buf.append(rate)
+            self.sum_buf.append(rate_sum)
+        self.last_action = action.copy()
+        self._count += 1
+        if self._count % self.refresh_every != 0:
+            return
+        ts = np.asarray(self.t_buf)
+        for line, col in zip(self.action_lines, np.asarray(self.a_buf).T):
+            line.set_data(ts, col)
+        self.rate_line.set_data(ts, np.asarray(self.rate_buf))
+        self.sum_line.set_data(ts, np.asarray(self.sum_buf))
+        for ax in (self.ax_action, self.ax_rate, self.ax_sum):
+            ax.relim()
+            ax.autoscale_view()
+        plt.pause(0.001)
+
+    def close(self):
+        plt.close(self.fig)
+
 
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 1.5
     
@@ -120,6 +217,11 @@ def run_mujoco(policy, cfg):
 
         np.set_printoptions(formatter={'float': '{:0.4f}'.format})
 
+        # 实时 action 监控窗口：action / action_rate / 250 步 rate 总和（竖排子图）
+        action_monitor = ActionMonitor(
+            policy_dt=cfg.sim_config.dt * cfg.sim_config.decimation,
+            window_s=10.0, refresh_every=10, rate_sum_window=250)
+
         sim_step = 0
         while True:  # 无限循环，直到手动关闭程序
             # 每帧更新命令（手柄优先，无手柄则用键盘累积值）
@@ -167,6 +269,8 @@ def run_mujoco(policy, cfg):
                 action = np.clip(action, -cfg.normalization.clip_actions, cfg.normalization.clip_actions)
 
                 target_q = action * cfg.control.action_scale
+                # 实时更新 action 监控图（三个竖排子图）
+                action_monitor.update(data.time, action)
 
             target_dq = np.zeros((cfg.env.num_actions), dtype=np.double)
 

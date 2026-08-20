@@ -80,13 +80,13 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
         curriculum = True
-        max_curriculum = 1.2
+        max_curriculum = 2.0
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-        resampling_time = 8. # time before command are changed[s]
+        resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
         class ranges:
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
-            lin_vel_y = [-0.65, 0.65]   # min max [m/s]
+            lin_vel_y = [-0.55, 0.55]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
@@ -129,7 +129,6 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on =["base"]
-        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
@@ -186,17 +185,17 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-2.0
-            torques = -0.00001#
+            torques = -0.0001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
-            feet_air_time =  1.0
-            stand_still=-0.5
+            # feet_air_time =  1.0
+            # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            hip_pos=-0.1
+            # hip_pos=-0.1
 
 
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
@@ -206,7 +205,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 1.
         base_height_target = 0.40
         max_contact_force = 120. # forces above this value are penalized
-        clearance_height_target = -0.25
+        clearance_height_target = -0.20
     class normalization:
         class obs_scales:
             lin_vel = 2.0

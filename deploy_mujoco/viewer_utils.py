@@ -22,6 +22,12 @@ class VelocityArrowViewer:
         self.max_cmd = max_cmd
         self.dead_zone = dead_zone
 
+        # 速度档位：L2 减小 / R2 增大，档位值 = 前进最大速度 [m/s]
+        self.gears = [0.5, 1.0, 1.5]
+        self.gear_idx = 1  # 默认 1.0 m/s 档
+        self._prev_l2 = False
+        self._prev_r2 = False
+
         # 当前命令（vx, vy, yaw）
         self.cmd = np.zeros(3, dtype=np.float32)
         # 键盘增量步长
@@ -38,7 +44,8 @@ class VelocityArrowViewer:
             print(f"[viewer_utils] 检测到手柄: {self.joystick.get_name()}")
         else:
             print("[viewer_utils] 未检测到手柄，使用键盘控制。")
-            print("  键盘: 6/7=前进/后退, 8/9=左/右平移, -/=左转/右转, 1=归零")
+            print("  键盘: 6/7=前进/后退, 8/9=左/右平移, -/=左转/右转, 1=归零, [/]=降/升档")
+        print(f"[viewer_utils] 当前档位: {self.gears[self.gear_idx]} m/s（L2 降档 / R2 升档，范围 {self.gears}）")
 
         # ----- 键盘监听（手柄不可用时启用，或作为后备）-----
         self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
@@ -47,6 +54,53 @@ class VelocityArrowViewer:
             self._kb_listener.start()
 
     # ---------- 输入处理 ----------
+    @property
+    def gear(self):
+        """当前档位对应的前进最大速度 [m/s]。"""
+        return self.gears[self.gear_idx]
+
+    def _gear_max_cmd(self):
+        """按当前档位缩放后的 (vx_max, vy_max, yaw_max)。"""
+        scale = self.gear / self.max_cmd[0]
+        return (self.max_cmd[0] * scale, self.max_cmd[1] * scale, self.max_cmd[2] * scale)
+
+    def _change_gear(self, delta):
+        new_idx = min(max(self.gear_idx + delta, 0), len(self.gears) - 1)
+        if new_idx != self.gear_idx:
+            self.gear_idx = new_idx
+            print(f"\n[档位] 最大速度 -> {self.gear} m/s")
+            self._clip_cmd()
+
+    def _clip_cmd(self):
+        mc = self._gear_max_cmd()
+        self.cmd[0] = np.clip(self.cmd[0], -mc[0], mc[0])
+        self.cmd[1] = np.clip(self.cmd[1], -mc[1], mc[1])
+        self.cmd[2] = np.clip(self.cmd[2], -mc[2], mc[2])
+
+    def _read_trigger(self, which):
+        """读取 L2/R2：兼容按钮（常见映射 6/7）和扳机轴（常见映射轴 4/5，>0.5 视为按下）。"""
+        btn = 6 if which == 'l2' else 7
+        ax = 4 if which == 'l2' else 5
+        try:
+            if self.joystick.get_numbuttons() > btn and self.joystick.get_button(btn):
+                return True
+            if self.joystick.get_numaxes() > ax and self.joystick.get_axis(ax) > 0.5:
+                return True
+        except pygame.error:
+            pass
+        return False
+
+    def _update_gear_from_triggers(self):
+        """L2/R2 边沿触发切换档位（按住只切一档，松开后才能再切）。"""
+        l2 = self._read_trigger('l2')
+        r2 = self._read_trigger('r2')
+        if l2 and not self._prev_l2:
+            self._change_gear(-1)
+        if r2 and not self._prev_r2:
+            self._change_gear(+1)
+        self._prev_l2 = l2
+        self._prev_r2 = r2
+
     def _on_key_press(self, key):
         """键盘控制（无手柄时使用）。"""
         try:
@@ -64,11 +118,13 @@ class VelocityArrowViewer:
                 self.cmd[2] -= self.key_step[2]
             elif key.char == '1':
                 self.cmd[:] = 0
-            # 限幅
-            self.cmd[0] = np.clip(self.cmd[0], -self.max_cmd[0], self.max_cmd[0])
-            self.cmd[1] = np.clip(self.cmd[1], -self.max_cmd[1], self.max_cmd[1])
-            self.cmd[2] = np.clip(self.cmd[2], -self.max_cmd[2], self.max_cmd[2])
-            print(f"\r[键盘] cmd: vx={self.cmd[0]:.2f}, vy={self.cmd[1]:.2f}, yaw={self.cmd[2]:.2f}", end='')
+            elif key.char == '[':
+                self._change_gear(-1)
+            elif key.char == ']':
+                self._change_gear(+1)
+            # 限幅（按当前档位）
+            self._clip_cmd()
+            print(f"\r[键盘] cmd: vx={self.cmd[0]:.2f}, vy={self.cmd[1]:.2f}, yaw={self.cmd[2]:.2f}, 档位={self.gear}", end='')
         except AttributeError:
             pass
 
@@ -76,15 +132,18 @@ class VelocityArrowViewer:
         """每帧调用：从手柄读取命令（若使用手柄）。返回当前 cmd。"""
         if self.use_joystick:
             pygame.event.pump()
+            # L2/R2 档位切换
+            self._update_gear_from_triggers()
             lx = self.joystick.get_axis(0)   # 左摇杆左右
             ly = self.joystick.get_axis(1)   # 左摇杆上下
             rx = self.joystick.get_axis(3)   # 右摇杆左右
             if abs(lx) < self.dead_zone: lx = 0.0
             if abs(ly) < self.dead_zone: ly = 0.0
             if abs(rx) < self.dead_zone: rx = 0.0
-            self.cmd[0] = -ly * self.max_cmd[0]   # 前进
-            self.cmd[1] = -lx * self.max_cmd[1]   # 平移
-            self.cmd[2] = -rx * self.max_cmd[2]   # 转向
+            mc = self._gear_max_cmd()
+            self.cmd[0] = -ly * mc[0]   # 前进
+            self.cmd[1] = -lx * mc[1]   # 平移
+            self.cmd[2] = -rx * mc[2]   # 转向
         return self.cmd
 
     # ---------- 箭头绘制 ----------
@@ -109,7 +168,8 @@ class VelocityArrowViewer:
         mujoco.mju_quat2Mat(mat, target_quat)
 
         mat = mat.reshape(3, 3)
-        mat[:, 2] *= display_norm
+        # 注意：长度只通过 size 控制，不要再缩放 mat 的 z 轴，
+        # 否则长度被乘两次变成平方关系（0.5 档看起来只有 1.0 档的 1/4）
 
         mujoco.mjv_initGeom(
             geom_elem,

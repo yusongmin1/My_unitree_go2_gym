@@ -35,10 +35,11 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env ):
         num_envs = 4096
         num_observations = 45
-        num_privileged_obs = 309-12
+        num_privileged_obs = 309  # =3(线速度)+45(观测)+70(域随机)+4(足接触)+187(地形)
+        num_terrain = 187  # terrain_obs_buf 维度（runner init_storage 需要）
         reference_state_initialization = True
         reference_state_initialization_prob = 0.85
-        num_domain_rand=65
+        num_domain_rand = 77  # = 3(线速度)+70(域随机参数:1摩擦+1恢复+1质量+28连杆质量比+3质心+12kp+12kd+12力矩)+4(足接触)
         amp_motion_files = MOTION_FILES
     class safety:
         # safety factors
@@ -81,8 +82,8 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         curriculum = True
         max_curriculum = 1.5
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-        resampling_time = 5. # time before command are changed[s]
-        heading_command = False # if true: compute ang vel command from heading error
+        resampling_time = 10. # time before command are changed[s]
+        heading_command = True # if true: compute ang vel command from heading error
         class ranges:
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
             lin_vel_y = [-0.6,0.6]   # min max [m/s]
@@ -125,15 +126,9 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         randomize_torque = True
         torque_multiplier_range = [0.8, 1.2]
 
-        randomize_motor_zero_offset = False
+        randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
-        add_obs_latency = True # no latency for obs_action
-        randomize_obs_motor_latency = True
-        randomize_obs_imu_latency = True
-        range_obs_motor_latency = [1, 3]
-        range_obs_imu_latency = [1, 3]
-        
         delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
     class noise:
@@ -153,7 +148,7 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         base_height_target = 0.4
         cycle_time=0.5
         target_foot_height=0.06
-        class scales( LeggedRobotCfg.rewards.scales ):
+        class scales:
             termination = 0.0
             tracking_lin_vel = 1.0
             tracking_ang_vel = 0.5

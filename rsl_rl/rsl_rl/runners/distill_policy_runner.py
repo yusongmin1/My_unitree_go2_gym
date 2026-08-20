@@ -67,6 +67,7 @@ class DistillPolicyRunner:
         self.actor_critic=ActorCritic_Distill( self.env.num_obs,
                                                         num_critic_obs,
                                                         self.env.num_actions,
+                                                        num_privileged_input=self.env.privileged_buf.shape[-1],  # 实际维度=3(线速度)+域随机参数+4(足接触)
                                                         LSTM_INPUT_SIZE=self.lstm_cfg["input_size"],
                                                         LSTM_HIDDEN_SIZE=self.lstm_cfg["hidden_size"],
                                                         LSTM_NUM_LAYERS=self.lstm_cfg["num_layers"],

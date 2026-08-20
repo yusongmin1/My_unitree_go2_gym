@@ -5,6 +5,8 @@ import sys
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
 import isaacgym
+import matplotlib
+matplotlib.use('TkAgg')  # 本机 Qt 的 xcb 插件不可用，必须在 legged_gym.utils（内部 import pyplot）之前指定后端
 from legged_gym.envs import *
 from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger,export_policy_as_cts
 

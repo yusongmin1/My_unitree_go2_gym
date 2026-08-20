@@ -52,7 +52,7 @@ class ActorCriticAMP_TS(nn.Module):
                         **kwargs):
         if kwargs:
             print("ActorCritic.__init__ got unexpected arguments, which will be ignored: " + str([key for key in kwargs.keys()]))
-        super(ActorCritic, self).__init__()
+        super(ActorCriticAMP_TS, self).__init__()
 
         activation = get_activation(activation)
 

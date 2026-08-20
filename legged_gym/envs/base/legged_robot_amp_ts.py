@@ -93,8 +93,6 @@ class LeggedRobotAMP_TS(BaseTask):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         # step physics and render each frame
         self.render()
-        # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放原始动作，_compute_torques 内部缩放）
         self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
@@ -417,28 +415,49 @@ class LeggedRobotAMP_TS(BaseTask):
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
+        # ---- 5% 全部命令归零（原地站立）----
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[all_zero_mask]] = 0.0
 
+        # ---- 另外 5% 仅 x,y 线速度归零（原地转圈）----
+        xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[xy_zero_mask], :2] = 0.0
     def _resample_commands(self, env_ids):
-        """ Randommly select commands of some environments
+        """ 参考 Go2_AMP_DreamWaQ：速度课程 + 20% 高速 env + 楼梯限速 1m/s + 5% 原地站立 + 5% 原地转圈
 
         Args:
             env_ids (List[int]): Environments ids for which new commands are needed
         """
-        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        # ---- 速度课程：随迭代数逐步放开最大速度 ----
+        max_vel = 1.0
+        current_iter = self.common_step_counter // 24
+        if current_iter > 15000 and current_iter < 20000:
+            max_vel = 1.2
+        if current_iter > 20000 and current_iter < 30000:
+            max_vel = 1.4
+        if current_iter > 30000:
+            max_vel = 1.5
+        self.commands[env_ids, 0] = torch_rand_float(-max_vel, max_vel, (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         if self.cfg.commands.heading_command:
             self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         else:
             self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
 
-        # # 3. 新增：5% 全部命令归零
-        # all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
-        # self.commands[env_ids[all_zero_mask]] = 0.0
+        # ---- 20% 的 env 采全范围高速度 ----
+        high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
+        high_vel_env_ids = env_ids[high_vel_env_ids.nonzero(as_tuple=True)]
 
-        # # 4. 新增：另外 5% 仅前两项（x,y 线速度）归零
-        # xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
-        # self.commands[env_ids[xy_zero_mask], :2] = 0.0
-        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
+        self.commands[high_vel_env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(high_vel_env_ids), 1), device=self.device).squeeze(1)
+
+        # set y commands of high vel envs to zero
+        self.commands[high_vel_env_ids, 1:2] *= (torch.norm(self.commands[high_vel_env_ids, 0:1], dim=1) < 1.0).unsqueeze(1)
+
+        # set small commands to zero
+        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+
+
+
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -632,6 +651,20 @@ class LeggedRobotAMP_TS(BaseTask):
         # HIMLoco 式 action delay
         self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
 
+
+    def _reward_foot_clearance(self):
+        # 参考 Go2_Stairs_AMP_DreamWaQ：摆动相脚部离地高度误差 × 横向速度（越低越快的脚惩罚越多）
+        cur_footpos_translated = self.feet_pos - self.root_states[:, 0:3].unsqueeze(1)
+        footpos_in_body_frame = torch.zeros(self.num_envs, len(self.feet_indices), 3, device=self.device)
+        cur_footvel_translated = self.feet_vel - self.root_states[:, 7:10].unsqueeze(1)
+        footvel_in_body_frame = torch.zeros(self.num_envs, len(self.feet_indices), 3, device=self.device)
+        for i in range(len(self.feet_indices)):
+            footpos_in_body_frame[:, i, :] = quat_rotate_inverse(self.base_quat, cur_footpos_translated[:, i, :])
+            footvel_in_body_frame[:, i, :] = quat_rotate_inverse(self.base_quat, cur_footvel_translated[:, i, :])
+
+        height_error = torch.square(footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target).view(self.num_envs, -1)
+        foot_leteral_vel = torch.sqrt(torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)).view(self.num_envs, -1)
+        return torch.sum(height_error * foot_leteral_vel, dim=1)
 
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, whcih will be called to compute the total reward.

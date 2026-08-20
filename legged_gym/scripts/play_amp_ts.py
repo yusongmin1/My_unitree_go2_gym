@@ -32,6 +32,8 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
 
 import isaacgym
+import matplotlib
+matplotlib.use('TkAgg')  # 本机 Qt 的 xcb 插件不可用，必须在 legged_gym.utils（内部 import pyplot）之前指定后端
 from legged_gym.envs import *
 from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger
 
@@ -86,9 +88,9 @@ def play(args):
     img_idx = 0
 
     for i in range(10*int(env.max_episode_length)):
-        env.commands[:, 0]=0.0
+        env.commands[:, 0]=1.0
         env.commands[:, 1]=0.
-        env.commands[:, 2]=0.5
+        env.commands[:, 2]=0.0
         actions = policy(obs.detach(),terrain_observations.detach(),privileged_observations.detach())
         obs, _, rews, dones, infos, _, _ ,terrain_observations,privileged_observations= env.step(actions.detach())
         if RECORD_FRAMES:

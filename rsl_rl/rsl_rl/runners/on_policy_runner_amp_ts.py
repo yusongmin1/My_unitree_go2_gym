@@ -64,7 +64,7 @@ class OnPolicyRunnerAMP_TS:
         actor_critic: ActorCriticAMP_TS = actor_critic_class( self.env.num_obs,
                                                         num_critic_obs,
                                                         self.env.num_actions,
-                                                        num_privileged_input=self.env.cfg.env.num_domain_rand,
+                                                        num_privileged_input=self.env.privileged_buf.shape[-1],  # 实际维度=3(线速度)+域随机参数+4(足接触)
                                                         **self.policy_cfg).to(self.device)
         amp_data = AMPLoader(
             device, time_between_frames=self.env.dt, preload_transitions=True,

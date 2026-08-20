@@ -86,14 +86,13 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
         # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放已缩放的目标角）
-        actions_scaled = self.actions * self.cfg.control.action_scale
-        last_scaled = self.last_actions * self.cfg.control.action_scale
-        self.delayed_actions = actions_scaled.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作
+        # 注意：存放原始动作，缩放由 _compute_torques 内部完成（只缩放一次，避免双重 action_scale）
+        self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
             for i in range(self.cfg.control.decimation):
-                self.delayed_actions[:, i] = last_scaled + (actions_scaled - last_scaled) * (i >= delay_steps)
+                self.delayed_actions[:, i] = self.last_actions + (self.actions - self.last_actions) * (i >= delay_steps)
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
@@ -409,6 +408,13 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
             self._push_robots()
         if self.cfg.domain_rand.disturbance and (self.common_step_counter % self.cfg.domain_rand.disturbance_interval == 0):
             self._disturbance_robots()
+        # 5% 全部命令归零（原地站立）
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[all_zero_mask]] = 0.0
+
+        # 另外 5% 仅 x,y 线速度归零（原地转圈）
+        xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[xy_zero_mask], :2] = 0.0
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
         Args:
@@ -440,6 +446,7 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         # set small commands to zero
         self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
 
+
     def _compute_torques(self, actions):
         """ Compute torques from actions.
             Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
@@ -451,7 +458,6 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
-        # pd controller
         actions_scaled = actions * self.cfg.control.action_scale
         torques = self.p_gains_multiplier * self.p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos) - self.d_gains_multiplier * self.d_gains*self.dof_vel
         torques*=self.torques_multiplier
@@ -464,7 +470,7 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         Args:
             env_ids (List[int]): Environemnt ids
         """
-        self.dof_pos[env_ids] = self.default_dof_pos #* torch_rand_float(0.5, 1.5, (len(env_ids), self.num_dof), device=self.device)
+        self.dof_pos[env_ids] = self.default_dof_pos * torch_rand_float(0.5, 1.5, (len(env_ids), self.num_dof), device=self.device)
         self.dof_vel[env_ids] = 0.
 
         env_ids_int32 = env_ids.to(dtype=torch.int32)
@@ -917,8 +923,8 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Tensor of shape (num_envs, self.num_base_height_points, 3)
         """
-        y = torch.tensor([-0.15, -0.1, -0.05, 0., 0.05, 0.1, 0.15], device=self.device, requires_grad=False)
-        x = torch.tensor([-0.15, -0.1, -0.05, 0., 0.05, 0.1, 0.15], device=self.device, requires_grad=False)
+        y = torch.tensor([-0.6, -0.03, 0., 0.03, 0.6,], device=self.device, requires_grad=False)
+        x = torch.tensor([ -0.6, -0.03, 0., 0.03, 0.6, ], device=self.device, requires_grad=False)
         grid_x, grid_y = torch.meshgrid(x, y)
 
         self.num_base_height_points = grid_x.numel()
@@ -1079,7 +1085,7 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = self._get_base_heights()
-        return torch.square(base_height - self.cfg.rewards.base_height_target)
+        return torch.abs(base_height - self.cfg.rewards.base_height_target)
 
     def _reward_torques(self):
         # Penalize torques
@@ -1178,6 +1184,15 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         foot_leteral_vel = torch.sqrt(torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)).view(self.num_envs, -1)
         return torch.sum(height_error * foot_leteral_vel, dim=1)
 
+    def _reward_rear_hip_limit(self):
+        # 后腿（RL/RR）髋关节角度 > 0.4 或 < -0.4 rad 时返回 1（配合 scale=-1 即为 -1 惩罚）
+        if not hasattr(self, 'rear_hip_indices'):
+            self.rear_hip_indices = torch.tensor(
+                [i for i, name in enumerate(self.dof_names) if name in ('RL_hip_joint', 'RR_hip_joint')],
+                device=self.device, requires_grad=False)
+        rear_hip_pos = self.dof_pos[:, self.rear_hip_indices]
+        return ((rear_hip_pos > 0.4) | (rear_hip_pos < -0.4)).any(dim=1).float()
+
     def _reward_hip_pos(self):
         """ Reward for the hip joint position close to default position
         """
@@ -1194,3 +1209,12 @@ class Go2_Stairs_AMP_DreamWaQ_Robot(BaseTask):
         # x_command_ratio = torch.abs(self.commands[:,0]) / torch.norm(self.commands[:,:3], dim=1)
         rew = torch.abs(hip_pos[:,0]+hip_pos[:,1]) + torch.abs(hip_pos[:,2]+hip_pos[:,3])
         return rew *(torch.norm(self.commands[:, :2], dim=1) < 0.2)
+    
+    def _reward_turn_in_place_contact(self):
+        # 原地转圈命令（xy 线速度≈0 且 yaw 角速度命令明显）时，
+        # 奖励恰好两只脚接触地面（交叉腿支撑转身姿态）
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
+        num_contacts = contact.sum(dim=1).float()
+        turn_mask = ((torch.norm(self.commands[:, :2], dim=1) < 0.1) &
+                     (torch.abs(self.commands[:, 2]) > 0.2)).float()
+        return turn_mask * (num_contacts == 2).float()
