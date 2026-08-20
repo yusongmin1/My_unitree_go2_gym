@@ -166,6 +166,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             action_smoothness = -0.01
             foot_clearance=-0.01
             stumble = -0.1
+            rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         foot_clearance_tracking_sigma=0.01

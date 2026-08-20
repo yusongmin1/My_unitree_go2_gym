@@ -52,14 +52,13 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
         # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放已缩放的目标角）
-        actions_scaled = self.actions * self.cfg.control.action_scale
-        last_scaled = self.last_actions * self.cfg.control.action_scale
-        self.delayed_actions = actions_scaled.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作
+        # 注意：存放原始动作，缩放由 _compute_torques 内部完成（只缩放一次，避免双重 action_scale）
+        self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
             for i in range(self.cfg.control.decimation):
-                self.delayed_actions[:, i] = last_scaled + (actions_scaled - last_scaled) * (i >= delay_steps)
+                self.delayed_actions[:, i] = self.last_actions + (self.actions - self.last_actions) * (i >= delay_steps)
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
@@ -639,7 +638,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             name = '_reward_' + name
             self.reward_functions.append(getattr(self, name))
 
-        # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
                              for name in self.reward_scales.keys()}
 
@@ -772,6 +770,10 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.feet_indices = torch.zeros(len(feet_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(feet_names)):
             self.feet_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], feet_names[i])
+
+        # 髋关节（hip）自由度索引，用于 hip_limit 奖励
+        self.hip_indices = torch.tensor([i for i, name in enumerate(self.dof_names) if 'hip' in name],
+                                        dtype=torch.long, device=self.device)
 
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):
@@ -1032,6 +1034,15 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
         return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
+
+    def _reward_rear_hip_limit(self):
+        # 后腿（RL/RR）髋关节角度 > 0.4 或 < -0.4 rad 时返回 1（配合 scale=-1 即为 -1 惩罚）
+        if not hasattr(self, 'rear_hip_indices'):
+            self.rear_hip_indices = torch.tensor(
+                [i for i, name in enumerate(self.dof_names) if name in ('RL_hip_joint', 'RR_hip_joint')],
+                device=self.device, requires_grad=False)
+        rear_hip_pos = self.dof_pos[:, self.rear_hip_indices]
+        return ((rear_hip_pos > 0.4) | (rear_hip_pos < -0.4)).any(dim=1).float()
 
     def _reward_orientation(self):
         # Penalize non flat base orientation

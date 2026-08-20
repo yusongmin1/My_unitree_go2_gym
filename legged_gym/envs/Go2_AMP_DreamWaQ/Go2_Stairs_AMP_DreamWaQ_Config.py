@@ -74,7 +74,7 @@ class Go2_Stairs_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.1, 0.1, 0.35, 0.35, 0.1]
+        terrain_proportions = [0.15, 0.15, 0.3, 0.3, 0.1]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
@@ -187,25 +187,27 @@ class Go2_Stairs_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            base_height=-2.0
+            base_height=-5.0
             torques = -0.00001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
-            feet_air_time =  1.0
-            stand_still=-0.5
+            # feet_air_time =  1.0
+            # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            x_command_hip_regular=-1.0
+            rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
+            # turn_in_place_contact = 2.0 # 原地转圈时恰好两只脚触地的奖励
+            # x_command_hip_regular=-1.0
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         foot_clearance_tracking_sigma=0.01
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.4
+        base_height_target = 0.35
         max_contact_force = 100. # forces above this value are penalized
         clearance_height_target=-0.2
     class normalization:

@@ -81,14 +81,13 @@ class Go2_Cts_Robot(BaseTask):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
         # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作（存放已缩放的目标角）
-        actions_scaled = self.actions * self.cfg.control.action_scale
-        last_scaled = self.last_actions * self.cfg.control.action_scale
-        self.delayed_actions = actions_scaled.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作
+        # 注意：存放原始动作，缩放由 _compute_torques 内部完成（只缩放一次，避免双重 action_scale）
+        self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
             for i in range(self.cfg.control.decimation):
-                self.delayed_actions[:, i] = last_scaled + (actions_scaled - last_scaled) * (i >= delay_steps)
+                self.delayed_actions[:, i] = self.last_actions + (self.actions - self.last_actions) * (i >= delay_steps)
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
@@ -401,11 +400,12 @@ class Go2_Cts_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
-        # pd controller
+        # pd controller（action 在此处缩放，step 传入的是原始动作）
+        actions_scaled = actions * self.cfg.control.action_scale
         p_gains = self.p_gains * self.p_gains_multiplier
         d_gains = self.d_gains * self.d_gains_multiplier
 
-        torques = p_gains * (actions + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
+        torques = p_gains * (actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
         torques*=self.torques_multiplier
         # torques*=(self.episode_length_buf>50).unsqueeze(1)
         return torch.clip(torques, -self.torque_limits, self.torque_limits)
