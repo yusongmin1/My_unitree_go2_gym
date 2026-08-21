@@ -195,7 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
-    class Sim2simCfg(Go2_Handstand_Cfg_Yu):
+    class Sim2simCfg(Go2_Leggedstand_Cfg_Yu):
         class sim_config:
             mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 120.0

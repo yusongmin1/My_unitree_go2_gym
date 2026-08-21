@@ -133,7 +133,7 @@ class Go2_Leggedstand_Cfg_Yu( LeggedRobotCfg ):
     class domain_rand:
         push_towards_goal=True
         randomize_friction = True
-        friction_range = [0.2,0.8]
+        friction_range = [0.2,1.2]
 
         randomize_restitution = True
         restitution_range = [0.0, 0.3]
@@ -159,6 +159,7 @@ class Go2_Leggedstand_Cfg_Yu( LeggedRobotCfg ):
         randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
         randomize_joint_friction = True
         joint_friction_range = [0.01, 0.2]
@@ -192,7 +193,7 @@ class Go2_Leggedstand_Cfg_Yu( LeggedRobotCfg ):
             handstand_orientation = -1
             torques = -0.0002
             dof_vel = -0.
-            dof_acc = -2.5e-4
+            dof_acc = -2.5e-7
             base_height = 1.0
             handstand_feet_on_air =  0.4
             collision = -1.

@@ -132,7 +132,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
     class domain_rand:
         push_towards_goal=True
         randomize_friction = True
-        friction_range = [0.2,0.8]
+        friction_range = [0.2,1.2]
 
         randomize_restitution = True
         restitution_range = [0.0, 0.3]
@@ -158,6 +158,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
+        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
         randomize_joint_friction = True
         joint_friction_range = [0.01, 0.2]
@@ -167,18 +168,6 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
 
         randomize_joint_armature = True
         joint_armature_range = [0.005, 0.015]    #
-
-
-        add_obs_latency = True # no latency for obs_action
-        randomize_obs_motor_latency = True
-        randomize_obs_imu_latency = True
-        range_obs_motor_latency = [1, 3]
-        range_obs_imu_latency = [1, 3]
-        
-        add_cmd_action_latency = True
-        randomize_cmd_action_latency = True
-        range_cmd_action_latency = [1, 3]
-
     class rewards:
         class scales:
             termination = -0.0
@@ -191,7 +180,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
             handstand_orientation = -1.0
             torques = -0.0002
             dof_vel = -0.
-            dof_acc = -2.5e-4
+            dof_acc = -2.5e-7
             base_height = 1.5
             handstand_feet_on_air =  0.4
             collision = -2.
@@ -199,8 +188,6 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
             action_rate = -0.05
             default_pos =-0.1####
             default_hip_pos=-0.1
-            # contact=0.3
-            # hand_pos=0.5
             feet_clearance=0.4
             ang_xz=-0.5
             contact=0.3

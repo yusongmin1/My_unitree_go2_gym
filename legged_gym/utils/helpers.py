@@ -117,7 +117,9 @@ def get_load_path(root, load_run=-1, checkpoint=-1):
 
     if checkpoint==-1:
         models = [file for file in os.listdir(load_run) if 'model' in file]
-        models.sort(key=lambda m: '{0:0>15}'.format(m))
+        # 按文件名中的数字排序（字典序会让 900 > 1700，导致永远加载 900 轮的模型）
+        import re as _re
+        models.sort(key=lambda m: int(_re.findall(r'\d+', m)[-1]) if _re.findall(r'\d+', m) else 0)
         model = models[-1]
     else:
         model = "model_{}.pt".format(checkpoint) 
