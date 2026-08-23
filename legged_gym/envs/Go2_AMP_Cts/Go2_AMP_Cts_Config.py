@@ -86,7 +86,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         heading_command = True # if true: compute ang vel command from heading error
         class ranges:
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
-            lin_vel_y = [-0.55, 0.55]   # min max [m/s]
+            lin_vel_y = [-0.65, 0.65]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
@@ -97,10 +97,10 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = { # = target angles [rad] when action = 0.0
 
-            'FL_hip_joint': 0.1,   # [rad]
-            'RL_hip_joint': 0.1,   # [rad]
-            'FR_hip_joint': -0.1 ,  # [rad]
-            'RR_hip_joint': -0.1,   # [rad]
+            'FL_hip_joint': -0.,   # [rad]
+            'RL_hip_joint': -0.,   # [rad]
+            'FR_hip_joint': 0. ,  # [rad]
+            'RR_hip_joint': 0.,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
             'RL_thigh_joint': 1.0,#1.,   # [rad]
@@ -129,6 +129,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on =["base"]
+        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
@@ -174,7 +175,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.035, 0.035] # Offset to add to the motor angles
 
-        delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
+        delay = True # HIMLoco-style per-decimation action delay
 
     class rewards:
         class scales:
@@ -185,27 +186,27 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-2.0
-            torques = -0.0001#
+            torques = -0.00001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
-            # feet_air_time =  1.0
-            # stand_still=-0.5
+            feet_air_time =  1.0
+            stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            # hip_pos=-0.1
+            hip_pos=-0.1
 
 
-        only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
+        only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
         base_height_target = 0.40
         max_contact_force = 120. # forces above this value are penalized
-        clearance_height_target = -0.20
+        clearance_height_target = -0.25
     class normalization:
         class obs_scales:
             lin_vel = 2.0

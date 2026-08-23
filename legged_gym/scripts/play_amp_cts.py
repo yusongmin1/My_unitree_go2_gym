@@ -40,8 +40,23 @@ def play(args):
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
-    policy = ppo_runner.get_inference_policy(device=env.device)
-    
+
+    # --teacher 参数：回放用 teacher 策略（特权观测输入）；默认 student。导出始终是 student。
+    USE_TEACHER = getattr(args, 'teacher', False) or ('--teacher' in sys.argv)
+    if USE_TEACHER:
+        _model = ppo_runner.alg.model
+        _model.eval()
+        def policy(obs, history, priv_obs):
+            with torch.no_grad():
+                latent = _model.teacher_encoder(priv_obs)
+                return _model.actor(torch.cat([latent, obs], dim=1))
+        print('[play_amp_cts] 使用 teacher 策略回放（导出仍为 student）')
+    else:
+        _act_inference = ppo_runner.get_inference_policy(device=env.device)
+        def policy(obs, history, priv_obs):
+            return _act_inference(obs, history)
+        print('[play_amp_cts] 使用 student 策略回放')
+
     if EXPORT_POLICY:
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
         export_policy_as_cts(ppo_runner.alg.model, path)
@@ -60,8 +75,9 @@ def play(args):
         env.commands[:, 0]=1.0
         env.commands[:, 1]=0.
         env.commands[:, 2]=0.
-        actions = policy(obs.detach(),obs_hist_buf.detach())
-        obs, privileged_obs,obs_hist_buf, critic_obs, _, _,_,_,_ = env.step(actions.detach())
+        actions = policy(obs.detach(), obs_hist_buf.detach(), privileged_buf.detach())
+        obs, privileged_obs, obs_hist_buf, critic_obs, _, _, _, _, _ = env.step(actions.detach())
+        privileged_buf = privileged_obs
         # print(obs[0])
         # print(env.commands[0],env.landing_poses[0],env.was_in_flight[0],env.has_jumped[0])
         if RECORD_FRAMES:
