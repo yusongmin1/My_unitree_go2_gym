@@ -84,15 +84,17 @@ class Go2_AMP_Cts_Robot(BaseTask):
         """
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
-        self.render()
-        # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作
-        # 注意：存放原始动作，缩放由 _compute_torques 内部完成（只缩放一次，避免双重 action_scale）
-        self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
+
+        # HIMLoco-style action delay: interpolate between last and current action
+        actions_scaled = self.actions * self.cfg.control.action_scale
+        last_actions_scaled = self.last_actions * self.cfg.control.action_scale
+        self.delayed_actions = actions_scaled.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
             for i in range(self.cfg.control.decimation):
-                self.delayed_actions[:, i] = self.last_actions + (self.actions - self.last_actions) * (i >= delay_steps)
+                self.delayed_actions[:, i] = last_actions_scaled + (actions_scaled - last_actions_scaled) * (i >= delay_steps)
+
+        self.render()
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.delayed_actions[:, _]).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
@@ -116,7 +118,7 @@ class Go2_AMP_Cts_Robot(BaseTask):
         obs, privileged_obs,obs_hist_buf, critic_obs, _, _, _,_,_ = self.step(torch.zeros(
             self.num_envs, self.num_actions, device=self.device, requires_grad=False))
         return obs, privileged_obs, obs_hist_buf, critic_obs
-    
+
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
             calls self._post_physics_step_callback() for common computations 
@@ -382,13 +384,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
-        # 5% 全部命令归零（原地站立）
-        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
-        self.commands[env_ids[all_zero_mask]] = 0.0
-
-        # 另外 5% 仅 x,y 线速度归零（原地转圈）
-        xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
-        self.commands[env_ids[xy_zero_mask], :2] = 0.0
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
         Args:
@@ -420,7 +415,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
         # set small commands to zero
         self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
 
-
     def _compute_torques(self, actions):
         """ Compute torques from actions.
             Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
@@ -432,12 +426,13 @@ class Go2_AMP_Cts_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
-        actions_scaled = actions * self.cfg.control.action_scale
+        # pd controller
         p_gains = self.p_gains * self.p_gains_multiplier
         d_gains = self.d_gains * self.d_gains_multiplier
 
-        torques = p_gains * (actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
+        torques = p_gains * (actions + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
         torques*=self.torques_multiplier
+        # torques*=(self.episode_length_buf>50).unsqueeze(1)
         return torch.clip(torques, -self.torque_limits, self.torque_limits)
     def _reset_dofs(self, env_ids):
         """ Resets DOF position and velocities of selected environmments
@@ -469,6 +464,14 @@ class Go2_AMP_Cts_Robot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
+        # # base velocities
+        # n_reset = len(env_ids)
+        # roll  = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
+        # pitch = torch_rand_float(-np.pi/2, np.pi/2, (n_reset, 1), device=self.device).squeeze(1)  # 可选范围
+        # yaw   = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
+
+        # quat = quat_from_euler_xyz(roll, pitch, yaw)   # Isaac-Gym 自带：返回 (x,y,z,w)
+        # self.root_states[env_ids, 3:7] = quat
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -597,9 +600,6 @@ class Go2_AMP_Cts_Robot(BaseTask):
                 print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
 
-        #通信延迟 cmd延迟，obs延迟 ，imu延迟
-        # HIMLoco 式 action delay
-        self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, which will be called to compute the total reward.

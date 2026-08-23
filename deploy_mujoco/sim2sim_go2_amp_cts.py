@@ -57,7 +57,9 @@ def run_mujoco(policy, cfg):
         None
     """
     # 初始化手柄/键盘输入 + 箭头绘制工具（手柄优先，无手柄回退键盘）
-    vel_arrow = VelocityArrowViewer(max_cmd=(x_vel_max, y_vel_max, yaw_vel_max))
+    # 楼梯任务四档速度：0.5 / 1.0 / 1.5 / 2.0 m/s（L2 降档 / R2 升档）
+    vel_arrow = VelocityArrowViewer(max_cmd=(x_vel_max, y_vel_max, yaw_vel_max),
+                                    gears=[0.5, 1.0, 1.5, 2.0])
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     
     model.opt.timestep = cfg.sim_config.dt
@@ -171,7 +173,7 @@ if __name__ == '__main__':
 
     class Sim2simCfg(Go2_AMP_Cts_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/cross_stairs.xml'
+            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 120.0
             dt = 0.005
             decimation = 4
@@ -180,10 +182,14 @@ if __name__ == '__main__':
             kps = np.array([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], dtype=np.double)
             kds = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.double)
             tau_limit = 45 * np.ones(12, dtype=np.double)
-            default_dof_pos = np.array( [0.1,0.8,-1.5,    # FL
-                -0.1,0.8,-1.5,     # FR
-                 0.1,1.0,-1.5,     # RL
-                -0.1,1.0,-1.5], dtype=np.double)  # RR
+            # default_dof_pos = np.array( [0.1,0.8,-1.5,    # FL
+            #     -0.1,0.8,-1.5,     # FR
+            #      0.1,1.0,-1.5,     # RL
+            #     -0.1,1.0,-1.5], dtype=np.double)  # RR
+            default_dof_pos = np.array( [0.,0.8,-1.5,
+                -0.0,0.8,-1.5,
+                 0.0,1.0,-1.5,
+                -0.0,1.0 ,-1.5], dtype=np.double)
 
 
     policy = torch.jit.load(args.load_model)

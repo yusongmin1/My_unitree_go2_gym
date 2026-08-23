@@ -13,18 +13,19 @@ from pynput import keyboard
 class VelocityArrowViewer:
     """封装手柄/键盘输入 + MuJoCo user_scn 箭头绘制。"""
 
-    def __init__(self, max_cmd=(1.5, 1.0, 1.5), dead_zone=0.1):
+    def __init__(self, max_cmd=(1.5, 1.0, 1.5), dead_zone=0.1, gears=None):
         """
         Args:
             max_cmd: (vx_max, vy_max, yaw_max) 命令最大值，默认前进 1.5。
             dead_zone: 手柄摇杆死区。
+            gears: 速度档位列表（档位值=前进最大速度 m/s），默认 [0.5, 1.0, 1.5]。
         """
         self.max_cmd = max_cmd
         self.dead_zone = dead_zone
 
         # 速度档位：L2 减小 / R2 增大，档位值 = 前进最大速度 [m/s]
-        self.gears = [0.5, 1.0, 1.5]
-        self.gear_idx = 1  # 默认 1.0 m/s 档
+        self.gears = list(gears) if gears is not None else [0.5, 1.0, 1.5]
+        self.gear_idx = min(1, len(self.gears) - 1)  # 默认第 2 档（1.0 m/s）
         self._prev_l2 = False
         self._prev_r2 = False
 
