@@ -1,3 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Copyright (c) 2021 ETH Zurich, Nikita Rudin
 import os
 import numpy as np
 
@@ -12,10 +41,11 @@ from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
-from legged_gym.envs.Go2_DreamWaQ.Go2_Stairs_DreamWaQ_Config import Go2_Stairs_DreamWaQ_Cfg_Yu
+from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ_Config import Go2_AMP_DreamWaQ_Cfg_Yu
+from rsl_rl.datasets.motion_loader import AMPLoader
 
-class Go2_Stairs_DreamWaQ_Robot(BaseTask):
-    def __init__(self, cfg: Go2_Stairs_DreamWaQ_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
+class Go2_AMP_DreamWaQ_Robot(BaseTask):
+    def __init__(self, cfg: Go2_AMP_DreamWaQ_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
@@ -41,6 +71,10 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self._prepare_reward_function()
         self.init_done = True
 
+        if self.cfg.env.reference_state_initialization: #replay_amp_data
+            print("motion_files dir: ")
+            print(self.cfg.env.amp_motion_files)
+            self.amp_loader = AMPLoader(motion_files=self.cfg.env.amp_motion_files, device=self.device, time_between_frames=self.dt)
     def step(self, actions):
         """ Apply actions, simulate, call self.post_physics_step()
 
@@ -66,14 +100,14 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             if self.device == 'cpu':
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
-        self.post_physics_step()
+        reset_env_ids,terminal_amp_states = self.post_physics_step()
 
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
-        return self.obs_buf, self.privileged_obs_buf,self.obs_hist_buf ,self.vel_buf, self.rew_buf, self.reset_buf, self.extras
+        return self.obs_buf, self.privileged_obs_buf,self.obs_hist_buf ,self.vel_buf, self.rew_buf, self.reset_buf, self.extras, reset_env_ids, terminal_amp_states
 
     def get_observations(self):
         return self.obs_buf, self.obs_hist_buf, self.vel_buf
@@ -84,7 +118,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
     def reset(self):
         """ Reset all robots"""
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, obs_history, explicit_labels, _, _, _ = self.step(torch.zeros(
+        obs, privileged_obs, obs_history, explicit_labels, _, _, _,_,_ = self.step(torch.zeros(
             self.num_envs, self.num_actions, device=self.device, requires_grad=False))
         return obs, privileged_obs, obs_history, explicit_labels
     def post_physics_step(self):
@@ -112,12 +146,14 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.check_termination()
         self.compute_reward()
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+        terminal_amp_states = self.get_amp_observations()[env_ids]
         self.reset_idx(env_ids)
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
         self.last_last_actions[:] = self.last_actions[:]
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
+        return env_ids,terminal_amp_states
 
     def check_termination(self):
         """ Check if environments need to be reset
@@ -148,12 +184,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         # reset robot states
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
-        if self.cfg.domain_rand.randomize_pd_gains:
-            self.p_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)
-            self.d_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)   
-            self.torques_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.torque_multiplier_range[0], self.cfg.domain_rand.torque_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)   
-               
-        # reset buffers
         self.last_last_actions[env_ids] = 0.
         self.actions[env_ids] = 0.
         self.last_actions[env_ids] = 0.
@@ -183,7 +213,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             self.obs_history[i][env_ids] *= 0
         for i in range(self.critic_history.maxlen):
             self.critic_history[i][env_ids] *= 0
-
+        self.obs_hist_buf[env_ids] = 0
     def compute_reward(self):
         """ Compute rewards
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
@@ -202,17 +232,18 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
+
     def compute_observations(self):
         self.obs_hist_buf = self.obs_hist_buf[:,45:]
         self.obs_hist_buf = torch.cat((self.obs_hist_buf,self.obs_buf),dim = -1) #不要包含当前帧数据
 
         obs_buf = torch.cat((
-            self.commands[:, :3] * self.commands_scale,                     # 3
-            self.base_ang_vel * self.obs_scales.ang_vel,                   # 3
-            self.projected_gravity,                                         # 3
+            self.commands[:, :3] * self.commands_scale, 
+            self.base_ang_vel * self.obs_scales.ang_vel, 
+            self.projected_gravity,                
             (self.dof_pos - self.default_dof_pos) *
-            self.obs_scales.dof_pos,  # num_dofs
-            self.dof_vel * self.obs_scales.dof_vel,                         # num_dofs
+            self.obs_scales.dof_pos,  
+            self.dof_vel * self.obs_scales.dof_vel,                        
             self.actions     
         ), dim=-1)
         self.vel_buf= self.base_lin_vel
@@ -236,7 +267,9 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             self.obs_scales.dof_pos,  # num_dofs
             self.dof_vel * self.obs_scales.dof_vel,                         # num_dofs
             self.actions   
-        ), dim=-1)#5 12 12 12 12 3 3 3 1 1 2 2 =68
+        ), dim=-1)#后面45维是obs,无噪声的，这里后续用于采集vae的下一帧decode
+        # print("!!!!!!!!!!!!!!!!!!!!!11",self.privileged_obs_buf.shape)
+
         self.obs_history.append(obs_now)
         self.critic_history.append(self.privileged_obs_buf)
 
@@ -246,8 +279,8 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.obs_buf = obs_buf_all.reshape(self.num_envs, -1)  # N, T*K
         self.privileged_obs_buf = torch.cat([self.critic_history[i] for i in range(self.cfg.env.c_frame_stack)], dim=1)
 
-        # print("!!!!!!!!!!!!!!!!!!!!!11",self.privileged_obs_buf.shape)
-
+    def get_amp_observations(self):
+        return torch.cat((self.dof_pos, self.base_lin_vel, self.base_ang_vel, self.dof_vel,self._get_base_heights().unsqueeze(1)), dim=-1)
     def create_sim(self):
         """ Creates simulation, terrain and evironments
         """
@@ -330,7 +363,13 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
                 r = self.dof_pos_limits[i, 1] - self.dof_pos_limits[i, 0]
                 self.dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
                 self.dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
-
+        if self.cfg.domain_rand.randomize_pd_gains:
+            self.p_gains_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (1, self.num_actions), device=self.device)
+            self.d_gains_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (1, self.num_actions), device=self.device)   
+            self.torques_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.torque_multiplier_range[0], self.cfg.domain_rand.torque_multiplier_range[1], (1, self.num_actions), device=self.device)
+        if self.cfg.domain_rand.randomize_motor_zero_offset:
+            self.motor_zero_offsets[env_id, :] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (1,self.num_actions), device=self.device)
+        # reset buffers
         return props
     def _process_rigid_body_props(self, props, env_id):
         # randomize base mass
@@ -361,7 +400,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -1.0,1.0)
+            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -2., 2.)
         if self.cfg.terrain.measure_heights:
             self.measured_heights = self._get_heights()
             self.measured_feet_heights = self._get_feet_heights()
@@ -369,32 +408,26 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             self._push_robots()
         if self.cfg.domain_rand.disturbance and (self.common_step_counter % self.cfg.domain_rand.disturbance_interval == 0):
             self._disturbance_robots()
-        high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
-        high_vel_env_ids = env_ids[high_vel_env_ids.nonzero(as_tuple=True)]
+        # 5% 全部命令归零（原地站立）
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[all_zero_mask]] = 0.0
 
-        self.commands[high_vel_env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(high_vel_env_ids), 1), device=self.device).squeeze(1)
-
-        # set y commands of high vel envs to zero
-        self.commands[high_vel_env_ids, 1:2] *= (torch.norm(self.commands[high_vel_env_ids, 0:1], dim=1) < 1.0).unsqueeze(1)
-        self.commands[high_vel_env_ids, 2] =torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(high_vel_env_ids), 1), device=self.device).squeeze(1)
-
-        # set small commands to zero
+        # 另外 5% 仅 x,y 线速度归零（原地转圈）
+        xy_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.05
+        self.commands[env_ids[xy_zero_mask], :2] = 0.0
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
-
         Args:
             env_ids (List[int]): Environments ids for which new commands are needed
         """
         max_vel=1.0
         current_iter = self.common_step_counter // 24
-        # print(current_iter, self.common_step_counter)
-        if current_iter>45000 and current_iter<60000:
+        if current_iter>15000 and current_iter<20000:
             max_vel=1.2
-        if current_iter>60000 and current_iter<70000:
+        if current_iter>20000 and current_iter<30000:
             max_vel=1.4
-        if current_iter>70000:
+        if current_iter>30000:
             max_vel=1.5
-        # print(env_ids[env_ids < 20])
         self.commands[env_ids, 0] = torch_rand_float(-max_vel, max_vel, (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         if self.cfg.commands.heading_command:
@@ -402,8 +435,17 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         else:
             self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
 
+        high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
+        high_vel_env_ids = env_ids[high_vel_env_ids.nonzero(as_tuple=True)]
 
+        self.commands[high_vel_env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(high_vel_env_ids), 1), device=self.device).squeeze(1)
+
+        # set y commands of high vel envs to zero
+        self.commands[high_vel_env_ids, 1:2] *= (torch.norm(self.commands[high_vel_env_ids, 0:1], dim=1) < 1.0).unsqueeze(1)
+
+        # set small commands to zero
         self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -416,7 +458,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
-        # pd controller
         actions_scaled = actions * self.cfg.control.action_scale
         torques = self.p_gains_multiplier * self.p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos) - self.d_gains_multiplier * self.d_gains*self.dof_vel
         torques*=self.torques_multiplier
@@ -455,8 +496,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
-                               
-
     
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
@@ -466,6 +505,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device)
         self.root_states[:, 10:12]=torch_rand_float(-max_w, max_w, (self.num_envs, 2), device=self.device)
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
+
     def _disturbance_robots(self):
         """ Random add disturbance force to the robots.
         """
@@ -509,10 +549,17 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         if (torch.mean(self.episode_sums["tracking_lin_vel"][low_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]) and (torch.mean(self.episode_sums["tracking_lin_vel"][high_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]):
             self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
             self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
-        if (torch.mean(self.episode_sums["tracking_ang_vel"][low_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_ang_vel"]) and (torch.mean(self.episode_sums["tracking_lin_vel"][high_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_ang_vel"]):
-            self.command_ranges["ang_vel_yaw"][0] = np.clip(self.command_ranges["ang_vel_yaw"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["ang_vel_yaw"][1] = np.clip(self.command_ranges["ang_vel_yaw"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
 
+    # def update_command_curriculum(self, env_ids):
+    #     """ Implements a curriculum of increasing commands
+
+    #     Args:
+    #         env_ids (List[int]): ids of environments being reset
+    #     """
+    #     # If the tracking reward is above 80% of the maximum, increase the range of commands
+    #     if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
+    #         self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
+    #         self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
 
     def _get_noise_scale_vec(self):
         """ Sets a vector used to scale the noise added to the observations.
@@ -551,7 +598,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
 
         # create some wrapper tensors for different slices
         self.root_states = gymtorch.wrap_tensor(actor_root_state)
-        self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_state).view(self.num_envs, self.num_bodies, 13)
+        self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_state)
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
@@ -638,6 +685,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             name = '_reward_' + name
             self.reward_functions.append(getattr(self, name))
 
+        # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
                              for name in self.reward_scales.keys()}
 
@@ -738,13 +786,12 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.base_init_state = to_torch(base_init_state_list, device=self.device, requires_grad=False)
         start_pose = gymapi.Transform()
         start_pose.p = gymapi.Vec3(*self.base_init_state[:3])
-
+        self.torques_multiplier = torch.ones(self.num_envs, self.num_actions, dtype=torch.float, device=self.device,requires_grad=False)
         self.motor_zero_offsets = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False) 
         self.p_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.d_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.p_gains_multiplier = torch.ones(self.num_envs,self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.d_gains_multiplier = torch.ones(self.num_envs,self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
-        self.torques_multiplier = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self._get_env_origins()
         env_lower = gymapi.Vec3(0., 0., 0.)
         env_upper = gymapi.Vec3(0., 0., 0.)
@@ -770,10 +817,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         self.feet_indices = torch.zeros(len(feet_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(feet_names)):
             self.feet_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], feet_names[i])
-
-        # 髋关节（hip）自由度索引，用于 hip_limit 奖励
-        self.hip_indices = torch.tensor([i for i, name in enumerate(self.dof_names) if 'hip' in name],
-                                        dtype=torch.long, device=self.device)
 
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):
@@ -880,8 +923,8 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Tensor of shape (num_envs, self.num_base_height_points, 3)
         """
-        y = torch.tensor([-0.15, -0.1, -0.05, 0., 0.05, 0.1, 0.15], device=self.device, requires_grad=False)
-        x = torch.tensor([-0.15, -0.1, -0.05, 0., 0.05, 0.1, 0.15], device=self.device, requires_grad=False)
+        y = torch.tensor([-0.6, -0.03, 0., 0.03, 0.6,], device=self.device, requires_grad=False)
+        x = torch.tensor([ -0.6, -0.03, 0., 0.03, 0.6, ], device=self.device, requires_grad=False)
         grid_x, grid_y = torch.meshgrid(x, y)
 
         self.num_base_height_points = grid_x.numel()
@@ -1035,15 +1078,6 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         # Penalize xy axes base angular velocity
         return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
 
-    def _reward_rear_hip_limit(self):
-        # 后腿（RL/RR）髋关节角度 > 0.4 或 < -0.4 rad 时返回 1（配合 scale=-1 即为 -1 惩罚）
-        if not hasattr(self, 'rear_hip_indices'):
-            self.rear_hip_indices = torch.tensor(
-                [i for i, name in enumerate(self.dof_names) if name in ('RL_hip_joint', 'RR_hip_joint')],
-                device=self.device, requires_grad=False)
-        rear_hip_pos = self.dof_pos[:, self.rear_hip_indices]
-        return ((rear_hip_pos > 0.4) | (rear_hip_pos < -0.4)).any(dim=1).float()
-
     def _reward_orientation(self):
         # Penalize non flat base orientation
         return torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
@@ -1051,7 +1085,7 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = self._get_base_heights()
-        return torch.square(base_height - self.cfg.rewards.base_height_target)
+        return torch.abs(base_height - self.cfg.rewards.base_height_target)
 
     def _reward_torques(self):
         # Penalize torques
@@ -1134,10 +1168,9 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         first_contact = (self.feet_air_time > 0.) * contact_filt
         self.feet_air_time += self.dt
         rew_airTime = torch.sum((self.feet_air_time - 0.5) * first_contact, dim=1) # reward only on first contact with the ground
-        rew_airTime *= torch.norm(self.commands[:, :3], dim=1) > 0.1 #no reward for zero command
         self.feet_air_time *= ~contact_filt
         return rew_airTime
-
+    
     def _reward_foot_clearance(self):
         cur_footpos_translated = self.feet_pos - self.root_states[:, 0:3].unsqueeze(1)
         footpos_in_body_frame = torch.zeros(self.num_envs, len(self.feet_indices), 3, device=self.device)
@@ -1150,7 +1183,15 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
         height_error = torch.square(footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target).view(self.num_envs, -1)
         foot_leteral_vel = torch.sqrt(torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)).view(self.num_envs, -1)
         return torch.sum(height_error * foot_leteral_vel, dim=1)
-     
+
+    def _reward_rear_hip_limit(self):
+        # 后腿（RL/RR）髋关节角度 > 0.4 或 < -0.4 rad 时返回 1（配合 scale=-1 即为 -1 惩罚）
+        if not hasattr(self, 'rear_hip_indices'):
+            self.rear_hip_indices = torch.tensor(
+                [i for i, name in enumerate(self.dof_names) if name in ('RL_hip_joint', 'RR_hip_joint')],
+                device=self.device, requires_grad=False)
+        rear_hip_pos = self.dof_pos[:, self.rear_hip_indices]
+        return ((rear_hip_pos > 0.4) | (rear_hip_pos < -0.4)).any(dim=1).float()
 
     def _reward_hip_pos(self):
         """ Reward for the hip joint position close to default position
@@ -1161,15 +1202,19 @@ class Go2_Stairs_DreamWaQ_Robot(BaseTask):
             self.default_dof_pos[:, hip_joint_indices]), dim=-1)
         return dof_pos_error
     
-    def _reward_power_distribution(self):
-        power = self.torques*self.dof_vel
-        return torch.var(torch.abs(power),dim=1)
-    
-    def _reward_joint_power(self):
-        return torch.sum((torch.abs(self.dof_vel)*torch.abs(self.torques)),dim=1)
-    
     def _reward_x_command_hip_regular(self):
+        hip_dof_names = ['FL_hip_joint', 'FR_hip_joint', 'RL_hip_joint', 'RR_hip_joint']
         hip_dof_indices = [0, 3, 6, 9]
         hip_pos = self.dof_pos[:, hip_dof_indices]
+        # x_command_ratio = torch.abs(self.commands[:,0]) / torch.norm(self.commands[:,:3], dim=1)
         rew = torch.abs(hip_pos[:,0]+hip_pos[:,1]) + torch.abs(hip_pos[:,2]+hip_pos[:,3])
-        return rew *(torch.norm(self.commands[:, :2], dim=1) <0.1)
+        return rew *(torch.norm(self.commands[:, :2], dim=1) < 0.2)
+    
+    def _reward_turn_in_place_contact(self):
+        # 原地转圈命令（xy 线速度≈0 且 yaw 角速度命令明显）时，
+        # 奖励恰好两只脚接触地面（交叉腿支撑转身姿态）
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
+        num_contacts = contact.sum(dim=1).float()
+        turn_mask = ((torch.norm(self.commands[:, :2], dim=1) < 0.1) &
+                     (torch.abs(self.commands[:, 2]) > 0.2)).float()
+        return turn_mask * (num_contacts == 2).float()

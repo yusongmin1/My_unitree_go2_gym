@@ -1,7 +1,7 @@
 from sim2sim_config_loader import load_cfg
-Go2_Stairs_AMP_DreamWaQ_Cfg_Yu = load_cfg(
-    "legged_gym/envs/Go2_AMP_DreamWaQ/Go2_Stairs_AMP_DreamWaQ_Config.py",
-    "Go2_Stairs_AMP_DreamWaQ_Cfg_Yu",
+Go2_AMP_DreamWaQ_Cfg_Yu = load_cfg(
+    "legged_gym/envs/Go2_AMP_DreamWaQ/Go2_AMP_DreamWaQ_Config.py",
+    "Go2_AMP_DreamWaQ_Cfg_Yu",
 )
 import math
 import numpy as np
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
-    class Sim2simCfg(Go2_Stairs_AMP_DreamWaQ_Cfg_Yu):
+    class Sim2simCfg(Go2_AMP_DreamWaQ_Cfg_Yu):
         class sim_config:
             mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 12200000000.0

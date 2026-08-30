@@ -4,8 +4,8 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
     class env:
         num_envs = 8192
         num_observations = 45
-        num_privileged_obs = 236
-        num_critic_obs=281
+        num_privileged_obs = 233
+        num_critic_obs=278
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations
@@ -46,7 +46,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
         curriculum = True
-        max_curriculum = 1.2
+        max_curriculum = 2.0
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 8. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
@@ -109,7 +109,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         linear_damping = 0.
         max_angular_velocity = 1000.
         max_linear_velocity = 1000.
-        armature = 0.
+        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
@@ -148,7 +148,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             termination = -0.0
             tracking_lin_vel = 1.5
             tracking_ang_vel = 0.75
-            lin_vel_z = -2.0
+            lin_vel_z = -1.0
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-2.0
@@ -253,10 +253,10 @@ class Go2_Cts_PPO_Yu(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCriticCTS'
         algorithm_class_name = 'CTS'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 120000 # number of policy updates
+        max_iterations = 20000 # number of policy updates
 
         # logging
-        save_interval = 100 # check for potential saves every this many iterations
+        save_interval = 500 # check for potential saves every this many iterations
         experiment_name = 'go2_cts'
         run_name = ''
         # load and resume

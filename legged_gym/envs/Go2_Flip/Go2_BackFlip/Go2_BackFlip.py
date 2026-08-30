@@ -894,10 +894,14 @@ class Go2_BackFlip_Robot(BaseTask):
     
     def _reward_base_height_stance(self):
         #落地后的高度奖励和默认关节角度的奖励
-        base_height_flight = (self.root_states[:, 2] - 0.3)
-        # print(self.root_states[0,:3])
-        rew= torch.exp(-torch.abs(base_height_flight)*10)*self.has_jumped*(self.max_ang_vel_y>7)
-        return rew 
+        # 只有相对地形高度 > 0.2 m（真正站起来了）的 env 才有奖励，趴地/瘫腿不给
+        base_height = self.root_states[:, 2]
+        rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+        heights = self.get_terrain_height(self.root_states[:, :2]).flatten()
+        base_height_stance = (base_height - heights - 0.35)[self.has_jumped]
+        eligible = self.has_jumped & ((base_height - heights) > 0.2)
+        rew[eligible] = torch.exp(-torch.square(base_height_stance) / self.cfg.rewards.stance_reward_sigma)
+        return rew
     
     def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励

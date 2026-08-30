@@ -283,10 +283,10 @@ class LeggedRobotAMP_TS(BaseTask):
             ), dim=-1)
         self.terrain_obs_buf = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
         self.privileged_obs_buf = torch.cat(
-                                    (self.base_lin_vel * self.obs_scales.lin_vel,self.obs_buf,domain_randomization_info,contact_mask,self.terrain_obs_buf)
-                                    ,dim=-1)
+                                    (self.obs_buf,domain_randomization_info,contact_mask,self.terrain_obs_buf)
+                                    ,dim=-1)  # 已删除线速度项
         self.privileged_buf= torch.cat(
-                                    (self.base_lin_vel * self.obs_scales.lin_vel,domain_randomization_info,contact_mask),dim=-1)
+                                    (domain_randomization_info,contact_mask),dim=-1)  # 已删除线速度项
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
         # print(self.privileged_buf.shape,domain_randomization_info.shape,contact_mask.shape,self.base_lin_vel.shape)
@@ -653,7 +653,7 @@ class LeggedRobotAMP_TS(BaseTask):
 
 
     def _reward_foot_clearance(self):
-        # 参考 Go2_Stairs_AMP_DreamWaQ：摆动相脚部离地高度误差 × 横向速度（越低越快的脚惩罚越多）
+        # 参考 Go2_AMP_DreamWaQ：摆动相脚部离地高度误差 × 横向速度（越低越快的脚惩罚越多）
         cur_footpos_translated = self.feet_pos - self.root_states[:, 0:3].unsqueeze(1)
         footpos_in_body_frame = torch.zeros(self.num_envs, len(self.feet_indices), 3, device=self.device)
         cur_footvel_translated = self.feet_vel - self.root_states[:, 7:10].unsqueeze(1)

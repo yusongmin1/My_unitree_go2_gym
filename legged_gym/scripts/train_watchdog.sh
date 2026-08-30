@@ -8,12 +8,32 @@
 #   bash train_watchdog.sh go2_amp_cts --headless
 #   bash train_watchdog.sh go2_stairs_dreamwaq --headless
 set -u
-TASK=${1:?用法: bash train_watchdog.sh <task|--task=xxx> [train.py其它参数...]}; shift
-# 兼容 --task=xxx 与 --task xxx 两种写法
-TASK=${TASK#--task=}
-if [ "$TASK" = "--task" ] || [ "$TASK" = "--task=" ]; then
-    TASK=${1:?缺少任务名}; shift
+# 从所有参数中提取任务名（支持 go2_xxx / --task=xxx / --task xxx 三种写法，位置不限），
+# 其余参数原样透传给 train.py
+TASK=""
+PASS_THRU=()
+_ARGS=("$@")
+_i=0
+while [ $_i -lt ${#_ARGS[@]} ]; do
+    _a=${_ARGS[$_i]}
+    case "$_a" in
+        --task=*) TASK=${_a#--task=} ;;
+        --task)   _i=$((_i+1)); TASK=${_ARGS[$_i]:?--task 后缺少任务名} ;;
+        *)        PASS_THRU+=("$_a") ;;
+    esac
+    _i=$((_i+1))
+done
+if [ -z "$TASK" ]; then
+    TASK=${PASS_THRU[0]:-}
+    if [ -n "$TASK" ]; then
+        PASS_THRU=("${PASS_THRU[@]:1}")
+    fi
 fi
+if [ -z "$TASK" ]; then
+    echo "用法: bash train_watchdog.sh <task|--task=xxx> [train.py其它参数...]（必须提供任务名）" >&2
+    exit 1
+fi
+set -- "${PASS_THRU[@]+"${PASS_THRU[@]}"}"
 
 # numpy/OpenBLAS 偶发段错误缓解
 export OPENBLAS_NUM_THREADS=1

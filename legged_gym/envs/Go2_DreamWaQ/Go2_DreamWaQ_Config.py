@@ -1,6 +1,6 @@
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
+class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
     class env:
         # change the observation dim
         frame_stack =1#action stack
@@ -106,7 +106,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         linear_damping = 0.
         max_angular_velocity = 1000.
         max_linear_velocity = 1000.
-        armature = 0.
+        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
@@ -172,7 +172,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.40
+        base_height_target = 0.45
         max_contact_force = 100. # forces above this value are penalized
         clearance_height_target=-0.20
     class normalization:
@@ -222,7 +222,7 @@ class Go2_Stairs_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 
-class Go2_Stairs_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
+class Go2_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
     seed = 1
     runner_class_name = 'DreamWaQRunner'
     class policy:
@@ -249,9 +249,9 @@ class Go2_Stairs_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
         algorithm_class_name = "PPO_DreamWaQ"
         num_steps_per_env = 24 # per iteration
         run_name = ''
-        experiment_name = 'go2_stairs_dreamwaq'
+        experiment_name = 'go2_dreamwaq'
         save_interval = 500 
-        max_iterations = 200000
+        max_iterations = 20000
         # load and resume
         resume = False
         load_run = -1 # -1 = last run

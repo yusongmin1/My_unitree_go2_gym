@@ -916,8 +916,17 @@ class Go2_Spring_Jump_Robot(BaseTask):
         return rew 
     
     def _reward_base_height_stance(self):
-        #落地后的高度奖励和默认关节角度的奖励
-        return torch.abs((self.root_states[:, 2] - 0.3))*self.has_jumped + 0.2*torch.abs((self.root_states[:, 2] - 0.25))*(self.commands[:,2]==0)
+        # Post-jump stance: POSITIVE reward for standing at the nominal height
+        # (terrain-relative 0.32 m). Gaussian kernel: full pay at 0.32,
+        # ~0.6 at 5cm off, ~0.25 at 12cm (crouch) -> a real pull to stand up.
+        # 只有相对地形高度 > 0.2 m（真正站起来了）的 env 才有奖励，趴地/瘫腿不给
+        base_height = self.root_states[:, 2]
+        rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+        heights = self.get_terrain_height(self.root_states[:, :2]).flatten()
+        base_height_stance = (base_height - heights - 0.35)[self.has_jumped]
+        eligible = self.has_jumped & ((base_height - heights) > 0.2)
+        rew[eligible] = torch.exp(-torch.square(base_height_stance) / self.cfg.rewards.stance_reward_sigma)
+        return rew
     
     def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励
