@@ -20,12 +20,12 @@ from legged_gym.envs.Go2_Stand.Go2_Leggedstand.Go2_Leggedstand import Go2_Legged
 from legged_gym.envs.Go2_Stand.Go2_Leggedstand.Go2_Leggedstand_Config import Go2_Leggedstand_Cfg_Yu,Go2_Leggedstand_PPO_Yu
 
 # ========== DreamwaQ 任务（纯 DreamwaQ 算法）==========
-from legged_gym.envs.Go2_DreamWaQ.Go2_Stairs_DreamWaQ import Go2_Stairs_DreamWaQ_Robot
-from legged_gym.envs.Go2_DreamWaQ.Go2_Stairs_DreamWaQ_Config import Go2_Stairs_DreamWaQ_Cfg_Yu, Go2_Stairs_DreamWaQ_PPO_Yu
+from legged_gym.envs.Go2_DreamWaQ.Go2_DreamWaQ import Go2_DreamWaQ_Robot
+from legged_gym.envs.Go2_DreamWaQ.Go2_DreamWaQ_Config import Go2_DreamWaQ_Cfg_Yu, Go2_DreamWaQ_PPO_Yu
 
 # ========== AMP + DreamwaQ 任务（AMP 判别器 + DreamwaQ 算法）==========
-from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_Stairs_AMP_DreamWaQ import Go2_Stairs_AMP_DreamWaQ_Robot
-from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_Stairs_AMP_DreamWaQ_Config import Go2_Stairs_AMP_DreamWaQ_Cfg_Yu, Go2_Stairs_AMP_DreamWaQ_PPO_Yu
+from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ import Go2_AMP_DreamWaQ_Robot
+from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ_Config import Go2_AMP_DreamWaQ_Cfg_Yu, Go2_AMP_DreamWaQ_PPO_Yu
 
 # ========== CTS 任务（Concurrent Teacher-Student 算法）==========
 from legged_gym.envs.Go2_Cts.Go2_Cts import Go2_Cts_Robot
@@ -52,10 +52,10 @@ task_registry.register( "go2_spring_jump", Go2_Spring_Jump_Robot, Go2_Spring_Jum
 task_registry.register( "go2_backflip", Go2_BackFlip_Robot, Go2_BackFlip_Cfg_Yu(), Go2_BackFlip_PPO_Yu())
 
 # ===== DreamwaQ 任务 =====
-task_registry.register( "go2_stairs_dreamwaq", Go2_Stairs_DreamWaQ_Robot, Go2_Stairs_DreamWaQ_Cfg_Yu(), Go2_Stairs_DreamWaQ_PPO_Yu())
+task_registry.register( "go2_dreamwaq", Go2_DreamWaQ_Robot, Go2_DreamWaQ_Cfg_Yu(), Go2_DreamWaQ_PPO_Yu())
 
 # ===== AMP + DreamwaQ 任务 =====
-task_registry.register( "go2_amp_dreamwaq", Go2_Stairs_AMP_DreamWaQ_Robot, Go2_Stairs_AMP_DreamWaQ_Cfg_Yu(), Go2_Stairs_AMP_DreamWaQ_PPO_Yu())
+task_registry.register( "go2_amp_dreamwaq", Go2_AMP_DreamWaQ_Robot, Go2_AMP_DreamWaQ_Cfg_Yu(), Go2_AMP_DreamWaQ_PPO_Yu())
 
 # ===== CTS 任务 =====
 task_registry.register( "go2_cts", Go2_Cts_Robot, Go2_Cts_Cfg_Yu(), Go2_Cts_PPO_Yu())
@@ -66,5 +66,11 @@ task_registry.register( "go2_amp_cts", Go2_AMP_Cts_Robot, Go2_AMP_Cts_Cfg_Yu(), 
 # ===== AMP Teacher-Student 任务（teacher: AMP 特权策略训练；student: LSTM 蒸馏部署策略）=====
 task_registry.register( "go2_amp_ts", LeggedRobotAMP_TS, Go2_AMP_Ts_Cfg_Yu(), Go2_AMP_Ts_PPO_Yu())
 task_registry.register( "go2_amp_ts_student", LeggedRobotAMP_TS, Go2_AMP_Ts_Student_Cfg_Yu(), Go2_AMP_Ts_Student_PPO_Yu())
+
+# ===== 纯 Teacher-Student 任务（无 AMP：obs/配置与 amp_ts 一致，蒸馏直接复用 DistillPolicyRunner）=====
+from legged_gym.envs.Go2_TS.Go2_TS_Config import Go2_TS_Cfg_Yu, Go2_TS_PPO_Yu
+from legged_gym.envs.Go2_TS.Go2_TS_Student_Config import Go2_TS_Student_Cfg_Yu, Go2_TS_Student_PPO_Yu
+task_registry.register( "go2_ts", LeggedRobotAMP_TS, Go2_TS_Cfg_Yu(), Go2_TS_PPO_Yu())
+task_registry.register( "go2_ts_student", LeggedRobotAMP_TS, Go2_TS_Student_Cfg_Yu(), Go2_TS_Student_PPO_Yu())
 
 print("注册的任务:  ",task_registry.task_classes)

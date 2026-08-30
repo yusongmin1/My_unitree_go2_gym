@@ -4,7 +4,7 @@
 子图 2：_get_base_heights 计算的高度
 
 用法：
-    python legged_gym/scripts/play_dreamwaq_plot.py --task go2_stairs_dreamwaq
+    python legged_gym/scripts/play_dreamwaq_plot.py --task go2_dreamwaq
     python legged_gym/scripts/play_dreamwaq_plot.py --task go2_amp_dreamwaq
 
     下楼梯的高度竟然是在0.4m左右，和实际高度不符，可能是计算方法有问题。
@@ -95,7 +95,7 @@ def play(args):
         env.commands[:, 2] = 0.0
 
         actions = policy(obs.detach(), obs_hist.detach())
-        # stairs_dreamwaq 返回 7 个值，amp_dreamwaq 返回 9 个，取前 7 个兼容两者
+        # dreamwaq 返回 7 个值，amp_dreamwaq 返回 9 个，取前 7 个兼容两者
         obs, _, obs_hist, _, rews, dones, infos = env.step(actions.detach())[:7]
 
         # 摄像头盯着机器人

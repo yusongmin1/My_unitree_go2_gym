@@ -35,11 +35,11 @@ class Go2_AMP_Ts_Student_Cfg_Yu( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env ):
         num_envs = 4096
         num_observations = 45
-        num_privileged_obs = 309  # =3(线速度)+45(观测)+70(域随机)+4(足接触)+187(地形)
+        num_privileged_obs = 306  # =45(观测)+70(域随机)+4(足接触)+187(地形) 旧值309(privileged_buf 已删线速度)
         num_terrain = 187  # terrain_obs_buf 维度（runner init_storage 需要）
         reference_state_initialization = True
         reference_state_initialization_prob = 0.85
-        num_domain_rand = 77  # = 3(线速度)+70(域随机参数:1摩擦+1恢复+1质量+28连杆质量比+3质心+12kp+12kd+12力矩)+4(足接触)
+        num_domain_rand = 74  # = 70(域随机参数:1摩擦+1恢复+1质量+28连杆质量比+3质心+12kp+12kd+12力矩)+4(足接触) 旧值77(已删线速度)
         amp_motion_files = MOTION_FILES
     class safety:
         # safety factors
@@ -91,6 +91,7 @@ class Go2_AMP_Ts_Student_Cfg_Yu( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class asset( LeggedRobotCfg.asset ):
+        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
@@ -178,7 +179,7 @@ class Go2_AMP_Ts_Student_PPO_Yu( LeggedRobotCfgPPO ):
 
         experiment_name = 'go2_amp_ts'
         student_name = 'go2_amp_ts_student'
-        max_iterations = 500000 # number of policy updates
+        max_iterations = 20000 # number of policy updates
 
         amp_reward_coef = 0.5
         amp_motion_files = MOTION_FILES
@@ -193,4 +194,4 @@ class Go2_AMP_Ts_Student_PPO_Yu( LeggedRobotCfgPPO ):
         hidden_size = 256
         num_layers = 3
         learning_rate = 1e-3
-        save_interval = 100
+        save_interval = 500

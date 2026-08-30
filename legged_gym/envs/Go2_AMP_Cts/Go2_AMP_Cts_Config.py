@@ -35,8 +35,8 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
     class env:
         num_envs = 8192
         num_observations = 45
-        num_privileged_obs = 236
-        num_critic_obs=281
+        num_privileged_obs = 233  # =70(域随机)+4(足接触)+187(地形高程)-3(已删线速度) 旧值236
+        num_critic_obs=278  # =45(obs)+233(特权) 旧值281
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations
@@ -143,7 +143,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         linear_damping = 0.
         max_angular_velocity = 1000.
         max_linear_velocity = 1000.
-        armature = 0.
+        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
@@ -288,10 +288,10 @@ class Go2_AMP_Cts_PPO_Yu(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCriticCTS'
         algorithm_class_name = 'AMPCTS'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 120000 # number of policy updates
+        max_iterations = 20000 # number of policy updates
 
         # logging
-        save_interval = 100 # check for potential saves every this many iterations
+        save_interval = 500 # check for potential saves every this many iterations
         experiment_name = 'go2_amp_cts'
         run_name = ''
         # load and resume

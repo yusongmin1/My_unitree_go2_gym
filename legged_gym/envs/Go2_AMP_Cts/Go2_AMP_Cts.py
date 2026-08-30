@@ -256,8 +256,7 @@ class Go2_AMP_Cts_Robot(BaseTask):
         self.privileged_buf= torch.cat((
             domain_randomization_info,
             contact_mask,
-            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,
-            self.base_lin_vel * self.obs_scales.lin_vel,), dim=-1)
+            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)  # 已删除线速度项
         self.obs_buf=obs_now
         self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf), dim=-1)
     def get_amp_observations(self):
@@ -379,7 +378,7 @@ class Go2_AMP_Cts_Robot(BaseTask):
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -1., 1.)
+            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -2., 2.)
         if self.cfg.terrain.measure_heights:
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
