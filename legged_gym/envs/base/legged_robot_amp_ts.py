@@ -282,11 +282,13 @@ class LeggedRobotAMP_TS(BaseTask):
                     self.torque_multiplier,
             ), dim=-1)
         self.terrain_obs_buf = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+        # critic 输入（privileged_obs_buf）保留线速度——评价 value 的核心特权信息；
+        # privileged_buf（域随机 encoder 输入）删除线速度
         self.privileged_obs_buf = torch.cat(
-                                    (self.obs_buf,domain_randomization_info,contact_mask,self.terrain_obs_buf)
-                                    ,dim=-1)  # 已删除线速度项
+                                    (self.base_lin_vel * self.obs_scales.lin_vel,self.obs_buf,domain_randomization_info,contact_mask,self.terrain_obs_buf)
+                                    ,dim=-1)
         self.privileged_buf= torch.cat(
-                                    (domain_randomization_info,contact_mask),dim=-1)  # 已删除线速度项
+                                    (domain_randomization_info,contact_mask),dim=-1)
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
         # print(self.privileged_buf.shape,domain_randomization_info.shape,contact_mask.shape,self.base_lin_vel.shape)

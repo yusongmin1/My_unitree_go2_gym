@@ -84,10 +84,25 @@ pip install pybullet   # AMP 动作数据加载（pybullet_utils.transformations
 #### 标准 PPO 任务
 ```bash
 python legged_gym/scripts/train.py --task=go2_trot --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_jump --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_handstand --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_leggedstand --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_spring_jump --headless
+```
+
+```bash
 python legged_gym/scripts/train.py --task=go2_backflip --headless
 ```
  
@@ -109,14 +124,26 @@ python legged_gym/scripts/train.py --task=go2_cts --headless
 #### AMP + CTS 任务
 ```bash
 python legged_gym/scripts/train.py --task=go2_amp_cts --headless
+```
 
 #### AMP Teacher-Student 任务（先训 teacher 再蒸馏 student）
-python legged_gym/scripts/train.py --task=go2_amp_ts --headless          # teacher（AMP 特权策略）
-python legged_gym/scripts/train.py --task=go2_amp_ts_student --headless  # student（从 teacher 蒸馏 LSTM）
+teacher：
+```bash
+python legged_gym/scripts/train.py --task=go2_amp_ts --headless
+```
+student（从 teacher 蒸馏 LSTM）：
+```bash
+python legged_gym/scripts/train.py --task=go2_amp_ts_student --headless
+```
 
 #### 纯 Teacher-Student 任务（无 AMP；先训 teacher 再蒸馏 student）
-python legged_gym/scripts/train.py --task=go2_ts --headless          # teacher（特权策略，无 AMP 判别器/动捕）
-python legged_gym/scripts/train.py --task=go2_ts_student --headless  # student（自动从 logs/go2_ts 加载最新 teacher 蒸馏 LSTM）
+teacher（特权策略，无 AMP 判别器/动捕）：
+```bash
+python legged_gym/scripts/train.py --task=go2_ts --headless
+```
+student（自动从 logs/go2_ts 加载最新 teacher 蒸馏 LSTM）：
+```bash
+python legged_gym/scripts/train.py --task=go2_ts_student --headless
 ```
  
  
@@ -147,16 +174,34 @@ python legged_gym/scripts/train.py --task=go2_ts_student --headless  # student�
 #### 标准 PPO 任务
 ```bash
 python legged_gym/scripts/play.py --task=go2_trot
+```
+
+```bash
 python legged_gym/scripts/play.py --task=go2_jump
+```
+
+```bash
 python legged_gym/scripts/play.py --task=go2_handstand
+```
+
+```bash
 python legged_gym/scripts/play.py --task=go2_leggedstand
+```
+
+```bash
 python legged_gym/scripts/play.py --task=go2_spring_jump
+```
+
+```bash
 python legged_gym/scripts/play.py --task=go2_backflip
 ```
  
 #### DreamwaQ / AMP + DreamwaQ 任务
 ```bash
 python legged_gym/scripts/play_dreamwaq.py --task=go2_dreamwaq
+```
+
+```bash
 python legged_gym/scripts/play_dreamwaq.py --task=go2_amp_dreamwaq
 ```
  
@@ -168,13 +213,21 @@ python legged_gym/scripts/play_cts.py --task=go2_cts
 #### AMP + CTS 任务
 ```bash
 python legged_gym/scripts/play_amp_cts.py --task=go2_amp_cts
+```
 
 #### AMP Teacher-Student 任务
+```bash
 python legged_gym/scripts/play_amp_ts.py --task=go2_amp_ts
+```
+```bash
 python legged_gym/scripts/play_amp_ts_student.py --task=go2_amp_ts_student
+```
 
 #### 纯 Teacher-Student 任务（无 AMP）
+```bash
 python legged_gym/scripts/play_amp_ts.py --task=go2_ts
+```
+```bash
 python legged_gym/scripts/play_amp_ts_student.py --task=go2_ts_student
 ```
  
@@ -205,10 +258,25 @@ Play 会导出 Actor 网络，保存于 `logs/{experiment_name}/exported/policie
 #### 标准 PPO 任务
 ```bash
 python deploy_mujoco/sim2sim_go2_trot.py
+```
+
+```bash
 python deploy_mujoco/sim2sim_go2_jump.py
+```
+
+```bash
 python deploy_mujoco/sim2sim_go2_spring_jump.py
+```
+
+```bash
 python deploy_mujoco/sim2sim_go2_backflip.py
+```
+
+```bash
 python deploy_mujoco/sim2sim_go2_handstand.py
+```
+
+```bash
 python deploy_mujoco/sim2sim_go2_leggedstand.py
 ```
 
@@ -287,7 +355,7 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 - [ ] 空翻任务使用amp进行约束
 
 - [ ] 爬楼梯任务走停住会翻车 dreamwaq任务，不会立即刹停，cts ts任务可以做到 
-- [ ] 步态规范程度不如开源框架himloco 以及dreamwaq
+- [ ] 步态规范程度不如开源框架himloco 以及dreamwaq 还有吴金泽那篇
 - [ ] amp后退拖地，我认为是amp参数没有调整好
 - [ ] amp数据集质量不高
 - [ ] 行走时基座晃动
@@ -307,11 +375,10 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 - [ ] 速度过低时机器人在楼梯上被卡住
 - [ ] 高速度高角速度失稳
 - [ ] amp 3m/s的速度在不平坦地形上奔跑
-- [ ] 步态规范性不如dreamwaq himloco还有吴金泽那篇
 - [ ] 自身负载还不够大
 - [ ] parkour (PIE)
 - [ ] 部署代码
-
+- [ ] go2温度高了之后性能下降
 # 参考文章
 https://arxiv.org/pdf/2205.02824
  

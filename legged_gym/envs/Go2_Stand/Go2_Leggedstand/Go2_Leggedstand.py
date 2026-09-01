@@ -210,9 +210,8 @@ class Go2_Leggedstand_Robot(BaseTask):
         """ Computes observations
         """
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
-        self.obs_buf = torch.cat((  
-                                    torch.zeros((self.num_envs, 2), device=self.device),
-                                    self.stand_command,
+        # 45 维布局：[0:3]角速度 [3:6]重力投影 [6:9]命令 [9:21]关节角 [21:33]关节速度 [33:45]动作
+        self.obs_buf = torch.cat((
                                     self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
                                     self.projected_gravity,#3 重力投影
                                     self.commands[:, :3] * self.commands_scale,#3 控制
@@ -526,15 +525,12 @@ class Go2_Leggedstand_Robot(BaseTask):
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
         noise_level = self.cfg.noise.noise_level
-        noise_vec[:3] = noise_scales.lin_vel * noise_level * self.obs_scales.lin_vel
-        noise_vec[3:6] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
-        noise_vec[6:9] = noise_scales.gravity * noise_level
-        noise_vec[9:12] = 0. # commands
-        noise_vec[12:24] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        noise_vec[24:36] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        noise_vec[36:48] = 0. # previous actions
-        if self.cfg.terrain.measure_heights:
-            noise_vec[48:235] = noise_scales.height_measurements* noise_level * self.obs_scales.height_measurements
+        noise_vec[0:3] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
+        noise_vec[3:6] = noise_scales.gravity * noise_level
+        noise_vec[6:9] = 0. # commands
+        noise_vec[9:21] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
+        noise_vec[21:33] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
+        noise_vec[33:45] = 0. # previous actions
         return noise_vec
 
     #----------------------------------------

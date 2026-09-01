@@ -35,7 +35,7 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env ):
         num_envs = 4096
         num_observations = 45
-        num_privileged_obs = 306  # =45(观测)+70(域随机)+4(足接触)+187(地形) 旧值309(privileged_buf 已删线速度)
+        num_privileged_obs = 309  # =3(线速度，critic评价value用)+45(观测)+70(域随机)+4(足接触)+187(地形) 恢复
         num_terrain = 187  # terrain_obs_buf 维度（runner init_storage 需要）
         reference_state_initialization = True
         reference_state_initialization_prob = 0.85
@@ -156,17 +156,16 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            torques = -1e-5
+            base_height = -5.0
+            torques = -0.0001
             dof_acc = -2.5e-7
-            base_height = -1.0
             # feet_air_time =  1.0
-            collision = -0.5
+            collision = -1.0
             action_rate = -0.01
             stumble = -0.5
-            # trot=0.8
+            dof_pos_limits=-2.0
             # feet_clearance=0.1 #feet clearance can increase for more
             # stand_still=-1.0
-            # contact_without_command=1.
 class Go2_AMP_Ts_PPO_Yu( LeggedRobotCfgPPO ):
     # AMP Teacher-Student：teacher 用 AMP 版 runner/算法/网络（与标准 PPO 区分）
     runner_class_name = 'OnPolicyRunnerAMP_TS'

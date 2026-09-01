@@ -35,8 +35,8 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
     class env:
         num_envs = 8192
         num_observations = 45
-        num_privileged_obs = 233  # =70(域随机)+4(足接触)+187(地形高程)-3(已删线速度) 旧值236
-        num_critic_obs=278  # =45(obs)+233(特权) 旧值281
+        num_privileged_obs = 233  # =70(域随机)+4(足接触)+187(地形高程)  encoder输入(privileged_buf)已删线速度，旧值236
+        num_critic_obs=281  # =45(obs)+233(特权)+3(线速度，critic评价value用) 恢复旧值
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations
@@ -97,10 +97,10 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = { # = target angles [rad] when action = 0.0
 
-            'FL_hip_joint': -0.,   # [rad]
-            'RL_hip_joint': -0.,   # [rad]
-            'FR_hip_joint': 0. ,  # [rad]
-            'RR_hip_joint': 0.,   # [rad]
+            'FL_hip_joint': -0.1,   # [rad]
+            'RL_hip_joint': -0.1,   # [rad]
+            'FR_hip_joint': 0.1,  # [rad]
+            'RR_hip_joint': 0.1,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
             'RL_thigh_joint': 1.0,#1.,   # [rad]
@@ -191,7 +191,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             collision = -1.
             action_rate = -0.01
             feet_air_time =  1.0
-            stand_still=-0.5
+            # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             stumble = -0.5

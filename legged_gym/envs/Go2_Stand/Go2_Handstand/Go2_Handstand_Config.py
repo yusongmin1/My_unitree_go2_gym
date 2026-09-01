@@ -5,9 +5,9 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
     class env:
         frame_stack = 1 #action stack
         c_frame_stack = 1 #critic 网络的堆叠帧数
-        num_single_obs = 48 #这个是传感器可以获得到的信息
+        num_single_obs = 45 #这个是传感器可以获得到的信息（已删前3个零：zeros(2)+stand_command）
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 89  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        single_num_privileged_obs = 86  # =3(线速度)+45(观测)+34(域随机)+4(足接触)，旧值89(obs 48维时)
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
@@ -50,10 +50,10 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-        resampling_time = 5. # time before command are changed[s]
-        heading_command = False # if true: compute ang vel command from heading error
+        resampling_time = 10. # time before command are changed[s]
+        heading_command = True # if true: compute ang vel command from heading error
         class ranges:
-            lin_vel_x = [-0.4,0.4] # min max [m/s]
+            lin_vel_x = [-0.2,0.6] # min max [m/s]
             lin_vel_y = [-0.0, 0.0]   # min max [m/s]
             ang_vel_yaw = [-0.4, 0.4]    # min max [rad/s]
             heading = [-3.14, 3.14]
@@ -138,8 +138,8 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         restitution_range = [0.0, 0.3]
         push_robots = True
         push_interval_s = 8
-        max_push_vel_xy = 1.0
-        max_push_ang_vel = 1.0
+        max_push_vel_xy = 0.4
+        max_push_ang_vel = 0.6
 
         randomize_base_mass = True
         added_base_mass_range = [-1,2]
@@ -161,20 +161,18 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
         randomize_joint_friction = True
-        joint_friction_range = [0.01, 0.2]
+        joint_friction_range = [0.01, 0.1]
 
         randomize_joint_damping = True
-        joint_damping_range = [0.0,0.2]
+        joint_damping_range = [0.0,0.1]
 
         randomize_joint_armature = True
-        joint_armature_range = [0.005, 0.015]    #
+        joint_armature_range = [0.003, 0.08]    #
     class rewards:
         class scales:
             termination = -0.0
             tracking_lin_vel = 2.5
             tracking_ang_vel = 2.5
-            tracking_lin_vel_zero=-0.2
-            tracking_ang_vel_zero=-0.2
             lin_vel_z = 0.2
             ang_vel_xy = 0.2
             handstand_orientation = -1.0
@@ -191,8 +189,9 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
             feet_clearance=0.4
             ang_xz=-0.5
             contact=0.3
-            feet_air_time=2.0
             symmetric_joints=-0.1
+            orientation_symmetry=-0.5  # 左右姿态对称（重力投影 gy²，与 obs 同源）
+            feet_height_symmetry=-0.2  # 左右脚高度对称（trot 式成对比较）
             handstand_feet_height_exp=5.0
             default_pos_reward=0.5
             dof_pos_limits=-2.0
@@ -280,15 +279,27 @@ class Go2_Handstand_PPO_Yu(LeggedRobotCfgPPO):
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
-        sym_loss = False
-        obs_permutation = [-0.0001, -1, 2, -3, 4,-5,
-                           -11, -12, 13, 14, 15, -16, -5 , -6 , 7 , 8 , 9 , -10,\
-                           -23, -24, 25, 26, 27, -28, -17, -18, 19, 20, 21, -22,\
-                           -35, -36, 37, 38, 39, -40, -29, -30, 31, 32, 33, -34,\
-                           -41, 42, -43, -44, 45, -46]
-        # act_permutation = [-6, -7, 8, 9, 10, -11, -0.0001, -1, 2, 3, 4, -5]#关节电机的对陈关系
+        sym_loss = True
+        # 45 维 obs 镜像置换表（与 compute_observations 布局严格对齐）：
+        # [0:3]角速度: 轴向量 (-wx, wy, -wz) | [3:6]重力投影: 极向量 (gx, -gy, gz)
+        # [6:9]命令: (vx, -vy, -wyaw) | [9:21/21:33/33:45] dof_pos/vel/action: FL<->FR, RL<->RR, hip 取反
+        obs_permutation = [-0.0001, 1, -2,            # ang_vel
+                           3, -4, 5,                   # gravity (gy 取反)
+                           6, -7, -8,                  # commands
+                           -12, 13, 14,                # dof_pos FL <- FR(hip取反)
+                           -9, 10, 11,                 # dof_pos FR <- FL
+                           -18, 19, 20,                # dof_pos RL <- RR
+                           -15, 16, 17,                # dof_pos RR <- RL
+                           -24, 25, 26,                # dof_vel FL <- FR
+                           -21, 22, 23,                # dof_vel FR <- FL
+                           -30, 31, 32,                # dof_vel RL <- RR
+                           -27, 28, 29,                # dof_vel RR <- RL
+                           -36, 37, 38,                # actions FL <- FR
+                           -33, 34, 35,                # actions FR <- FL
+                           -42, 43, 44,                # actions RL <- RR
+                           -39, 40, 41]                # actions RR <- RL
         act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
-        frame_stack = 10
+        frame_stack = 1
         sym_coef = 1.0
     class runner:
         policy_class_name = 'ActorCritic'

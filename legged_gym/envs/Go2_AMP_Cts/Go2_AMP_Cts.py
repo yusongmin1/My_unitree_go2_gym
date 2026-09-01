@@ -258,7 +258,8 @@ class Go2_AMP_Cts_Robot(BaseTask):
             contact_mask,
             torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)  # 已删除线速度项
         self.obs_buf=obs_now
-        self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf), dim=-1)
+        # critic 输入保留线速度（评价 value 的核心特权信息）；privileged_buf（encoder 用）已删线速度
+        self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf, self.base_lin_vel * self.obs_scales.lin_vel), dim=-1)
     def get_amp_observations(self):
         return torch.cat((self.dof_pos, self.base_lin_vel, self.base_ang_vel, self.dof_vel,self._get_base_heights().unsqueeze(1)), dim=-1)
     def create_sim(self):
@@ -463,14 +464,8 @@ class Go2_AMP_Cts_Robot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        # # base velocities
-        # n_reset = len(env_ids)
-        # roll  = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
-        # pitch = torch_rand_float(-np.pi/2, np.pi/2, (n_reset, 1), device=self.device).squeeze(1)  # 可选范围
-        # yaw   = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
-
-        # quat = quat_from_euler_xyz(roll, pitch, yaw)   # Isaac-Gym 自带：返回 (x,y,z,w)
-        # self.root_states[env_ids, 3:7] = quat
+        # base velocities
+        self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
