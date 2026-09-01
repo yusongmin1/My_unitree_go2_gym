@@ -35,7 +35,7 @@ class Go2_TS_Student_Cfg_Yu( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env ):
         num_envs = 4096
         num_observations = 45
-        num_privileged_obs = 306  # =45(观测)+70(域随机)+4(足接触)+187(地形) 旧值309(privileged_buf 已删线速度)
+        num_privileged_obs = 309  # =3(线速度，critic评价value用)+45(观测)+70(域随机)+4(足接触)+187(地形) 恢复
         num_terrain = 187  # terrain_obs_buf 维度（runner init_storage 需要）
         reference_state_initialization = False  # 纯 TS：不加载 AMP 动捕数据
         reference_state_initialization_prob = 0.0

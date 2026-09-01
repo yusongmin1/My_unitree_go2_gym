@@ -449,7 +449,7 @@ def export_policy_as_onnx(lstm_encoder, actor_critic, path):
     
     with torch.no_grad():
         if not os.path.exists(os.path.join(path, "traced")):
-            os.mkdir(os.path.join(path, "traced"))
+            os.makedirs(os.path.join(path, "traced"), exist_ok=True)
         save_path = os.path.join(path,"traced","policy_amp_ts.onnx")
         num_envs = 1
         dummy_input = torch.ones(num_envs, 45, device=device)

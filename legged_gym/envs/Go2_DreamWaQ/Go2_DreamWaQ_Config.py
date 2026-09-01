@@ -172,7 +172,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 1.
         soft_torque_limit = 1.
-        base_height_target = 0.45
+        base_height_target = 0.40
         max_contact_force = 100. # forces above this value are penalized
         clearance_height_target=-0.20
     class normalization:

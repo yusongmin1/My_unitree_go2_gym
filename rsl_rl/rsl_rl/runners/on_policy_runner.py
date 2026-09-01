@@ -166,6 +166,10 @@ class OnPolicyRunner:
 
         self.writer.add_scalar('Loss/value_function', locs['mean_value_loss'], locs['it'])
         self.writer.add_scalar('Loss/surrogate', locs['mean_surrogate_loss'], locs['it'])
+        # 对称损失：仅 sym_loss 开启的任务打印/记录
+        self.use_sym_loss = getattr(self.alg, 'sym_loss', False)
+        if self.use_sym_loss:
+            self.writer.add_scalar('Loss/sym', locs['systemloss'], locs['it'])
         self.writer.add_scalar('Loss/learning_rate', self.alg.learning_rate, locs['it'])
         self.writer.add_scalar('Policy/mean_noise_std', mean_std.item(), locs['it'])
         self.writer.add_scalar('Perf/total_fps', fps, locs['it'])
@@ -178,6 +182,8 @@ class OnPolicyRunner:
             self.writer.add_scalar('Train/mean_episode_length/time', statistics.mean(locs['lenbuffer']), self.tot_time)
 
         str = f" \033[1m Learning iteration {locs['it']}/{self.current_learning_iteration + locs['num_learning_iterations']} \033[0m "
+        # 对称损失打印行（仅 sym_loss 开启时）
+        sym_str = f"""{'Symmetry loss:':>{pad}} {locs['systemloss']:.6f}\n""" if self.use_sym_loss else ""
 
         if len(locs['rewbuffer']) > 0:
             # print(locs['rewbuffer'])
@@ -187,6 +193,7 @@ class OnPolicyRunner:
                             'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
                           f"""{'Value function loss:':>{pad}} {locs['mean_value_loss']:.4f}\n"""
                           f"""{'Surrogate loss:':>{pad}} {locs['mean_surrogate_loss']:.4f}\n"""
+                          + sym_str +
                           f"""{'Mean action noise std:':>{pad}} {mean_std.item():.2f}\n"""
                           f"""{'Mean reward:':>{pad}} {statistics.mean(locs['rewbuffer']):.2f}\n"""
 
@@ -200,6 +207,7 @@ class OnPolicyRunner:
                             'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
                           f"""{'Value function loss:':>{pad}} {locs['mean_value_loss']:.4f}\n"""
                           f"""{'Surrogate loss:':>{pad}} {locs['mean_surrogate_loss']:.4f}\n"""
+                          + sym_str +
                           f"""{'Mean action noise std:':>{pad}} {mean_std.item():.2f}\n""")
                         #   f"""{'Mean reward/step:':>{pad}} {locs['mean_reward']:.2f}\n"""
                         #   f"""{'Mean episode length/episode:':>{pad}} {locs['mean_trajectory_length']:.2f}\n""")

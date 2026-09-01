@@ -5,9 +5,9 @@ class Go2_Leggedstand_Cfg_Yu( LeggedRobotCfg ):
     class env:
         frame_stack = 1 #action stack
         c_frame_stack = 1 #critic 网络的堆叠帧数
-        num_single_obs = 48 #这个是传感器可以获得到的信息
+        num_single_obs = 45 #这个是传感器可以获得到的信息（已删前3个零：zeros(2)+stand_command）
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 89  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        single_num_privileged_obs = 86  # =3(线速度)+45(观测)+34(域随机)+4(足接触)，旧值89(obs 48维时)
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 

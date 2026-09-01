@@ -210,9 +210,8 @@ class Go2_Handstand_Robot(BaseTask):
         """ Computes observations
         """
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
-        self.obs_buf = torch.cat((  
-                                    torch.zeros((self.num_envs, 2), device=self.device),
-                                    self.stand_command,
+        # 45 维布局：[0:3]角速度 [3:6]重力投影 [6:9]命令 [9:21]关节角 [21:33]关节速度 [33:45]动作
+        self.obs_buf = torch.cat((
                                     self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
                                     self.projected_gravity,#3 重力投影
                                     self.commands[:, :3] * self.commands_scale,#3 控制
@@ -344,8 +343,8 @@ class Go2_Handstand_Robot(BaseTask):
             self.joint_armatures[env_id, 0] = torch_rand_float(self.cfg.domain_rand.joint_armature_range[0], self.cfg.domain_rand.joint_armature_range[1], (1, 1), device=self.device)
         
         for i in range(len(props)):
-             props["friction"][i] *= self.joint_friction_coeffs[env_id, 0]
-             props["damping"][i] *= self.joint_damping_coeffs[env_id, 0]
+             props["friction"][i] = self.joint_friction_coeffs[env_id, 0]
+             props["damping"][i]  = self.joint_damping_coeffs[env_id, 0]
              props["armature"][i] = self.joint_armatures[env_id, 0]
 
         return props
@@ -474,9 +473,9 @@ class Go2_Handstand_Robot(BaseTask):
         """
         max_vel = self.cfg.domain_rand.max_push_vel_xy
         max_angle=self.cfg.domain_rand.max_push_ang_vel
-        self.root_states[:, 7:9] += torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
+        self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
-        self.root_states[:, 10:13] += torch_rand_float(-max_angle, max_angle, (self.num_envs, 3), device=self.device) # lin vel x/y
+        self.root_states[:, 10:13] = torch_rand_float(-max_angle, max_angle, (self.num_envs, 3), device=self.device) # lin vel x/y
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.root_states))
     def _update_terrain_curriculum(self, env_ids):
         """ Implements the game-inspired curriculum.
@@ -526,15 +525,12 @@ class Go2_Handstand_Robot(BaseTask):
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
         noise_level = self.cfg.noise.noise_level
-        noise_vec[:3] = noise_scales.lin_vel * noise_level * self.obs_scales.lin_vel
-        noise_vec[3:6] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
-        noise_vec[6:9] = noise_scales.gravity * noise_level
-        noise_vec[9:12] = 0. # commands
-        noise_vec[12:24] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        noise_vec[24:36] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        noise_vec[36:48] = 0. # previous actions
-        if self.cfg.terrain.measure_heights:
-            noise_vec[48:235] = noise_scales.height_measurements* noise_level * self.obs_scales.height_measurements
+        noise_vec[0:3] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
+        noise_vec[3:6] = noise_scales.gravity * noise_level
+        noise_vec[6:9] = 0. # commands
+        noise_vec[9:21] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
+        noise_vec[21:33] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
+        noise_vec[33:45] = 0. # previous actions
         return noise_vec
 
     #----------------------------------------
@@ -983,23 +979,11 @@ class Go2_Handstand_Robot(BaseTask):
         # print(torch.mean(self.rew_hanstand),self.rew_hanstand.shape)
         return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.70)
     
-    def _reward_tracking_lin_vel_zero(self):
-        x_error = torch.square(self.commands[:, 0] + self.base_lin_vel[:, 2])#站立起来的话，本体的x轴对应世界系的z，本体z轴对应世界系的-x
-        y_error = torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1])
-        # print(torch.mean(self.rew_hanstand),self.rew_hanstand.shape)
-        return torch.exp(-(y_error+x_error)/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.70)*(torch.norm(self.commands[:,:2],dim=-1)<0.1)   
-    
-
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
         return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.mean(self.rew_hanstand)>0.70)
 
-    def _reward_tracking_ang_vel_zero(self):
-        # Tracking of angular velocity commands (yaw) 
-        ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 0])
-        return ang_vel_error*(torch.mean(self.rew_hanstand)>0.70)*(torch.abs(self.commands[:,2])<0.1)   
-    
     def _reward_default_pos(self):
         # Penalize motion at zero commands
         return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)
@@ -1018,7 +1002,6 @@ class Go2_Handstand_Robot(BaseTask):
         1. 使用 self.contact_forces 判断足部是否接触地面（通过预先设置的阈值）。
         2. 如果所有足部都没有接触地面，则奖励1，否则奖励为0（或取平均）。
         """
-
         # contact_forces: shape = (num_envs, num_bodies, 3)
         contact = torch.norm(self.contact_forces[:, self.feet_name_reward_indices , :], dim=-1) > 1.0
         # 如果所有足部均未接触地面，reward = 1；也可以使用 mean 得到部分奖励
@@ -1048,7 +1031,6 @@ class Go2_Handstand_Robot(BaseTask):
         return torch.abs(self.base_euler_xyz[:,0])*(self.rew_hanstand>0.70)#*(self.root_states[:,2]>0.45)
 
 
-
     def _reward_feet_clearance(self):#鼓励抬脚高度
         """
         Calculates reward based on the clearance of the swing leg from the ground during movement.
@@ -1070,8 +1052,6 @@ class Go2_Handstand_Robot(BaseTask):
         # print(rew.shape,left_feet_height.shape)
         return rew*(torch.mean(self.rew_hanstand)>0.70)
 
-
-
     def _reward_contact(self):
         contact = self.contact_forces[:, self.contact_foot_indices, 2] > 1
         return (torch.sum(contact,dim=1)==1)*(self.rew_hanstand>0.70)
@@ -1090,13 +1070,28 @@ class Go2_Handstand_Robot(BaseTask):
         return rew_airTime*(self.rew_hanstand>0.70)
     
     def _reward_symmetric_joints(self):
-        # 对称性奖励
+        # 左右关节对称（参考 go2_trot 的对称设置）：前后两对腿都参与
+        # hip 左右正方向定义相反，比较前取反；thigh/calf 直接比较
+        # dof 顺序 FL,FR,RL,RR：前对 FL-FR(0,1)，后对 RL-RR(2,3)
         dof = self.dof_pos.clone().view(self.num_envs, 4, int(self.num_dof/4))
-        # # Multiply the right side hips by -1 to match the sign of the left side:
-        dof[:,1,0] *= -1
-        dof[:,3,0] *= -1
-        err = torch.sum(torch.abs(dof[:,0,:] - dof[:,1,:]),axis=1) #+ torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1)
+        # Multiply the right side hips by -1 to match the sign of the left side:
+        dof[:,1,0] *= -1   # FR hip
+        dof[:,3,0] *= -1   # RR hip
+        err = torch.sum(torch.abs(dof[:,0,:] - dof[:,1,:]),axis=1) + torch.sum(torch.abs(dof[:,2,:] - dof[:,3,:]),axis=1)
         return err*(self.rew_hanstand>0.70)
+
+    def _reward_orientation_symmetry(self):
+        # 左右姿态对称（重力投影版）：gy = -sin(roll)cos(pitch)
+        # 倒立平衡时 roll≈0 ⇔ gy≈0；与 obs 中的 projected_gravity 同一来源，
+        # 训练信号与策略观测严格一致（镜像下 gy→-gy，平方后不变，天然左右对称）
+        return torch.square(self.projected_gravity[:, 1])
+
+    def _reward_feet_height_symmetry(self):
+        # 左右脚（倒立时的"手"）高度对称（trot feet_clearance 的成对思想）
+        # 本任务前腿支撑：feet_name_reward=['FL_foot','FR_foot']，feet_pos 顺序 [FL, FR]
+        left = self.feet_pos[:,0,2]
+        right = self.feet_pos[:,1,2]
+        return torch.abs(left - right)
 
     
     def _reward_handstand_feet_height_exp(self):

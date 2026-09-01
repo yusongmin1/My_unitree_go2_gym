@@ -132,18 +132,16 @@ def run_mujoco(policy, cfg):
                 eu_ang = quaternion_to_euler_array(quat)
                 eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
-                obs[0, 0] = 0
-                obs[0, 1] = 0
-                obs[0, 2] = 0
-                obs[0, 3:6] = omega*cfg.normalization.obs_scales.ang_vel
-                obs[0, 6:9] = gvec
-                obs[0, 9] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
-                obs[0, 10] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
-                obs[0, 11] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
+                # 45 维布局（与训练一致）：[0:3]角速度 [3:6]重力 [6:9]命令 [9:21]关节角 [21:33]关节速度 [33:45]动作
+                obs[0, 0:3] = omega*cfg.normalization.obs_scales.ang_vel
+                obs[0, 3:6] = gvec
+                obs[0, 6] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
+                obs[0, 7] = y_vel_cmd * cfg.normalization.obs_scales.lin_vel
+                obs[0, 8] = yaw_vel_cmd * cfg.normalization.obs_scales.ang_vel
 
-                obs[0, 12:24] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
-                obs[0, 24:36] = dq * cfg.normalization.obs_scales.dof_vel
-                obs[0, 36:48] = action
+                obs[0, 9:21] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
+                obs[0, 21:33] = dq * cfg.normalization.obs_scales.dof_vel
+                obs[0, 33:45] = action
 
 
                 obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)

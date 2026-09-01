@@ -439,14 +439,8 @@ class Go2_Cts_Robot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        # # base velocities
-        # n_reset = len(env_ids)
-        # roll  = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
-        # pitch = torch_rand_float(-np.pi/2, np.pi/2, (n_reset, 1), device=self.device).squeeze(1)  # 可选范围
-        # yaw   = torch_rand_float(-np.pi, np.pi,  (n_reset, 1), device=self.device).squeeze(1)
-
-        # quat = quat_from_euler_xyz(roll, pitch, yaw)   # Isaac-Gym 自带：返回 (x,y,z,w)
-        # self.root_states[env_ids, 3:7] = quat
+        # base velocities
+        self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
