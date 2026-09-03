@@ -15,3 +15,5 @@ dist/
 venv/
 
 # logs/
+.vscode/
+.zcode/

@@ -5,7 +5,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         num_envs = 8192
         num_observations = 45
         num_privileged_obs = 233
-        num_critic_obs=278
+        num_critic_obs=281
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations
@@ -14,11 +14,6 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts=True
 
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 1.0
-        torque_limit = 0.9
 
     class terrain:
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
@@ -48,11 +43,11 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         curriculum = True
         max_curriculum = 2.0
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-        resampling_time = 8. # time before command are changed[s]
+        resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
         class ranges:
-            lin_vel_x = [-1.0, 1.0] # min max [m/s]
-            lin_vel_y = [-1.0, 1.0]   # min max [m/s]
+            lin_vel_x = [-1.0,1.0] # min max [m/s]
+            lin_vel_y = [-1.0,1.0]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
@@ -79,7 +74,6 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             'RR_calf_joint': -1.5,    # [rad]
         }
 
-
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -95,7 +89,6 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf","base"]
         terminate_after_contacts_on =["base"]
-        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
@@ -113,8 +106,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.2,1.0]
-
+        friction_range = [0.2,1.25]
         randomize_restitution = True
         restitution_range = [0.0, 1.0]
 
@@ -135,7 +127,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
         damping_multiplier_range = [0.9, 1.1]    
-        torque_multiplier_range=[0.9,1.1] 
+        torque_multiplier_range=[0.8,1.2] 
 
 
         randomize_motor_zero_offset = True
@@ -144,14 +136,17 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             termination = -0.0
-            tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.75
-            lin_vel_z = -1.0
+            tracking_lin_vel = 1.0
+            tracking_ang_vel = 0.5
+            lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            base_height=-2.0
+            base_height=-5.0
             torques = -0.0001#
             dof_acc = -2.5e-7#-7
             collision = -1.
@@ -163,13 +158,8 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             stumble = -0.5
             foot_clearance=-0.5
             # hip_pos=-0.1
-
-
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
         base_height_target = 0.40
         max_contact_force = 120. # forces above this value are penalized
         clearance_height_target = -0.20
@@ -193,7 +183,6 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             lin_vel = 0.1
             ang_vel = 0.2
             gravity = 0.05
-            quat = 0.1
             height_measurements = 0.1
 
     # viewer camera:
@@ -230,11 +219,6 @@ class Go2_Cts_PPO_Yu(LeggedRobotCfgPPO):
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        # only for 'ActorCriticRecurrent':
-        # rnn_type = 'lstm'
-        # rnn_hidden_size = 512
-        # rnn_num_layers = 1
-        
     class algorithm:
         # training params
         value_loss_coef = 1.0

@@ -5,7 +5,7 @@ class Go2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         # change the observation dim
         frame_stack = 10 #action stack
         c_frame_stack = 3 #critic 网络的堆叠帧数
-        num_single_obs = 47 #这个是传感器可以获得到的信息
+        num_single_obs = 45 #这个是传感器可以获得到的信息（已删前2个零；欧拉角改为重力投影）
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
         single_num_privileged_obs = 65  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
@@ -55,6 +55,11 @@ class Go2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
+        # 四脚相对基座的默认位置（移植自 Curriculum-Quadruped-Jumping-DRL，go2 FK 精确值）
+        # 顺序 FL,FR,RL,RR；feet_distance 奖励腾空收腿时跟踪此 xy 位形（z 用 -0.15）
+        rel_foot_pos = [[0.1778, 0.1778, -0.2090, -0.2090], # x
+                        [0.1420, -0.1420, 0.1420, -0.1420], # y
+                        [-0.3113, -0.3113, -0.3113, -0.3113]] # z
         default_joint_angles = { # = target angles [rad] when action = 0.0
 
             'FL_hip_joint': 0.,   # [rad]
@@ -157,12 +162,16 @@ class Go2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         range_cmd_action_latency = [1, 3]
         push_towards_goal=  True
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             before_setting=5.0
             line_z=16.
             flight=2.
             base_height_flight=3.
-            base_height_stance=-10
+            feet_distance=-1.0  # 空中腿部位置约束（腾空收腿贴身，移植自 Curriculum 跳跃项目）
+            # base_height_stance=-10
             orientation=2.
             dof_pos=-0.1
             dof_hip_pos=-1.0
@@ -182,7 +191,6 @@ class Go2_Spring_Jump_Cfg_Yu( LeggedRobotCfg ):
         max_contact_force=150
         only_positive_rewards=False
         reward_sigma=0.25
-        soft_dof_pos_limit=0.9
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -256,12 +264,18 @@ class Go2_Spring_Jump_PPO_Yu(LeggedRobotCfgPPO):
         desired_kl = 0.01
         max_grad_norm = 1.
         sym_loss = True
-        obs_permutation = [-0.0001, -1, 2, -3, 4,
-                           -5,6,-7,-8,9,-10,
-                       -14,15,16,-11,12,13,-20,21,22,-17,18,19,
-                       -26,27,28,-23,24,25,-32,33,34,-29,30,31,
-                       -38,39,40,-35,36,37,-44,45,46,-41,42,43
-                       ]
+        # 45 维 obs 镜像置换表（与 compute_observations 布局严格对齐）：
+        # [0:3]命令(距离, -y, 触发位) [3:6]角速度(轴变量双翻) [6:9]重力投影(gy 单翻)
+        # [9:45] q/dq/action：FL<->FR、RL<->RR 互换，hip 取反
+        obs_permutation = [0.0001, -1, 2,         # commands: 距离不变(0位正号需写0.0001), y 取反, 触发位不变
+                           -3, 4, -5,                # ang_vel: (-wx, wy, -wz)
+                           6, -7, 8,                 # gravity: (gx, -gy, gz)
+                           -12, 13, 14,              # q FL <- FR(hip取反)
+                           -9, 10, 11,               # q FR <- FL
+                           -18, 19, 20,              # q RL <- RR
+                           -15, 16, 17,              # q RR <- RL
+                           -24, 25, 26, -21, 22, 23, -30, 31, 32, -27, 28, 29,   # dq
+                           -36, 37, 38, -33, 34, 35, -42, 43, 44, -39, 40, 41]  # actions
         ##command x y height
         act_permutation = [ -3, 4, 5, -0.0001, 1, 2, -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
         frame_stack = 10

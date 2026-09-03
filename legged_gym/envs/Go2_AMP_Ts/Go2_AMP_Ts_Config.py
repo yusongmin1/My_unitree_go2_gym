@@ -41,11 +41,6 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         reference_state_initialization_prob = 0.85
         num_domain_rand = 74  # = 70(域随机参数:1摩擦+1恢复+1质量+28连杆质量比+3质心+12kp+12kd+12力矩)+4(足接触) 旧值77(已删线速度)
         amp_motion_files = MOTION_FILES
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 1.0
-        torque_limit = 0.9
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
@@ -144,8 +139,10 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
             height_measurements = 0.1
 
     class rewards( LeggedRobotCfg.rewards ):
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
-        soft_dof_pos_limit = 0.9
         base_height_target = 0.4
         cycle_time=0.5
         target_foot_height=0.06

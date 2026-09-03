@@ -16,11 +16,6 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         num_envs=4096
         test = False
 
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 1.0
-        torque_limit = 0.9
     class terrain:
         mesh_type = 'plane' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
@@ -169,6 +164,9 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         randomize_joint_armature = True
         joint_armature_range = [0.003, 0.08]    #
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             termination = -0.0
             tracking_lin_vel = 2.5
@@ -198,9 +196,6 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
             alive=1.0
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
         base_height_target = 0.52#0.25
         target_foot_height=0.06
         max_contact_force = 200. # forces above this value are penalized

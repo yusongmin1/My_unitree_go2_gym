@@ -45,7 +45,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
         curriculum = True
-        max_curriculum = 2.0#2.5
+        max_curriculum = 2.0
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
@@ -141,17 +141,15 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         disturbance_interval = 8 
         
         delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 1.0
-        torque_limit = 0.9
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             termination = -0.0
-            tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.75
-            lin_vel_z = -1.0
+            tracking_lin_vel = 1.0
+            tracking_ang_vel = 0.5
+            lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-5.0
@@ -166,15 +164,13 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             stumble = -0.5
             foot_clearance=-0.5
             # hip_pos=-0.1
+            joint_power=-2e-5
+            rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        foot_clearance_tracking_sigma=0.01
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
         base_height_target = 0.40
-        max_contact_force = 100. # forces above this value are penalized
-        clearance_height_target=-0.20
+        max_contact_force = 120. # forces above this value are penalized
+        clearance_height_target = -0.20
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -189,7 +185,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         add_noise = True
         noise_level = 1.0 # scales other values
         class noise_scales:
-            dof_pos = 0.02
+            dof_pos = 0.01
             dof_vel = 1.5
             lin_vel = 0.1
             ang_vel = 0.2

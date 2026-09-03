@@ -106,8 +106,9 @@ class Go2_Spring_Jump_Robot(BaseTask):
             self.base_quat[:] = self.root_states[:, 3:7]
             self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
             self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
+            self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
             self.obs_imu_latency_buffer[:,:,1:] = self.obs_imu_latency_buffer[:,:,:self.cfg.domain_rand.range_obs_imu_latency[1]].clone()
-            self.obs_imu_latency_buffer[:,:,0] = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1).clone()
+            self.obs_imu_latency_buffer[:,:,0] = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.projected_gravity), 1).clone()
 
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
@@ -124,6 +125,7 @@ class Go2_Spring_Jump_Robot(BaseTask):
         self.base_lin_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
+        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
         self.commands[self.episode_length_buf==self.command_frame,2]=1.0
         self.check_jump()
@@ -295,13 +297,13 @@ class Go2_Spring_Jump_Robot(BaseTask):
 
         if self.cfg.domain_rand.randomize_obs_imu_latency:
             self.obs_imu = self.obs_imu_latency_buffer[torch.arange(self.num_envs), :, self.obs_imu_latency_simstep.long()]
-        else:              
-            self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.base_euler_xyz * self.obs_scales.quat), 1)
+        else:
+            self.obs_imu = torch.cat((self.base_ang_vel * self.obs_scales.ang_vel, self.projected_gravity), 1)
 
+        # 45 维布局：[0:3]命令 [3:6]角速度 [6:9]重力投影 [9:21]关节角 [21:33]关节速度 [33:45]动作
         obs_buf = torch.cat((
-            torch.zeros((self.num_envs, 2), device=self.device),
             self.commands,
-            self.obs_imu,#6 角速度，欧拉角XYZ
+            self.obs_imu,#6 角速度，重力投影
             self.obs_motor,#24
             self.actions,   # 12
         ), dim=-1)
@@ -384,6 +386,7 @@ class Go2_Spring_Jump_Robot(BaseTask):
         """
         if env_id==0:
             self.dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
+            self.soft_dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
             self.dof_vel_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             self.torque_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             for i in range(len(props)):
@@ -391,11 +394,11 @@ class Go2_Spring_Jump_Robot(BaseTask):
                 self.dof_pos_limits[i, 1] = props["upper"][i].item()
                 self.dof_vel_limits[i] = props["velocity"][i].item()
                 self.torque_limits[i] = props["effort"][i].item()
-                # soft limits
+                # soft limits：软区间另存，dof_pos_limits 保持 URDF 原始值（供 min_std 等使用）
                 m = (self.dof_pos_limits[i, 0] + self.dof_pos_limits[i, 1]) / 2
                 r = self.dof_pos_limits[i, 1] - self.dof_pos_limits[i, 0]
-                self.dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
-                self.dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
+                self.soft_dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
+                self.soft_dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
 
                  # randomization of the motor zero calibration for real machine
         if self.cfg.domain_rand.randomize_motor_zero_offset:
@@ -574,13 +577,13 @@ class Go2_Spring_Jump_Robot(BaseTask):
         noise_vec = torch.zeros(self.cfg.env.num_single_obs, device=self.device)
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
-        noise_vec[0: 5] = 0.  # commands
+        noise_vec[0:3] = 0.  # commands（跳跃距离/触发位，不加噪）
 
-        noise_vec[5:8] = noise_scales.ang_vel * self.obs_scales.ang_vel   # ang vel
-        noise_vec[8:11] = noise_scales.quat         # euler x,y
-        noise_vec[11: 23] = noise_scales.dof_pos * self.obs_scales.dof_pos
-        noise_vec[23: 35] = noise_scales.dof_vel * self.obs_scales.dof_vel
-        noise_vec[35: 47] = 0.  # previous actions
+        noise_vec[3:6] = noise_scales.ang_vel * self.obs_scales.ang_vel   # ang vel
+        noise_vec[6:9] = noise_scales.gravity                              # 重力投影
+        noise_vec[9:21] = noise_scales.dof_pos * self.obs_scales.dof_pos
+        noise_vec[21:33] = noise_scales.dof_vel * self.obs_scales.dof_vel
+        noise_vec[33:45] = 0.  # previous actions
         return noise_vec
     def _init_buffers(self):
         """ Initialize torch tensors which will contain simulation states and processed quantities
@@ -605,12 +608,13 @@ class Go2_Spring_Jump_Robot(BaseTask):
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[:, 3:7]
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
+        self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
+        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         self.feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
         self.init_state=torch.zeros_like(self.root_states)
         self.extras = {}
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
-        self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
         self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
@@ -913,20 +917,57 @@ class Go2_Spring_Jump_Robot(BaseTask):
         #跳跃的高度奖励
         base_height_flight = (self.root_states[:, 2] - 0.47)
         rew= torch.exp(-torch.abs(base_height_flight)*5)*(self.was_in_flight)*~self.has_jumped*6
-        return rew 
-    
-    def _reward_base_height_stance(self):
-        # Post-jump stance: POSITIVE reward for standing at the nominal height
-        # (terrain-relative 0.32 m). Gaussian kernel: full pay at 0.32,
-        # ~0.6 at 5cm off, ~0.25 at 12cm (crouch) -> a real pull to stand up.
-        # 只有相对地形高度 > 0.2 m（真正站起来了）的 env 才有奖励，趴地/瘫腿不给
-        base_height = self.root_states[:, 2]
-        rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-        heights = self.get_terrain_height(self.root_states[:, :2]).flatten()
-        base_height_stance = (base_height - heights - 0.35)[self.has_jumped]
-        eligible = self.has_jumped & ((base_height - heights) > 0.2)
-        rew[eligible] = torch.exp(-torch.square(base_height_stance) / self.cfg.rewards.stance_reward_sigma)
         return rew
+
+    def get_terrain_height(self, p):
+        """采样全局坐标点的地形高度（移植自 Curriculum-Quadruped-Jumping-DRL）。
+        spring_jump 为 plane 地形，高度恒 0。"""
+        if self.cfg.terrain.mesh_type == 'plane':
+            return torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+        elif self.cfg.terrain.mesh_type == 'none':
+            raise NameError("Can't measure height with terrain mesh type 'none'")
+        points = p.clone()
+        points += self.terrain.cfg.border_size
+        points = (points / self.terrain.cfg.horizontal_scale).long()
+        px = torch.clip(points[:, 0], 0, self.height_samples.shape[0] - 2)
+        py = torch.clip(points[:, 1], 0, self.height_samples.shape[1] - 2)
+        return self.height_samples[px, py]
+
+    def _reward_feet_distance(self):
+        # 空中腿部位置约束（移植自 Curriculum-Quadruped-Jumping-DRL 的 _reward_feet_distance）：
+        # 腾空且高度 > 0.42m 时，要求四脚收拢贴身（体坐标系下跟踪 rel_foot_pos 的 xy、z=-0.15），
+        # 惩罚脚相对基座的位置偏差平方和；其余状态（未腾空/已跳完/高度不足）为 0。
+        feet_relative = self.feet_pos[:, :, :3] - self.root_states[:, :3].unsqueeze(1)
+        feet_body_frame = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
+        for i in range(4):
+            feet_body_frame[:, i, :] = quat_rotate_inverse(self.base_quat, feet_relative[:, i, :])
+        feet_pos_ini = torch.tensor(self.cfg.init_state.rel_foot_pos).to(self.device).transpose(1, 0).view(1, 4, 3)
+        feet_pos_des = feet_pos_ini.clone()
+        # 腾空时脚收向身体（z 目标 -0.15），其余维保持默认相对位形
+        feet_pos_des[:, :, 2] = -0.15
+        feet_error = torch.linalg.norm(feet_body_frame - feet_pos_des, dim=-1)
+        rew = torch.sum(torch.square(feet_error), dim=-1)
+        # 本仓库 mid_air 语义：全脚离地 + 跳跃命令触发中 + 尚未完成跳跃
+        mid_air = torch.all(~self.contact_filt, dim=1) & (self.commands[:, 2] > 0)
+        base_height = self.root_states[:, 2] - self.get_terrain_height(self.root_states[:, :2]).flatten()
+        rew[base_height <= 0.42] = 0.0
+        rew[~mid_air] = 0.0
+        rew[self.has_jumped] = 0.0
+        return rew
+
+    
+    # def _reward_base_height_stance(self):
+    #     # Post-jump stance: POSITIVE reward for standing at the nominal height
+    #     # (terrain-relative 0.32 m). Gaussian kernel: full pay at 0.32,
+    #     # ~0.6 at 5cm off, ~0.25 at 12cm (crouch) -> a real pull to stand up.
+    #     # 只有相对地形高度 > 0.2 m（真正站起来了）的 env 才有奖励，趴地/瘫腿不给
+    #     base_height = self.root_states[:, 2]
+    #     rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+    #     heights = self.get_terrain_height(self.root_states[:, :2]).flatten()
+    #     base_height_stance = (base_height - heights - 0.35)[self.has_jumped]
+    #     eligible = self.has_jumped & ((base_height - heights) > 0.2)
+    #     rew[eligible] = torch.exp(-torch.square(base_height_stance) / self.cfg.rewards.stance_reward_sigma)
+    #     return rew
     
     def _reward_dof_pos(self):
         #落地后的高度奖励和默认关节角度的奖励
@@ -961,8 +1002,8 @@ class Go2_Spring_Jump_Robot(BaseTask):
 
     def _reward_dof_pos_limits(self):
         # Penalize dof positions too close to the limit
-        out_of_limits = -(self.dof_pos - self.dof_pos_limits[:, 0]).clip(max=0.) # lower limit
-        out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.)
+        out_of_limits = -(self.dof_pos - self.soft_dof_pos_limits[:, 0]).clip(max=0.) # lower limit
+        out_of_limits += (self.dof_pos - self.soft_dof_pos_limits[:, 1]).clip(min=0.)
         return torch.sum(out_of_limits, dim=1)
 
     def _reward_dof_vel_limits(self):

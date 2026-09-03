@@ -108,7 +108,7 @@ if __name__ == '__main__':
     parser.add_argument('--motion', type=str, default=None,
                         help='动捕文件或目录（默认 datasets/mocap_motions_go2）')
     parser.add_argument('--mjcf', type=str,
-                        default=f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml',
+                        default=f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene_terrain.xml',
                         help='MuJoCo 模型路径')
     parser.add_argument('--dt', type=float, default=0.02, help='回放步长 [s]（与训练 env.dt 一致）')
     parser.add_argument('--speed', type=float, default=1.0, help='回放倍速')
@@ -116,7 +116,7 @@ if __name__ == '__main__':
 
     if args.motion is None:
         args.motion_files = sorted(glob.glob(os.path.join(
-            LEGGED_GYM_ROOT_DIR, 'datasets/mocap_motions_go2', '*.txt')))
+            LEGGED_GYM_ROOT_DIR, 'datasets/mocap_motions_go2_new', '*.txt')))
     elif os.path.isdir(args.motion):
         args.motion_files = sorted(glob.glob(os.path.join(args.motion, '*.txt')))
     else:

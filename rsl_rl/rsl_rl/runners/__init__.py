@@ -34,5 +34,4 @@ from .dreamwaq_runner_amp import DreamWaQRunner_AMP
 from .on_policy_runner_cts import OnPolicyRunnerCTS
 from .on_policy_runner_cts_amp import OnPolicyRunnerCTSAMP
 from .on_policy_runner_amp_ts import OnPolicyRunnerAMP_TS
-from .on_policy_runner_ts import OnPolicyRunnerTS
 from .distill_policy_runner import DistillPolicyRunner

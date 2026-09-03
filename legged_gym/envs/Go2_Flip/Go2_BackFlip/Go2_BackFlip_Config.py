@@ -158,6 +158,9 @@ class Go2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         range_cmd_action_latency = [1, 3]
         push_towards_goal=True 
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             before_setting=5.0
             line_z=25.
@@ -185,7 +188,6 @@ class Go2_BackFlip_Cfg_Yu( LeggedRobotCfg ):
         only_positive_rewards=False
         reward_sigma=0.25
         target_height=0.6
-        soft_dof_pos_limit=0.9
     class normalization:
         class obs_scales:
             lin_vel = 2.0

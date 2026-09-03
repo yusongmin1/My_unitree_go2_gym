@@ -176,12 +176,10 @@ class LeggedRobotCfg(BaseConfig):
         randomize_cmd_action_latency = False
         range_cmd_action_latency = [1, 3]
         delay = False  # HIMLoco 式 action delay（CTS/DreamWaQ/Ts 系任务使用）
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 0.9
-        torque_limit = 1.0
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             termination = -0.0
             tracking_lin_vel = 1.0
@@ -203,9 +201,6 @@ class LeggedRobotCfg(BaseConfig):
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
         clearance_height_target = 0.09
         max_contact_force = 100. # forces above this value are penalized
     class normalization:

@@ -80,9 +80,7 @@ class Go2_Cts_Robot(BaseTask):
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
-        # HIMLoco 式 action delay：每个 policy step 为每个 env 采样切换点 delay_steps，
-        # 子步 i < delay_steps 沿用上一步动作，之后切换为当前动作
-        # 注意：存放原始动作，缩放由 _compute_torques 内部完成（只缩放一次，避免双重 action_scale）
+
         self.delayed_actions = self.actions.clone().view(self.num_envs, 1, self.num_actions).repeat(1, self.cfg.control.decimation, 1)
         delay_steps = torch.randint(0, self.cfg.control.decimation, (self.num_envs, 1), device=self.device)
         if self.cfg.domain_rand.delay:
@@ -174,12 +172,19 @@ class Go2_Cts_Robot(BaseTask):
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
+        if self.cfg.domain_rand.randomize_pd_gains:
+            self.p_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)
+            self.d_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)   
+            self.torques_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.torque_multiplier_range[0], self.cfg.domain_rand.torque_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)   
+               
+        # reset buffers
         self.last_last_actions[env_ids] = 0.
         self.actions[env_ids] = 0.
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
+        self.reset_buf[env_ids] = 1
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
@@ -247,10 +252,9 @@ class Go2_Cts_Robot(BaseTask):
         self.privileged_buf= torch.cat((
             domain_randomization_info,
             contact_mask,
-            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,
-            ), dim=-1)
+            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)
         self.obs_buf=obs_now
-        self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf), dim=-1)
+        self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf, self.base_lin_vel * self.obs_scales.lin_vel), dim=-1)
     def create_sim(self):
         """ Creates simulation, terrain and evironments
         """
@@ -321,6 +325,7 @@ class Go2_Cts_Robot(BaseTask):
         """
         if env_id==0:
             self.dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
+            self.soft_dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
             self.dof_vel_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             self.torque_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             for i in range(len(props)):
@@ -328,11 +333,11 @@ class Go2_Cts_Robot(BaseTask):
                 self.dof_pos_limits[i, 1] = props["upper"][i].item()
                 self.dof_vel_limits[i] = props["velocity"][i].item()
                 self.torque_limits[i] = props["effort"][i].item()
-                # soft limits
+                # soft limits：软区间另存，dof_pos_limits 保持 URDF 原始值（供 min_std 等使用）
                 m = (self.dof_pos_limits[i, 0] + self.dof_pos_limits[i, 1]) / 2
                 r = self.dof_pos_limits[i, 1] - self.dof_pos_limits[i, 0]
-                self.dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
-                self.dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
+                self.soft_dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
+                self.soft_dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
         if self.cfg.domain_rand.randomize_pd_gains:
             self.p_gains_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (1, self.num_actions), device=self.device)
             self.d_gains_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (1, self.num_actions), device=self.device)   
@@ -373,21 +378,36 @@ class Go2_Cts_Robot(BaseTask):
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
-
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
         Args:
             env_ids (List[int]): Environments ids for which new commands are needed
         """
-        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        max_vel=1.0
+        current_iter = self.common_step_counter // 24
+        if current_iter>15000 and current_iter<20000:
+            max_vel=1.2
+        if current_iter>20000 and current_iter<30000:
+            max_vel=1.4
+        if current_iter>30000:
+            max_vel=1.5
+        self.commands[env_ids, 0] = torch_rand_float(-max_vel, max_vel, (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         if self.cfg.commands.heading_command:
             self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         else:
             self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
 
-        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
+        high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
+        high_vel_env_ids = env_ids[high_vel_env_ids.nonzero(as_tuple=True)]
 
+        self.commands[high_vel_env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(high_vel_env_ids), 1), device=self.device).squeeze(1)
+
+        # set y commands of high vel envs to zero
+        self.commands[high_vel_env_ids, 1:2] *= (torch.norm(self.commands[high_vel_env_ids, 0:1], dim=1) < 1.0).unsqueeze(1)
+
+        # set small commands to zero
+        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -400,14 +420,12 @@ class Go2_Cts_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
-        # pd controller（action 在此处缩放，step 传入的是原始动作）
         actions_scaled = actions * self.cfg.control.action_scale
         p_gains = self.p_gains * self.p_gains_multiplier
         d_gains = self.d_gains * self.d_gains_multiplier
 
         torques = p_gains * (actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
         torques*=self.torques_multiplier
-        # torques*=(self.episode_length_buf>50).unsqueeze(1)
         return torch.clip(torques, -self.torque_limits, self.torque_limits)
     def _reset_dofs(self, env_ids):
         """ Resets DOF position and velocities of selected environmments
@@ -417,7 +435,7 @@ class Go2_Cts_Robot(BaseTask):
         Args:
             env_ids (List[int]): Environemnt ids
         """
-        self.dof_pos[env_ids] = self.default_dof_pos * torch_rand_float(0.9, 1.1, (len(env_ids), self.num_dof), device=self.device)
+        self.dof_pos[env_ids] = self.default_dof_pos * torch_rand_float(0.5, 1.5, (len(env_ids), self.num_dof), device=self.device)
         self.dof_vel[env_ids] = 0.
 
         env_ids_int32 = env_ids.to(dtype=torch.int32)
@@ -569,9 +587,6 @@ class Go2_Cts_Robot(BaseTask):
                 print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
 
-        #通信延迟 cmd延迟，obs延迟 ，imu延迟
-        # HIMLoco 式 action delay
-        self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, which will be called to compute the total reward.
@@ -970,8 +985,8 @@ class Go2_Cts_Robot(BaseTask):
 
     def _reward_dof_pos_limits(self):
         # Penalize dof positions too close to the limit
-        out_of_limits = -(self.dof_pos - self.dof_pos_limits[:, 0]).clip(max=0.)  # lower limit
-        out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.)
+        out_of_limits = -(self.dof_pos - self.soft_dof_pos_limits[:, 0]).clip(max=0.)  # lower limit
+        out_of_limits += (self.dof_pos - self.soft_dof_pos_limits[:, 1]).clip(min=0.)
         return torch.sum(out_of_limits, dim=1)
 
     def _reward_torque_limits(self):

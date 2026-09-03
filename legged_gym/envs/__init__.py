@@ -67,10 +67,4 @@ task_registry.register( "go2_amp_cts", Go2_AMP_Cts_Robot, Go2_AMP_Cts_Cfg_Yu(), 
 task_registry.register( "go2_amp_ts", LeggedRobotAMP_TS, Go2_AMP_Ts_Cfg_Yu(), Go2_AMP_Ts_PPO_Yu())
 task_registry.register( "go2_amp_ts_student", LeggedRobotAMP_TS, Go2_AMP_Ts_Student_Cfg_Yu(), Go2_AMP_Ts_Student_PPO_Yu())
 
-# ===== 纯 Teacher-Student 任务（无 AMP：obs/配置与 amp_ts 一致，蒸馏直接复用 DistillPolicyRunner）=====
-from legged_gym.envs.Go2_TS.Go2_TS_Config import Go2_TS_Cfg_Yu, Go2_TS_PPO_Yu
-from legged_gym.envs.Go2_TS.Go2_TS_Student_Config import Go2_TS_Student_Cfg_Yu, Go2_TS_Student_PPO_Yu
-task_registry.register( "go2_ts", LeggedRobotAMP_TS, Go2_TS_Cfg_Yu(), Go2_TS_PPO_Yu())
-task_registry.register( "go2_ts_student", LeggedRobotAMP_TS, Go2_TS_Student_Cfg_Yu(), Go2_TS_Student_PPO_Yu())
-
 print("注册的任务:  ",task_registry.task_classes)

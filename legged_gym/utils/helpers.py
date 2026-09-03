@@ -104,8 +104,8 @@ def parse_sim_params(args, cfg):
 def get_load_path(root, load_run=-1, checkpoint=-1):
     try:
         runs = os.listdir(root)
-        # Sort by modification time (most recent first)
-        runs.sort(key=lambda x: os.path.getmtime(os.path.join(root, x)), reverse=True)
+        # 按名称字典序倒序（最新的 Aug31_23-xx 排最前；注意跨年/单位数日有字典序陷阱）
+        runs.sort(reverse=True)
         if 'exported' in runs: runs.remove('exported')
         last_run = os.path.join(root, runs[0])
     except:
