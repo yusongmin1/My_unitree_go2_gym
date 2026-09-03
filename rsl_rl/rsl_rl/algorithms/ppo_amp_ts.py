@@ -57,6 +57,13 @@ class PPO_AMP_TS:
                  use_clipped_value_loss=True,
                  schedule="fixed",
                  desired_kl=0.01,
+                 sym_loss=False,
+                 sym_coef=1.0,
+                 frame_stack=None,
+                 obs_permutation=None,
+                 act_permutation=None,
+                 privileged_permutation=None,
+                 terrain_permutation=None,
                  device='cpu',
                  ):
 
@@ -88,6 +95,18 @@ class PPO_AMP_TS:
              'weight_decay': 10e-2, 'name': 'amp_head'}]
         self.optimizer = optim.Adam(params, lr=learning_rate)
         self.transition = RolloutStorageAMP_TS.Transition()
+
+        # ===== 镜像对称损失（默认关闭）=====
+        self.sym_loss = sym_loss
+        self.sym_coef = sym_coef
+        if self.sym_loss:
+            from rsl_rl.utils.utils import build_sym_perm_matrix
+            self.sym_obs_P = build_sym_perm_matrix(obs_permutation, stack=1, device=self.device)
+            self.sym_act_P = build_sym_perm_matrix(act_permutation, stack=1, device=self.device)
+            self.sym_terrain_P = build_sym_perm_matrix(terrain_permutation, stack=1, device=self.device)
+            self.sym_domain_P = (build_sym_perm_matrix(privileged_permutation, stack=1, device=self.device)
+                                 if privileged_permutation is not None else None)
+
 
         # PPO parameters
         self.clip_param = clip_param
@@ -169,6 +188,15 @@ class PPO_AMP_TS:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                # 对称损失：obs/terrain/domain 镜像三路前向（domain 无表时保持原值）
+                sym_loss_val = torch.tensor(0., device=self.device)
+                if self.sym_loss:
+                    m_obs = obs_batch @ self.sym_obs_P
+                    m_terr = terrain_observations_batch @ self.sym_terrain_P
+                    m_dom = (domain_rand_observations_batch @ self.sym_domain_P
+                             if self.sym_domain_P is not None else domain_rand_observations_batch)
+                    self.actor_critic.act(m_obs, m_terr, m_dom)
+                    sym_loss_val = (mu_batch - self.actor_critic.action_mean @ self.sym_act_P).pow(2).mean()
 
                 # KL
                 if self.desired_kl != None and self.schedule == 'adaptive':
@@ -227,7 +255,7 @@ class PPO_AMP_TS:
                     expert_state, expert_next_state, lambda_=10)
 
                 # Compute total loss.
-                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss + self.sym_coef * sym_loss_val
 
                 # Gradient step
                 self.optimizer.zero_grad()

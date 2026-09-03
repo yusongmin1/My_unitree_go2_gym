@@ -403,7 +403,8 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -2., 2.)
+            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading),
+                                             self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1])  # 随角速度课程动态收缩/扩大
         if self.cfg.terrain.measure_heights:
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
@@ -548,6 +549,10 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         Args:
             env_ids (List[int]): ids of environments being reset
         """
+        # 角速度课程：tracking_ang_vel 奖励 > 85% 满分时扩大角速度范围，初始 [-1,1]，最大扩到 [-2,2]
+        if torch.mean(self.episode_sums["tracking_ang_vel"][env_ids]) / self.max_episode_length > 0.85 * self.reward_scales["tracking_ang_vel"]:
+            self.command_ranges["ang_vel_yaw"][0] = np.clip(self.command_ranges["ang_vel_yaw"][0] - 0.2, -2.0, 0.)
+            self.command_ranges["ang_vel_yaw"][1] = np.clip(self.command_ranges["ang_vel_yaw"][1] + 0.2, 0., 2.0)
         low_vel_env_ids = (env_ids > (self.num_envs * 0.2))
         high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
         low_vel_env_ids = env_ids[low_vel_env_ids.nonzero(as_tuple=True)]

@@ -36,7 +36,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.15,0.15, 0.3, 0.3, 0.1]
+        terrain_proportions = [0.20,0.15, 0.275, 0.275, 0.1]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
@@ -143,7 +143,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             termination = -0.0
             tracking_lin_vel = 1.0
             tracking_ang_vel = 0.5
-            lin_vel_z = -2.0
+            lin_vel_z = -1.0
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-5.0
@@ -157,10 +157,10 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            # hip_pos=-0.1
+            hip_pos=-0.05
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        base_height_target = 0.40
+        base_height_target = 0.38
         max_contact_force = 120. # forces above this value are penalized
         clearance_height_target = -0.20
     class normalization:
@@ -232,6 +232,16 @@ class Go2_Cts_PPO_Yu(LeggedRobotCfgPPO):
         gamma = 0.99
         lam = 0.95
         desired_kl = 0.01
+
+        # ===== 镜像对称损失（默认关闭；置 True 启用，置换表与 obs 布局逐位对齐）=====
+        sym_loss = False
+        sym_coef = 1.0
+        # CTS 特权输入(233=[42域随机|4接触|187地形])与地形(187)的镜像表
+        privileged_permutation = [0, 1, 2, 3, -4, 5, 9, 10, 11, 6, 7, 8, 15, 16, 17, 12, 13, 14, 21, 22, 23, 18, 19, 20, 27, 28, 29, 24, 25, 26, 33, 34, 35, 30, 31, 32, 39, 40, 41, 36, 37, 38, 43, 42, 45, 44, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 78, 77, 76, 75, 74, 73, 72, 71, 70, 69, 68, 89, 88, 87, 86, 85, 84, 83, 82, 81, 80, 79, 100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 111, 110, 109, 108, 107, 106, 105, 104, 103, 102, 101, 122, 121, 120, 119, 118, 117, 116, 115, 114, 113, 112, 133, 132, 131, 130, 129, 128, 127, 126, 125, 124, 123, 144, 143, 142, 141, 140, 139, 138, 137, 136, 135, 134, 155, 154, 153, 152, 151, 150, 149, 148, 147, 146, 145, 166, 165, 164, 163, 162, 161, 160, 159, 158, 157, 156, 177, 176, 175, 174, 173, 172, 171, 170, 169, 168, 167, 188, 187, 186, 185, 184, 183, 182, 181, 180, 179, 178, 199, 198, 197, 196, 195, 194, 193, 192, 191, 190, 189, 210, 209, 208, 207, 206, 205, 204, 203, 202, 201, 200, 221, 220, 219, 218, 217, 216, 215, 214, 213, 212, 211, 232, 231, 230, 229, 228, 227, 226, 225, 224, 223, 222]
+        terrain_permutation = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 76, 75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 87, 86, 85, 84, 83, 82, 81, 80, 79, 78, 77, 98, 97, 96, 95, 94, 93, 92, 91, 90, 89, 88, 109, 108, 107, 106, 105, 104, 103, 102, 101, 100, 99, 120, 119, 118, 117, 116, 115, 114, 113, 112, 111, 110, 131, 130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 142, 141, 140, 139, 138, 137, 136, 135, 134, 133, 132, 153, 152, 151, 150, 149, 148, 147, 146, 145, 144, 143, 164, 163, 162, 161, 160, 159, 158, 157, 156, 155, 154, 175, 174, 173, 172, 171, 170, 169, 168, 167, 166, 165, 186, 185, 184, 183, 182, 181, 180, 179, 178, 177, 176]
+        obs_permutation = [0.0001, -1, 2, -3, 4, -5, 6, -7, 8, -12, 13, 14, -9, 10, 11, -18, 19, 20, -15, 16, 17, -24, 25, 26, -21, 22, 23, -30, 31, 32, -27, 28, 29, -36, 37, 38, -33, 34, 35, -42, 43, 44, -39, 40, 41]
+        act_permutation = [-3, 4, 5, -0.0001, 1, 2, -9, 10, 11, -6, 7, 8]
+
         max_grad_norm = 1.
     class runner:
         policy_class_name = 'ActorCriticCTS'
