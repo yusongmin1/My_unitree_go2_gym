@@ -89,14 +89,16 @@ class PPO:
         if self.sym_loss:
             self.act_perm_mat = torch.zeros((len(act_permutation), len(act_permutation))).cuda()
             for i, perm in enumerate(act_permutation):
-                self.act_perm_mat[int(abs(perm))][i] = np.sign(perm) 
+                # 注意：np.sign(0)=0 会令矩阵该位恒零（失去自反性），perm=0 视为 +1
+                self.act_perm_mat[int(abs(perm))][i] = np.sign(perm) if perm != 0 else 1.0
             obs_permutation_stack = []
             for i in range(frame_stack):
                 for p in obs_permutation:
-                    obs_permutation_stack.append(np.sign(p)*(abs(p)+i*len(obs_permutation)))  
+                    obs_permutation_stack.append(np.sign(p)*(abs(p)+i*len(obs_permutation)) if p != 0
+                                                 else i*len(obs_permutation))
             self.obs_perm_mat = torch.zeros((len(obs_permutation_stack), len(obs_permutation_stack))).cuda()
             for i, perm in enumerate(obs_permutation_stack):
-                self.obs_perm_mat[int(abs(perm))][i] = np.sign(perm)  
+                self.obs_perm_mat[int(abs(perm))][i] = np.sign(perm) if perm != 0 else 1.0
 
     def init_storage(self, num_envs, num_transitions_per_env, actor_obs_shape, critic_obs_shape, action_shape):
         self.storage = RolloutStorage(num_envs, num_transitions_per_env, actor_obs_shape, critic_obs_shape, action_shape, self.device)

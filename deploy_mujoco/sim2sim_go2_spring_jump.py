@@ -243,17 +243,16 @@ def run_mujoco(policy, cfg):
                 eu_ang = quaternion_to_euler_array(quat)
                 eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
-                obs[0, 0] = 0
+                # 45 维布局（与训练一致）：[0:3]命令 [3:6]角速度 [6:9]重力投影 [9:21]关节角 [21:33]关节速度 [33:45]动作
+                obs[0, 0] = 0.7
                 obs[0, 1] = 0
-                obs[0, 2] = 0.7
-                obs[0, 3] = 0
-                obs[0, 4] = x_vel_cmd
-                obs[0, 5:8] = omega*cfg.normalization.obs_scales.ang_vel
-                obs[0, 8:11] = eu_ang*cfg.normalization.obs_scales.quat
+                obs[0, 2] = x_vel_cmd
+                obs[0, 3:6] = omega*cfg.normalization.obs_scales.ang_vel
+                obs[0, 6:9] = gvec
 
-                obs[0, 11:23] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
-                obs[0, 23:35] = dq * cfg.normalization.obs_scales.dof_vel
-                obs[0, 35:47] = action
+                obs[0, 9:21] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
+                obs[0, 21:33] = dq * cfg.normalization.obs_scales.dof_vel
+                obs[0, 33:45] = action
 
 
                 obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)

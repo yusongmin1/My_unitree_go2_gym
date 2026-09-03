@@ -313,13 +313,21 @@ class Go2_Handstand_Robot(BaseTask):
         """
         if env_id==0:
             self.dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
+            self.soft_dof_pos_limits = torch.zeros(self.num_dof, 2, dtype=torch.float, device=self.device, requires_grad=False)
             self.dof_vel_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             self.torque_limits = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
             for i in range(len(props)):
-                self.dof_pos_limits[i, 0] = props["lower"][i].item() * self.cfg.safety.pos_limit
-                self.dof_pos_limits[i, 1] = props["upper"][i].item() * self.cfg.safety.pos_limit
-                self.dof_vel_limits[i] = props["velocity"][i].item() * self.cfg.safety.vel_limit
-                self.torque_limits[i] = props["effort"][i].item() * self.cfg.safety.torque_limit
+                # safety 硬限制已移除：直接使用 URDF 原始限位，超限由 rewards 的 soft_* 软限制惩罚
+                self.dof_pos_limits[i, 0] = props["lower"][i].item()
+                self.dof_pos_limits[i, 1] = props["upper"][i].item()
+                self.dof_vel_limits[i] = props["velocity"][i].item()
+                self.torque_limits[i] = props["effort"][i].item()
+
+            # soft limits：软区间另存（0.9 倍 URDF 区间），dof_pos_limits 保持原始值
+            m = (self.dof_pos_limits[:, 0] + self.dof_pos_limits[:, 1]) / 2
+            r = self.dof_pos_limits[:, 1] - self.dof_pos_limits[:, 0]
+            self.soft_dof_pos_limits[:, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
+            self.soft_dof_pos_limits[:, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
         
          # randomization of the motor zero calibration for real machine
         if self.cfg.domain_rand.randomize_motor_zero_offset:
@@ -961,8 +969,8 @@ class Go2_Handstand_Robot(BaseTask):
     
     def _reward_dof_pos_limits(self):
         # Penalize dof positions too close to the limit
-        out_of_limits = -(self.dof_pos - self.dof_pos_limits[:, 0]).clip(max=0.) # lower limit
-        out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.)
+        out_of_limits = -(self.dof_pos - self.soft_dof_pos_limits[:, 0]).clip(max=0.) # lower limit
+        out_of_limits += (self.dof_pos - self.soft_dof_pos_limits[:, 1]).clip(min=0.)
         return torch.sum(out_of_limits, dim=1)
 
     def _reward_dof_vel_limits(self):

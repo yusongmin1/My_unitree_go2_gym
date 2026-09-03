@@ -48,11 +48,6 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         reference_state_initialization = True
         reference_state_initialization_prob = 0.85
         amp_motion_files = MOTION_FILES
-    class safety:
-        # safety factors
-        pos_limit = 0.9
-        vel_limit = 1.0
-        torque_limit = 0.9
 
     class terrain:
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
@@ -86,7 +81,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         heading_command = True # if true: compute ang vel command from heading error
         class ranges:
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
-            lin_vel_y = [-0.65, 0.65]   # min max [m/s]
+            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
@@ -97,10 +92,10 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = { # = target angles [rad] when action = 0.0
 
-            'FL_hip_joint': -0.1,   # [rad]
-            'RL_hip_joint': -0.1,   # [rad]
-            'FR_hip_joint': 0.1,  # [rad]
-            'RR_hip_joint': 0.1,   # [rad]
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1 ,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
             'RL_thigh_joint': 1.0,#1.,   # [rad]
@@ -112,7 +107,6 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             'FR_calf_joint': -1.5,  # [rad]
             'RR_calf_joint': -1.5,    # [rad]
         }
-
 
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
@@ -129,7 +123,6 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on =["base"]
-        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
@@ -147,8 +140,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
-        friction_range = [0.2,1.0]
-
+        friction_range = [0.2,1.25]
         randomize_restitution = True
         restitution_range = [0.0, 1.0]
 
@@ -169,7 +161,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
         damping_multiplier_range = [0.9, 1.1]    
-        torque_multiplier_range=[0.9,1.1] 
+        torque_multiplier_range=[0.8,1.2] 
 
 
         randomize_motor_zero_offset = True
@@ -178,6 +170,9 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         delay = True # HIMLoco-style per-decimation action delay
 
     class rewards:
+        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+        soft_torque_limit = 0.95
         class scales:
             termination = -0.0
             tracking_lin_vel = 1.0
@@ -185,8 +180,8 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            base_height=-2.0
-            torques = -0.00001#
+            base_height=-5.0
+            torques = -0.0001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
@@ -201,12 +196,9 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
         base_height_target = 0.40
         max_contact_force = 120. # forces above this value are penalized
-        clearance_height_target = -0.25
+        clearance_height_target = -0.20
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -227,7 +219,6 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             lin_vel = 0.1
             ang_vel = 0.2
             gravity = 0.05
-            quat = 0.1
             height_measurements = 0.1
 
     # viewer camera:
@@ -264,11 +255,6 @@ class Go2_AMP_Cts_PPO_Yu(LeggedRobotCfgPPO):
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        # only for 'ActorCriticRecurrent':
-        # rnn_type = 'lstm'
-        # rnn_hidden_size = 512
-        # rnn_num_layers = 1
-        
     class algorithm:
         # training params
         value_loss_coef = 1.0

@@ -33,15 +33,12 @@
 | **AMP + CTS** | `go2_amp_cts` | `Go2_AMP_Cts/` | `AMPCTS` / `OnPolicyRunnerCTSAMP` |
 | **AMP Teacher（特权）** | `go2_amp_ts` | `Go2_AMP_Ts/` | `PPO_AMP_TS` / `OnPolicyRunnerAMP_TS` |
 | **AMP Student（蒸馏）** | `go2_amp_ts_student` | `Go2_AMP_Ts/` | `DistillPolicyRunner` + `ActorCritic_Distill`（LSTM） |
-| **纯 TS Teacher（特权）** | `go2_ts` | `Go2_TS/` | `PPO_TS` / `OnPolicyRunnerTS` |
-| **纯 TS Student（蒸馏）** | `go2_ts_student` | `Go2_TS/` | `DistillPolicyRunner` + `ActorCritic_Distill`（LSTM） |
  
 ### 算法简介
 - **标准 PPO**：ETH legged_gym 原版 PPO，用于各类特技动作（trot/jump/backflip/handstand 等）。
 - **DreamwaQ**：基于隐式地形想象（CENet/VAE）的鲁棒四足运动，从历史观测编码出隐式地形 latent + 显式线速度估计。参考论文 [Learning Robust Quadrupedal Locomotion With Implicit Terrain Imagination via Deep Reinforcement Learning](https://arxiv.org/abs/2301.10602)。
 - **AMP（Adversarial Motion Priors）**：用判别器引导策略学习参考动作（mocap 数据），让运动风格更自然。参考 [rl_amp](https://github.com/fan-ziqi/rl_amp)。
 - **CTS（Concurrent Teacher-Student）**：师生并行训练 + 隐变量蒸馏，teacher 吃 privileged obs，student 吃 history obs。参考论文 [arxiv 2405.10830](https://arxiv.org/abs/2405.10830)。
-- **纯 TS（Teacher-Student，无 AMP）**：与 `go2_amp_ts` 的 obs/配置完全一致，仅去掉 AMP 判别器与动捕数据——teacher 用特权观测训练纯任务奖励，student 蒸馏复用同一套 `DistillPolicyRunner`。
  
 ---
  
@@ -135,16 +132,6 @@ student（从 teacher 蒸馏 LSTM）：
 ```bash
 python legged_gym/scripts/train.py --task=go2_amp_ts_student --headless
 ```
-
-#### 纯 Teacher-Student 任务（无 AMP；先训 teacher 再蒸馏 student）
-teacher（特权策略，无 AMP 判别器/动捕）：
-```bash
-python legged_gym/scripts/train.py --task=go2_ts --headless
-```
-student（自动从 logs/go2_ts 加载最新 teacher 蒸馏 LSTM）：
-```bash
-python legged_gym/scripts/train.py --task=go2_ts_student --headless
-```
  
  
 #### ⚙️  参数说明
@@ -223,17 +210,20 @@ python legged_gym/scripts/play_amp_ts.py --task=go2_amp_ts
 python legged_gym/scripts/play_amp_ts_student.py --task=go2_amp_ts_student
 ```
 
-#### 纯 Teacher-Student 任务（无 AMP）
-```bash
-python legged_gym/scripts/play_amp_ts.py --task=go2_ts
-```
-```bash
-python legged_gym/scripts/play_amp_ts_student.py --task=go2_ts_student
-```
- 
-#### AMP 动作数据回放（查看 mocap 参考动作）
+#### AMP 动作数据回放（查看 mocap 参考动作，isaacgym 版）
 ```bash
 python legged_gym/scripts/replay_amp_data.py --task=go2_amp_cts
+```
+
+#### AMP 动作数据回放（MuJoCo 版，不依赖 isaacgym）
+```bash
+python deploy_mujoco/replay_amp_mujoco.py
+```
+```bash
+python deploy_mujoco/replay_amp_mujoco.py --motion datasets/mocap_motions_go2/forward.txt
+```
+```bash
+python deploy_mujoco/replay_amp_mujoco.py --speed 0.3
 ```
  
 **说明**：
@@ -326,8 +316,7 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 │   │   ├── Go2_Cts/              # CTS 任务
 │   │   ├── Go2_AMP_Cts/          # AMP + CTS 任务
 │   │   ├── Go2_AMP_Ts/           # AMP Teacher-Student 任务（teacher + student 配置）
-│   │   ├── Go2_TS/               # 纯 Teacher-Student 任务（无 AMP，teacher + student 配置）
-│   │   └── __init__.py           # 注册全部 14 个 task
+│   │   └── __init__.py           # 注册全部 12 个 task
 │   ├── scripts/                  # train.py + 各算法的 play 脚本
 │   └── utils/                    # task_registry（动态 runner 调度）/ helpers / terrain
 ├── rsl_rl/                       # 算法库（PPO / DreamwaQ / AMP / CTS 全部共存）
@@ -376,9 +365,13 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 - [ ] 高速度高角速度失稳
 - [ ] amp 3m/s的速度在不平坦地形上奔跑
 - [ ] 自身负载还不够大
+- [ ] 平地发疯，在仿真中就能看出来
+- [ ] go2温度高了之后性能下降
+- [ ] ts任务随机崩掉
 - [ ] parkour (PIE)
 - [ ] 部署代码
-- [ ] go2温度高了之后性能下降
+
+
 # 参考文章
 https://arxiv.org/pdf/2205.02824
  
