@@ -73,7 +73,39 @@ def unpad_trajectories(trajectories, masks):
 
 from typing import Tuple
 import numpy as np
+import torch
 _EPS = np.finfo(float).eps * 4.0
+
+
+def build_sym_perm_matrix(perm, stack=1, device='cuda'):
+    """由对称置换表构造镜像矩阵 P（mirror = x @ P）。
+
+    perm[i] 表示镜像后 obs 第 i 位取原 obs 第 |perm[i]| 位，符号为 sign(perm[i])；
+    perm=0 表示不变位（注意 np.sign(0)=0，此处视为 +1）。
+    stack>1 时按帧堆叠扩展（每帧内同一置换），如 obs_hist = stack 帧 obs 拼接。
+
+    Returns:
+        torch.Tensor: (n*stack, n*stack)，满足 P@P=I（自反）。
+    """
+    n = len(perm)
+    full = []
+    for s in range(stack):
+        for p in perm:
+            full.append((np.sign(p) if p != 0 else 1.0) * (abs(p) + s * n))
+    P = torch.zeros(n * stack, n * stack, device=device)
+    for i, p in enumerate(full):
+        P[int(abs(p)), i] = np.sign(p) if p != 0 else 1.0
+    return P
+
+
+def terrain_mirror_perm(nx=17, ny=11):
+    """地形点云的左右镜像置换表（meshgrid(x,y) 行主序 flatten，y 镜像=行内列反转）。"""
+    perm = []
+    for i in range(nx):
+        for j in range(ny):
+            perm.append(i * ny + (ny - 1 - j))
+    return perm
+
 
 class RunningMeanStd(object):
     def __init__(self, epsilon: float = 1e-4, shape: Tuple[int, ...] = ()):

@@ -60,6 +60,13 @@ class AMPCTS:
                  schedule="fixed",
                  desired_kl=0.01,
                  teacher_env_ratio=0.75,
+                 sym_loss=False,
+                 sym_coef=1.0,
+                 frame_stack=None,
+                 obs_permutation=None,
+                 act_permutation=None,
+                 privileged_permutation=None,
+                 terrain_permutation=None,
                  device='cpu',
                  ):
 
@@ -115,6 +122,17 @@ class AMPCTS:
         assert num_envs%4==0, f"{num_envs%4!= 0}"
         assert len(self.teacher_env_idxs) == self.teacher_num_envs, f"{len(self.teacher_env_idxs)=} != {self.teacher_num_envs=}"
         assert len(self.student_env_idxs) == self.student_num_envs, f"{len(self.student_env_idxs)=} != {self.student_num_envs=}"
+
+        # ===== 镜像对称损失（默认关闭）=====
+        self.sym_loss = sym_loss
+        self.sym_coef = sym_coef
+        if self.sym_loss:
+            from rsl_rl.utils.utils import build_sym_perm_matrix
+            self.sym_obs_P = build_sym_perm_matrix(obs_permutation, stack=1, device=self.device)
+            self.sym_act_P = build_sym_perm_matrix(act_permutation, stack=1, device=self.device)
+            fs = frame_stack if frame_stack else 1
+            self.sym_hist_P = build_sym_perm_matrix(obs_permutation, stack=fs, device=self.device)
+            self.sym_priv_P = build_sym_perm_matrix(privileged_permutation, stack=1, device=self.device)
 
     def init_storage(self, num_envs, num_transitions_per_env, actor_obs_shape, privileged_obs_shape,critic_obs_shape,history_shape, action_shape):
         self.storage = RolloutStorageCTS(num_envs, self.teacher_num_envs, num_transitions_per_env, actor_obs_shape,privileged_obs_shape,critic_obs_shape,history_shape,action_shape, self.device)
@@ -229,6 +247,14 @@ class AMPCTS:
             mu_batch = results[2]
             sigma_batch = results[3]
             entropy_batch = results[4]
+            # 对称损失：teacher 段镜像前向
+            sym_loss_val = torch.tensor(0., device=self.device)
+            if self.sym_loss:
+                m_obs = obs_batch[:teacher_samples] @ self.sym_obs_P
+                m_priv = privileged_obs_batch[:teacher_samples] @ self.sym_priv_P
+                self.model.act(m_obs, m_priv, history_batch[:teacher_samples], True)
+                sym_loss_val = (mu_batch[:teacher_samples] - self.model.action_mean @ self.sym_act_P).pow(2).mean()
+
 
             # KL
             if self.desired_kl != None and self.schedule == 'adaptive':
@@ -287,7 +313,7 @@ class AMPCTS:
             amp_loss = 0.5 * (expert_loss + policy_loss)
             grad_pen_loss = self.discriminator.compute_grad_pen(
                 expert_state, expert_next_state, lambda_=10)
-            loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss
+            loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss + self.sym_coef * sym_loss_val
 
             # Gradient step
             self.optimizer1.zero_grad()

@@ -163,7 +163,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            # hip_pos=-0.1
+            hip_pos=-0.05
             joint_power=-2e-5
             rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
@@ -239,6 +239,15 @@ class Go2_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
         gamma = 0.99
         lam = 0.95
         desired_kl = 0.01
+
+        # ===== 镜像对称损失（默认关闭；置 True 启用，置换表与 obs 布局逐位对齐）=====
+        sym_loss = False
+        sym_coef = 1.0
+        # DWQ：obs_hist 为 5 帧×45，算法按 frame_stack=5 自动堆叠置换
+        frame_stack = 5
+        obs_permutation = [0.0001, -1, 2, -3, 4, -5, 6, -7, 8, -12, 13, 14, -9, 10, 11, -18, 19, 20, -15, 16, 17, -24, 25, 26, -21, 22, 23, -30, 31, 32, -27, 28, 29, -36, 37, 38, -33, 34, 35, -42, 43, 44, -39, 40, 41]
+        act_permutation = [-3, 4, 5, -0.0001, 1, 2, -9, 10, 11, -6, 7, 8]
+
         max_grad_norm = 1.
     class runner:
         policy_class_name = "ActorCriticDreamWaQ"

@@ -57,6 +57,13 @@ class PPO_DreamWaQ_AMP:
                  use_clipped_value_loss=True,
                  schedule="fixed",
                  desired_kl=0.01,
+                 sym_loss=False,
+                 sym_coef=1.0,
+                 frame_stack=None,
+                 obs_permutation=None,
+                 act_permutation=None,
+                 privileged_permutation=None,
+                 terrain_permutation=None,
                  device='cpu',
                  vae_learning_rate=1e-3,
                  vae_kl_weight=1.0,
@@ -101,6 +108,17 @@ class PPO_DreamWaQ_AMP:
         self.vae_optimizer = optim.Adam(
             self.actor_critic.vae.parameters(), lr=vae_learning_rate)
         self.transition = RolloutStorageDreamWaQ.Transition()
+
+        # ===== 镜像对称损失（默认关闭）=====
+        self.sym_loss = sym_loss
+        self.sym_coef = sym_coef
+        if self.sym_loss:
+            from rsl_rl.utils.utils import build_sym_perm_matrix
+            self.sym_obs_P = build_sym_perm_matrix(obs_permutation, stack=1, device=self.device)
+            self.sym_act_P = build_sym_perm_matrix(act_permutation, stack=1, device=self.device)
+            fs = frame_stack if frame_stack else 1
+            self.sym_hist_P = build_sym_perm_matrix(obs_permutation, stack=fs, device=self.device)
+
 
         # PPO parameters
         self.clip_param = clip_param
@@ -185,6 +203,15 @@ class PPO_DreamWaQ_AMP:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                # 对称损失：镜像 obs/hist 经 VAE+actor 前向，与原 mu 对比
+                sym_loss_val = torch.tensor(0., device=self.device)
+                if self.sym_loss:
+                    m_obs = obs_batch @ self.sym_obs_P
+                    m_hist = obs_hist_batch @ self.sym_hist_P
+                    code_m, _, _, _ = self.actor_critic.vae.cenet_forward(m_hist)
+                    mu_m = self.actor_critic.actor(torch.cat((code_m, m_obs), dim=-1))
+                    sym_loss_val = (mu_batch - mu_m @ self.sym_act_P).pow(2).mean()
+
 
                 # KL
                 if self.desired_kl != None and self.schedule == 'adaptive':
@@ -239,7 +266,7 @@ class PPO_DreamWaQ_AMP:
                 amp_loss = 0.5 * (expert_loss + policy_loss)
                 grad_pen_loss = self.discriminator.compute_grad_pen(
                     expert_state, expert_next_state, lambda_=10)
-                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + self.sym_coef * sym_loss_val + amp_loss + grad_pen_loss
 
                 # Gradient step
                 self.optimizer.zero_grad()
