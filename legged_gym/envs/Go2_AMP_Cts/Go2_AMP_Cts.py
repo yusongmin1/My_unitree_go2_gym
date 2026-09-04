@@ -200,8 +200,18 @@ class Go2_AMP_Cts_Robot(BaseTask):
         # log additional curriculum info
         if self.cfg.terrain.mesh_type == "trimesh":
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
+            # 分地形类型的课程统计（按 terrain 列比例区间映射类型）
+            _tt = self.terrain_types.float() / self.cfg.terrain.num_cols
+            _p = self.terrain.proportions
+            _tl = self.terrain_levels.float()
+            self.extras["episode"]["terrain_level_slope"] = torch.nan_to_num(_tl[_tt < _p[0]].mean())
+            self.extras["episode"]["terrain_level_rough_slope"] = torch.nan_to_num(_tl[(_tt >= _p[0]) & (_tt < _p[1])].mean())
+            self.extras["episode"]["terrain_level_stairs_down"] = torch.nan_to_num(_tl[(_tt >= _p[1]) & (_tt < _p[2])].mean())
+            self.extras["episode"]["terrain_level_stairs_up"] = torch.nan_to_num(_tl[(_tt >= _p[2]) & (_tt < _p[3])].mean())
+            self.extras["episode"]["terrain_level_obstacles"] = torch.nan_to_num(_tl[_tt >= _p[3]].mean())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
+            self.extras["episode"]["max_command_yaw"] = self.command_ranges["ang_vel_yaw"][1]  # 角速度课程上界
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
@@ -233,19 +243,15 @@ class Go2_AMP_Cts_Robot(BaseTask):
         self.obs_hist_buf = self.obs_hist_buf[:,45:]
         self.obs_hist_buf = torch.cat((self.obs_hist_buf,self.obs_buf),dim = -1) #不要包含当前帧数据
 
-        obs_buf = torch.cat((
-            self.commands[:, :3] * self.commands_scale, 
-            self.base_ang_vel * self.obs_scales.ang_vel, 
-            self.projected_gravity,                
-            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,  
-            self.dof_vel * self.obs_scales.dof_vel,                        
-            self.actions     
+        # 单帧观测直接构造到 self.obs_buf（先不加噪，critic 段要用无噪声版本）
+        self.obs_buf = torch.cat((
+            self.commands[:, :3] * self.commands_scale,
+            self.base_ang_vel * self.obs_scales.ang_vel,
+            self.projected_gravity,
+            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
+            self.dof_vel * self.obs_scales.dof_vel,
+            self.actions
         ), dim=-1)
-        if self.add_noise:  
-            # print("obs_noise",obs_buf.shape,self.noise_scale_vec.shape)
-            obs_now = obs_buf.clone() + (2 * torch.rand_like(obs_buf) -1) * self.noise_scale_vec * self.cfg.noise.noise_level
-        else:
-            obs_now = obs_buf.clone()
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
         domain_randomization_info = torch.cat((
                     self.friction_coeffs,
@@ -260,9 +266,11 @@ class Go2_AMP_Cts_Robot(BaseTask):
             domain_randomization_info,
             contact_mask,
             torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)  # 已删除线速度项
-        self.obs_buf=obs_now
-        # critic 输入保留线速度（评价 value 的核心特权信息）；privileged_buf（encoder 用）已删线速度
-        self.critic_obs_buf = torch.cat((obs_buf, self.privileged_buf, self.base_lin_vel * self.obs_scales.lin_vel), dim=-1)
+        # critic 吃无噪声观测；privileged_buf（encoder 用）已删线速度
+        self.critic_obs_buf = torch.cat((self.obs_buf, self.privileged_buf, self.base_lin_vel * self.obs_scales.lin_vel), dim=-1)
+        # 最后：actor 观测加噪（out-of-place，不影响已拼好的 critic）
+        if self.add_noise:
+            self.obs_buf = self.obs_buf + (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec * self.cfg.noise.noise_level
     def get_amp_observations(self):
         return torch.cat((self.dof_pos, self.base_lin_vel, self.base_ang_vel, self.dof_vel,self._get_base_heights().unsqueeze(1)), dim=-1)
     def create_sim(self):

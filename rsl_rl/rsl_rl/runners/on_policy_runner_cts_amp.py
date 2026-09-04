@@ -195,6 +195,8 @@ class OnPolicyRunnerCTSAMP:
                 value = torch.mean(infotensor)
                 if 'terrain' in key:
                     self.writer.add_scalar('Terrain/' + key, value, locs['it'])
+                elif 'max_command' in key:
+                    self.writer.add_scalar('CommandCurriculum/' + key, value, locs['it'])
                 else:
                     self.writer.add_scalar('Episode/' + key, value, locs['it'])
                 ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
