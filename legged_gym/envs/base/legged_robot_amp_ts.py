@@ -216,8 +216,18 @@ class LeggedRobotAMP_TS(BaseTask):
         # log additional curriculum info
         if self.cfg.terrain.curriculum:
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
+            # 分地形类型的课程统计（按 terrain 列比例区间映射类型）
+            _tt = self.terrain_types.float() / self.cfg.terrain.num_cols
+            _p = self.terrain.proportions
+            _tl = self.terrain_levels.float()
+            self.extras["episode"]["terrain_level_slope"] = torch.nan_to_num(_tl[_tt < _p[0]].mean())
+            self.extras["episode"]["terrain_level_rough_slope"] = torch.nan_to_num(_tl[(_tt >= _p[0]) & (_tt < _p[1])].mean())
+            self.extras["episode"]["terrain_level_stairs_down"] = torch.nan_to_num(_tl[(_tt >= _p[1]) & (_tt < _p[2])].mean())
+            self.extras["episode"]["terrain_level_stairs_up"] = torch.nan_to_num(_tl[(_tt >= _p[2]) & (_tt < _p[3])].mean())
+            self.extras["episode"]["terrain_level_obstacles"] = torch.nan_to_num(_tl[_tt >= _p[3]].mean())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
+            self.extras["episode"]["max_command_yaw"] = self.command_ranges["ang_vel_yaw"][1]  # 角速度课程上界
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf

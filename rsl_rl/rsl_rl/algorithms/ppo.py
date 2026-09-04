@@ -142,6 +142,7 @@ class PPO:
     def update(self):
         mean_value_loss = 0
         mean_surrogate_loss = 0
+        mean_entropy_loss = 0
         mean_sym_loss = 0
         
         if self.actor_critic.is_recurrent:
@@ -158,6 +159,7 @@ class PPO:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                mean_entropy_loss += entropy_batch.mean().item()
 
                 #sym loss
                 sym_loss = 0 
@@ -221,7 +223,8 @@ class PPO:
         if sym_loss:
             mean_sym_loss /= num_updates
         else:
-            mean_sym_loss =0
+            mean_sym_loss = 0
+        mean_entropy_loss /= num_updates
         self.storage.clear()
-    
-        return mean_value_loss, mean_surrogate_loss, mean_sym_loss
+
+        return mean_value_loss, mean_surrogate_loss, mean_sym_loss, mean_entropy_loss

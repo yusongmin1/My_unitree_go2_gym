@@ -35,12 +35,12 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
     class env:
         # change the observation dim
         frame_stack =1#action stack
-        c_frame_stack = 3 #critic 网络的堆叠帧数
         num_envs = 4096
         num_single_obs = 45 #这个是传感器可以获得到的信息
-        num_observations = int(frame_stack * num_single_obs) 
+        num_observations = int(frame_stack * num_single_obs)
+        # critic 使用单帧特权观测（critic_history 多帧堆叠队列已移除）
         single_num_privileged_obs = 261  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
-        num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
+        num_privileged_obs = single_num_privileged_obs  # 单帧特权观测
         num_obs_hist=5 #  10帧正常的观测
         num_latent_dims=16
         num_explicit_dims=3

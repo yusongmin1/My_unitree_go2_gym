@@ -170,8 +170,18 @@ class Go2_DreamWaQ_Robot(BaseTask):
         # log additional curriculum info
         if self.cfg.terrain.mesh_type == "trimesh":
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
+            # 分地形类型的课程统计（按 terrain 列比例区间映射类型）
+            _tt = self.terrain_types.float() / self.cfg.terrain.num_cols
+            _p = self.terrain.proportions
+            _tl = self.terrain_levels.float()
+            self.extras["episode"]["terrain_level_slope"] = torch.nan_to_num(_tl[_tt < _p[0]].mean())
+            self.extras["episode"]["terrain_level_rough_slope"] = torch.nan_to_num(_tl[(_tt >= _p[0]) & (_tt < _p[1])].mean())
+            self.extras["episode"]["terrain_level_stairs_down"] = torch.nan_to_num(_tl[(_tt >= _p[1]) & (_tt < _p[2])].mean())
+            self.extras["episode"]["terrain_level_stairs_up"] = torch.nan_to_num(_tl[(_tt >= _p[2]) & (_tt < _p[3])].mean())
+            self.extras["episode"]["terrain_level_obstacles"] = torch.nan_to_num(_tl[_tt >= _p[3]].mean())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
+            self.extras["episode"]["max_command_yaw"] = self.command_ranges["ang_vel_yaw"][1]  # 角速度课程上界
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
@@ -180,10 +190,6 @@ class Go2_DreamWaQ_Robot(BaseTask):
         self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
-        for i in range(self.obs_history.maxlen):
-            self.obs_history[i][env_ids] *= 0
-        for i in range(self.critic_history.maxlen):
-            self.critic_history[i][env_ids] *= 0
 
     def compute_reward(self):
         """ Compute rewards
@@ -207,21 +213,16 @@ class Go2_DreamWaQ_Robot(BaseTask):
         self.obs_hist_buf = self.obs_hist_buf[:,45:]
         self.obs_hist_buf = torch.cat((self.obs_hist_buf,self.obs_buf),dim = -1) #不要包含当前帧数据
 
-        obs_buf = torch.cat((
-            self.commands[:, :3] * self.commands_scale, 
-            self.base_ang_vel * self.obs_scales.ang_vel, 
-            self.projected_gravity,                
+        self.obs_buf = torch.cat((
+            self.commands[:, :3] * self.commands_scale,
+            self.base_ang_vel * self.obs_scales.ang_vel,
+            self.projected_gravity,
             (self.dof_pos - self.default_dof_pos) *
-            self.obs_scales.dof_pos,  
-            self.dof_vel * self.obs_scales.dof_vel,                        
-            self.actions     
+            self.obs_scales.dof_pos,
+            self.dof_vel * self.obs_scales.dof_vel,
+            self.actions
         ), dim=-1)
         self.vel_buf= self.base_lin_vel
-        if self.add_noise:  
-            # print("obs_noise",obs_buf.shape,self.noise_scale_vec.shape)
-            obs_now = obs_buf.clone() + (2 * torch.rand_like(obs_buf) -1) * self.noise_scale_vec * self.cfg.noise.noise_level
-        else:
-            obs_now = obs_buf.clone()
 
         self.privileged_obs_buf = torch.cat((
             torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,
@@ -236,18 +237,10 @@ class Go2_DreamWaQ_Robot(BaseTask):
             (self.dof_pos - self.default_dof_pos) *
             self.obs_scales.dof_pos,  # num_dofs
             self.dof_vel * self.obs_scales.dof_vel,                         # num_dofs
-            self.actions   
-        ), dim=-1)#5 12 12 12 12 3 3 3 1 1 2 2 =68
-        self.obs_history.append(obs_now)
-        self.critic_history.append(self.privileged_obs_buf)
-
-        obs_buf_all = torch.stack([self.obs_history[i]
-                                   for i in range(self.obs_history.maxlen)], dim=1)  # N,T,K
-
-        self.obs_buf = obs_buf_all.reshape(self.num_envs, -1)  # N, T*K
-        self.privileged_obs_buf = torch.cat([self.critic_history[i] for i in range(self.cfg.env.c_frame_stack)], dim=1)
-
-        # print("!!!!!!!!!!!!!!!!!!!!!11",self.privileged_obs_buf.shape)
+            self.actions
+        ), dim=-1)
+        if self.add_noise:
+            self.obs_buf = self.obs_buf + (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec * self.cfg.noise.noise_level
 
     def create_sim(self):
         """ Creates simulation, terrain and evironments
@@ -607,13 +600,6 @@ class Go2_DreamWaQ_Robot(BaseTask):
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
 
-        self.obs_history = deque(maxlen=self.cfg.env.frame_stack)
-        self.critic_history = deque(maxlen=self.cfg.env.c_frame_stack)
-        for _ in range(self.cfg.env.frame_stack):
-            self.obs_history.append(torch.zeros(
-                self.num_envs, self.cfg.env.num_single_obs, dtype=torch.float, device=self.device))
-        for _ in range(self.cfg.env.c_frame_stack):
-            self.critic_history.append(torch.zeros(self.num_envs, self.cfg.env.single_num_privileged_obs, dtype=torch.float, device=self.device))
         #通信延迟 cmd延迟，obs延迟 ，imu延迟
         # HIMLoco 式 action delay
         self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)

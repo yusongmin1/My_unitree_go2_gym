@@ -77,11 +77,11 @@ class PPO_DreamWaQ:
         self.actor_critic = actor_critic
         self.actor_critic.to(self.device)
         self.storage = None 
-        self.rl_parameters = list(self.actor_critic.actor.parameters()) + \
-                             list(self.actor_critic.critic.parameters()) + \
-                            [self.actor_critic.std]
+        # self.rl_parameters = list(self.actor_critic.actor.parameters()) + \
+        #                      list(self.actor_critic.critic.parameters()) + \
+        #                     [self.actor_critic.std]
         self.optimizer = optim.Adam(
-            self.rl_parameters, lr=learning_rate)
+            self.actor_critic.parameters(), lr=learning_rate)
         self.vae_optimizer = optim.Adam(
             self.actor_critic.vae.parameters(), lr=vae_learning_rate)
         self.transition = RolloutStorageDreamWaQ.Transition()
@@ -150,6 +150,7 @@ class PPO_DreamWaQ:
     def update(self):
         mean_value_loss = 0
         mean_surrogate_loss = 0
+        mean_entropy_loss = 0
         mean_vae_loss = 0
         mean_vel_estimation_loss=0
         mean_recon_loss=0
@@ -164,6 +165,7 @@ class PPO_DreamWaQ:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                mean_entropy_loss += entropy_batch.mean().item()
                 # 对称损失：镜像 obs/hist 经 VAE+actor 前向，与原 mu 对比
                 sym_loss_val = torch.tensor(0., device=self.device)
                 if self.sym_loss:
@@ -211,7 +213,7 @@ class PPO_DreamWaQ:
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(
-                self.rl_parameters, self.max_grad_norm)
+                self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 vel_target = estimation_batch
@@ -238,6 +240,7 @@ class PPO_DreamWaQ:
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
+        mean_entropy_loss /= num_updates
         mean_surrogate_loss /= num_updates
         mean_vae_loss/=num_updates
         mean_vel_estimation_loss /= num_updates
@@ -246,4 +249,4 @@ class PPO_DreamWaQ:
         self.storage.clear()
 
         return mean_value_loss, mean_surrogate_loss, mean_vae_loss,mean_vel_estimation_loss, \
-            mean_recon_loss, mean_kl_loss
+            mean_recon_loss, mean_kl_loss, mean_entropy_loss

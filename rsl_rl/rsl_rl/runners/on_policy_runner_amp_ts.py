@@ -156,7 +156,7 @@ class OnPolicyRunnerAMP_TS:
                 start = stop
                 self.alg.compute_returns(critic_obs)
             
-            mean_value_loss, mean_surrogate_loss,mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred = self.alg.update()
+            mean_value_loss, mean_surrogate_loss,mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred, mean_entropy_loss = self.alg.update()
             stop = time.time()
             learn_time = stop - start
             if self.log_dir is not None:
@@ -185,11 +185,17 @@ class OnPolicyRunnerAMP_TS:
                         ep_info[key] = ep_info[key].unsqueeze(0)
                     infotensor = torch.cat((infotensor, ep_info[key].to(self.device)))
                 value = torch.mean(infotensor)
-                self.writer.add_scalar('Episode/' + key, value, locs['it'])
+                if 'terrain' in key:
+                    self.writer.add_scalar('Terrain/' + key, value, locs['it'])
+                elif 'max_command' in key:
+                    self.writer.add_scalar('CommandCurriculum/' + key, value, locs['it'])
+                else:
+                    self.writer.add_scalar('Episode/' + key, value, locs['it'])
                 ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
         mean_std = self.alg.actor_critic.std.mean()
         fps = int(self.num_steps_per_env * self.env.num_envs / (locs['collection_time'] + locs['learn_time']))
 
+        self.writer.add_scalar('Loss/entropy', locs['mean_entropy_loss'], locs['it'])
         self.writer.add_scalar('Loss/value_function', locs['mean_value_loss'], locs['it'])
         self.writer.add_scalar('Loss/surrogate', locs['mean_surrogate_loss'], locs['it'])
         self.writer.add_scalar('Loss/AMP', locs['mean_amp_loss'], locs['it'])
@@ -214,6 +220,7 @@ class OnPolicyRunnerAMP_TS:
                             'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
                           f"""{'Value function loss:':>{pad}} {locs['mean_value_loss']:.4f}\n"""
                           f"""{'Surrogate loss:':>{pad}} {locs['mean_surrogate_loss']:.4f}\n"""
+                          f"""{'Entropy loss:':>{pad}} {locs['mean_entropy_loss']:.4f}\n"""
                           f"""{'AMP loss:':>{pad}} {locs['mean_amp_loss']:.4f}\n"""
                           f"""{'AMP grad pen loss:':>{pad}} {locs['mean_grad_pen_loss']:.4f}\n"""
                           f"""{'AMP mean policy pred:':>{pad}} {locs['mean_policy_pred']:.4f}\n"""
@@ -230,6 +237,7 @@ class OnPolicyRunnerAMP_TS:
                             'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
                           f"""{'Value function loss:':>{pad}} {locs['mean_value_loss']:.4f}\n"""
                           f"""{'Surrogate loss:':>{pad}} {locs['mean_surrogate_loss']:.4f}\n"""
+                          f"""{'Entropy loss:':>{pad}} {locs['mean_entropy_loss']:.4f}\n"""
                           f"""{'Mean action noise std:':>{pad}} {mean_std.item():.2f}\n""")
                         #   f"""{'Mean reward/step:':>{pad}} {locs['mean_reward']:.2f}\n"""
                         #   f"""{'Mean episode length/episode:':>{pad}} {locs['mean_trajectory_length']:.2f}\n""")

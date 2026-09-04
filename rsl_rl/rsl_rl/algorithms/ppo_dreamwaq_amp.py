@@ -176,6 +176,7 @@ class PPO_DreamWaQ_AMP:
     def update(self):
         mean_value_loss = 0
         mean_surrogate_loss = 0
+        mean_entropy_loss = 0
         mean_vae_loss = 0
         mean_vel_estimation_loss=0
         mean_recon_loss=0
@@ -203,6 +204,7 @@ class PPO_DreamWaQ_AMP:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                mean_entropy_loss += entropy_batch.mean().item()
                 # 对称损失：镜像 obs/hist 经 VAE+actor 前向，与原 mu 对比
                 sym_loss_val = torch.tensor(0., device=self.device)
                 if self.sym_loss:
@@ -306,6 +308,7 @@ class PPO_DreamWaQ_AMP:
                 mean_expert_pred += expert_d.mean().item()
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
+        mean_entropy_loss /= num_updates
         mean_surrogate_loss /= num_updates
         mean_vae_loss/=num_updates
         mean_vel_estimation_loss /= num_updates
@@ -318,4 +321,4 @@ class PPO_DreamWaQ_AMP:
         self.storage.clear()
 
         return mean_value_loss, mean_surrogate_loss, mean_vae_loss,mean_vel_estimation_loss, \
-            mean_recon_loss, mean_kl_loss,mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred
+            mean_recon_loss, mean_kl_loss,mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred, mean_entropy_loss

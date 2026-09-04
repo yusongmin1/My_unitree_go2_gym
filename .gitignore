@@ -16,4 +16,6 @@ venv/
 
 # logs/
 .vscode/
+vscode/
 .zcode/
+zcode/

@@ -164,6 +164,7 @@ class PPO_AMP_TS:
     def update(self):
         mean_value_loss = 0
         mean_surrogate_loss = 0
+        mean_entropy_loss = 0
         mean_amp_loss = 0
         mean_grad_pen_loss = 0
         mean_policy_pred = 0
@@ -188,6 +189,7 @@ class PPO_AMP_TS:
                 mu_batch = self.actor_critic.action_mean
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
+                mean_entropy_loss += entropy_batch.mean().item()
                 # 对称损失：obs/terrain/domain 镜像三路前向（domain 无表时保持原值）
                 sym_loss_val = torch.tensor(0., device=self.device)
                 if self.sym_loss:
@@ -277,6 +279,7 @@ class PPO_AMP_TS:
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
+        mean_entropy_loss /= num_updates
         mean_surrogate_loss /= num_updates
         mean_amp_loss /= num_updates
         mean_grad_pen_loss /= num_updates
@@ -284,4 +287,4 @@ class PPO_AMP_TS:
         mean_expert_pred /= num_updates
         self.storage.clear()
 
-        return mean_value_loss, mean_surrogate_loss, mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred
+        return mean_value_loss, mean_surrogate_loss, mean_amp_loss, mean_grad_pen_loss, mean_policy_pred, mean_expert_pred, mean_entropy_loss
