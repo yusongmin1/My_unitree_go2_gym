@@ -32,8 +32,6 @@ class VAE(nn.Module):
             nn.Linear(64,num_est_dims),
             nn.Hardtanh(min_val=-5., max_val=5.) # to avoid numerical issues
             )
-
-
         self.decoder = nn.Sequential(
             nn.Linear(num_latent_dim+num_est_dims,128),
             self.activation,

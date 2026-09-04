@@ -19,3 +19,7 @@ venv/
 vscode/
 .zcode/
 zcode/
+
+logs/
+.logs/
+
