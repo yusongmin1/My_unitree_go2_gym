@@ -390,7 +390,18 @@ https://arxiv.org/abs/2301.10602
 https://arxiv.org/abs/2312.11460
  
 ---
- 
+# 致谢
+
+https://github.com/lupinjia/LeggedGym-Ex
+
+https://github.com/wty-yy/go2_rl_gym
+
+https://github.com/vassil-atn/Curriculum-Quadruped-Jumping-DRL
+
+https://github.com/Manaro-Alpha/DreamWaQ
+
+https://github.com/InternRobotics/HIMLoco
+
 ## 📄 许可证 (License)
 
 本项目采用 [MIT License](./LICENSE) 开源。
