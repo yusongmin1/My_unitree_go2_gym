@@ -388,3 +388,19 @@ https://arxiv.org/abs/2401.16337
 https://arxiv.org/abs/2301.10602
  
 https://arxiv.org/abs/2312.11460
+ 
+---
+ 
+## 📄 许可证 (License)
+
+本项目采用 [MIT License](./LICENSE) 开源。
+
+本项目基于以下开源项目构建（引用其 BSD-3-Clause 许可）：
+
+- **legged_gym / rsl_rl** — Copyright (c) 2021 ETH Zurich, Nikita Rudin — [GitHub](https://github.com/leggedrobotics/legged_gym)
+- **unitree_rl_gym** — Copyright (c) 2023 Unitree Robotics — [GitHub](https://github.com/unitreerobotics/unitree_rl_gym)
+
+**作者联系方式**：
+
+- 于松民 (Yu Songmin)
+- Email: [1902219511@qq.com](mailto:1902219511@qq.com)
