@@ -190,6 +190,8 @@ class Go2_DreamWaQ_Robot(BaseTask):
         self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
+        # 重置 env 的 critic 历史清零（与原 deque 版行为一致）
+        self.critic_hist_buf[env_ids] = 0.
 
     def compute_reward(self):
         """ Compute rewards
@@ -239,6 +241,13 @@ class Go2_DreamWaQ_Robot(BaseTask):
             self.dof_vel * self.obs_scales.dof_vel,                         # num_dofs
             self.actions
         ), dim=-1)
+
+        # critic 3 帧堆叠（平移缓冲实现，最新帧在末尾）：
+        # privileged_obs_buf 末 45 维保持为最新帧的无噪声 obs（VAE decode 目标切片不受影响）
+        self.critic_hist_buf = torch.cat(
+            (self.critic_hist_buf[:, self.cfg.env.single_num_privileged_obs:], self.privileged_obs_buf), dim=-1)
+        self.privileged_obs_buf = self.critic_hist_buf
+
         if self.add_noise:
             self.obs_buf = self.obs_buf + (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec * self.cfg.noise.noise_level
 
@@ -606,6 +615,8 @@ class Go2_DreamWaQ_Robot(BaseTask):
         self.obs_motor_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
         self.obs_imu_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)  
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
+        # critic 3 帧堆叠缓冲（c_frame_stack=3，平移式维护）
+        self.critic_hist_buf = torch.zeros(self.num_envs, 3 * self.cfg.env.single_num_privileged_obs, dtype=torch.float, device=self.device)
         self.vel_buf=torch.zeros(self.num_envs, 3, dtype=torch.float, device=self.device)
         self.disturbance = torch.zeros(self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False)
 
