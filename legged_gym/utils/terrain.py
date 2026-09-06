@@ -29,11 +29,13 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 import numpy as np
+import random
 from numpy.random import choice
 from scipy import interpolate
 
 from isaacgym import terrain_utils
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
+from legged_gym.utils.new_terrains import add_extreme_gap_terrain
 
 class Terrain:
     def __init__(self, cfg: LeggedRobotCfg.terrain, num_robots=None) -> None:
@@ -118,9 +120,20 @@ class Terrain:
             self.add_terrain_to_map(terrain, i, j)
             print("#############################################################")
     
+    def add_roughness(self, terrain, difficulty=1.0):
+        if not getattr(self.cfg, "add_roughness", True):
+            return
+        height_range = getattr(self.cfg, "height", [0.01, 0.04])
+        downsampled_scale = getattr(self.cfg, "downsampled_scale", 0.2)
+        max_height = (height_range[1] - height_range[0]) * difficulty + height_range[0]
+        height = random.uniform(height_range[0], max_height)
+        terrain_utils.random_uniform_terrain(
+            terrain, min_height=-height, max_height=height,
+            step=0.005, downsampled_scale=downsampled_scale)
+
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain(   "terrain",
-                                width=self.width_per_env_pixels,
+                                width=self.length_per_env_pixels,
                                 length=self.width_per_env_pixels,
                                 vertical_scale=self.cfg.vertical_scale,
                                 horizontal_scale=self.cfg.horizontal_scale)
@@ -129,9 +142,9 @@ class Terrain:
         discrete_obstacles_height = 0.05 + difficulty * 0.2
         stepping_stones_size = 1.5 * (1.05 - difficulty)
         stone_distance = 0.05 if difficulty==0 else 0.1
-        noise= 0.08 * difficulty
         gap_size = 1. * difficulty
         pit_depth = 1. * difficulty
+        depth = 0.6
         if choice < self.proportions[0]:
             if choice < self.proportions[0]/ 2:
                 slope *= -1
@@ -144,14 +157,69 @@ class Terrain:
                 step_height *= -1
             terrain_utils.pyramid_stairs_terrain(terrain, step_width=0.31, step_height=step_height, platform_size=3.)
         elif choice < self.proportions[4]:
-            terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005, downsampled_scale=0.2)
+            num_rectangles = 20
+            rectangle_min_size = 1.
+            rectangle_max_size = 2.
+            terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.)
+        # ---- extreme_gap parkour (replaces random / gap / pit) ----
         elif choice < self.proportions[5]:
-            terrain_utils.random_uniform_terrain(terrain, min_height=-noise, max_height=noise, step=0.005, downsampled_scale=0.2)
+            # single-gap
+            add_extreme_gap_terrain.parkour_step_gap_terrain(
+                terrain, difficulty, depth=depth, platform_size=2.)
+            self.add_roughness(terrain)
         elif choice < self.proportions[6]:
-            gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
+            # step-stone
+            stones_size = 0.7 if difficulty < 0.2 else -0.5 * difficulty * difficulty + 0.7
+            stone_distance = 0.05 if difficulty < 0.2 else 0.4 * int(10 * difficulty) / 10
+            add_extreme_gap_terrain.stepping_stones_terrain(
+                terrain, stone_size=stones_size, stone_distance=stone_distance,
+                max_height=step_height, platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[7]:
+            # Stones-2Rows
+            stones_size = 0.8 if difficulty < 0.2 else -0.5 * difficulty + 0.8
+            stone_distance = 0.1 if difficulty < 0.2 else 0.4 * int(10 * difficulty) / 10
+            add_extreme_gap_terrain.stepping_two_stones_terrain(
+                terrain, stone_size=stones_size, stone_distance=stone_distance,
+                max_height=step_height, platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[8]:
+            # stones-1Rows
+            stones_size = 0.8 if difficulty < 0.2 else -0.5 * difficulty + 0.8
+            stone_distance = 0.1 if difficulty < 0.2 else 0.4 * int(10 * difficulty) / 10
+            add_extreme_gap_terrain.stepping_one_stones_terrain(
+                terrain, difficulty=difficulty, stone_size=stones_size,
+                stone_distance=stone_distance, max_height=step_height,
+                platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[9]:
+            # single-bridge
+            stones_size = 0.6 if difficulty < 0.2 else -0.6 * difficulty + 0.8
+            add_extreme_gap_terrain.stepping_one_bridge_terrain(
+                terrain, stone_size=stones_size, difficulty=difficulty,
+                platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[10]:
+            # hurdle
+            hurdel_height_mix = step_height if difficulty < 0.1 else 0.1 + 0.40 * difficulty
+            hurdel_height_max = 0.1 + step_height if difficulty < 0.1 else 0.2 + 0.50 * difficulty
+            stones_size = 0.8 if difficulty < 0.2 else -0.5 * difficulty + 0.8
+            stone_distance = 0.1 if difficulty < 0.2 else 0.4 * int(10 * difficulty) / 10
+            add_extreme_gap_terrain.parkour_hurdle_terrain(
+                terrain, difficulty=difficulty, stone_size=stones_size,
+                stone_distance=stone_distance, max_height=step_height,
+                hurdle_height_range=[hurdel_height_mix, hurdel_height_max],
+                platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[11]:
+            # ramp
+            add_extreme_gap_terrain.half_sloped_terrain(
+                terrain, level_index=difficulty * 2.5, depth=depth)
+            self.add_roughness(terrain)
         else:
-            pit_terrain(terrain, depth=pit_depth, platform_size=4.)
-        
+            # corridor
+            add_extreme_gap_terrain.narrow_corridor(terrain, difficulty, depth=depth)
+
         return terrain
 
     def add_terrain_to_map(self, terrain, row, col):

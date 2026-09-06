@@ -38,8 +38,8 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_envs = 4096
         num_single_obs = 45 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs)
-        # critic 使用单帧特权观测（critic_history 多帧堆叠队列已移除）
-        single_num_privileged_obs = 261  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
+        # critic 单帧特权：obs(45)+lin_vel(3)+contact(17*3=51)+heights(187) = 286
+        single_num_privileged_obs = 286
         num_privileged_obs = single_num_privileged_obs  # 单帧特权观测
         num_obs_hist=5 #  10帧正常的观测
         num_latent_dims=16
@@ -74,7 +74,11 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
+        # (no vision → no parkour gaps/bridges)
         terrain_proportions = [0.15, 0.15, 0.3, 0.3, 0.1]
+        add_roughness = True
+        height = [0.01, 0.04]
+        downsampled_scale = 0.2
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
@@ -214,6 +218,7 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             height_measurements = 5.0
         clip_observations = 100.
         clip_actions = 100.
+        contact_force_range = [0.0, 50.0]
 
     class noise:
         add_noise = True

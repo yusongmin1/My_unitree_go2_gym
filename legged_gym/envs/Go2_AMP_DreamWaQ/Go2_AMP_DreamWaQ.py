@@ -39,7 +39,7 @@ import torch
 from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
-from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
+from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float, get_scale_shift
 from legged_gym.utils.helpers import class_to_dict
 from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ_Config import Go2_AMP_DreamWaQ_Cfg_Yu
 from rsl_rl.datasets.motion_loader import AMPLoader
@@ -104,20 +104,33 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
-        return self.obs_buf, self.privileged_obs_buf,self.obs_hist_buf ,self.vel_buf, self.rew_buf, self.reset_buf, self.extras, reset_env_ids, terminal_amp_states
+            self.prev_privileged_obs_buf = torch.clip(self.prev_privileged_obs_buf, -clip_obs, clip_obs)
+        # DreamWaQ-main API + AMP terminal states
+        return (
+            self.obs_buf,
+            self.privileged_obs_buf,
+            self.prev_privileged_obs_buf,
+            self.obs_hist_buf,
+            self.rew_buf,
+            self.reset_buf,
+            self.extras,
+            reset_env_ids,
+            terminal_amp_states,
+        )
 
     def get_observations(self):
-        return self.obs_buf, self.obs_hist_buf, self.vel_buf
+        return self.obs_buf, self.obs_hist_buf
 
     def get_privileged_observations(self):
-        return self.privileged_obs_buf
+        return self.privileged_obs_buf, self.prev_privileged_obs_buf
 
     def reset(self):
         """ Reset all robots"""
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, obs_history, explicit_labels, _, _, _,_,_ = self.step(torch.zeros(
-            self.num_envs, self.num_actions, device=self.device, requires_grad=False))
-        return obs, privileged_obs, obs_history, explicit_labels
+        obs, privileged_obs, prev_privileged_obs, obs_history, _, _, _, _, _ = self.step(
+            torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False)
+        )
+        return obs, privileged_obs, prev_privileged_obs, obs_history
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
             calls self._post_physics_step_callback() for common computations 
@@ -224,6 +237,7 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
         self.obs_hist_buf[env_ids] = 0
+        self.prev_privileged_obs_buf[env_ids] = 0
     def compute_reward(self):
         """ Compute rewards
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
@@ -244,37 +258,48 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
             self.episode_sums["termination"] += rew
 
     def compute_observations(self):
-        self.obs_hist_buf = self.obs_hist_buf[:,45:]
-        self.obs_hist_buf = torch.cat((self.obs_hist_buf,self.obs_buf),dim = -1) #不要包含当前帧数据
+        self.obs_hist_buf = torch.cat(
+            (self.obs_hist_buf[:, self.num_obs :], self.obs_buf), dim=-1
+        )
+        self.prev_privileged_obs_buf = self.privileged_obs_buf.clone()
+        reset_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+        if len(reset_ids) > 0:
+            self.prev_privileged_obs_buf[reset_ids] = 0
 
         self.obs_buf = torch.cat((
             self.commands[:, :3] * self.commands_scale,
             self.base_ang_vel * self.obs_scales.ang_vel,
             self.projected_gravity,
-            (self.dof_pos - self.default_dof_pos) *
-            self.obs_scales.dof_pos,
+            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
             self.dof_vel * self.obs_scales.dof_vel,
             self.actions
         ), dim=-1)
-        self.vel_buf= self.base_lin_vel
 
-        self.privileged_obs_buf = torch.cat((
-            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,
-            self.base_lin_vel * self.obs_scales.lin_vel,
-            self.friction_coeffs,
-            self.restitution_coeffs,
-            self.p_gains_multiplier ,             # num_actions
-            self.d_gains_multiplier,             # num_actions
-            self.commands[:, :3] * self.commands_scale,                     # 3
-            self.base_ang_vel * self.obs_scales.ang_vel,                   # 3
-            self.projected_gravity,                                         # 3
-            (self.dof_pos - self.default_dof_pos) *
-            self.obs_scales.dof_pos,  # num_dofs
-            self.dof_vel * self.obs_scales.dof_vel,                         # num_dofs
-            self.actions
-        ), dim=-1)  # 末尾 45 维是无噪声 obs（VAE 的 decode 目标从这切片）
+        heights = torch.clip(
+            self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.0
+        ) * self.obs_scales.height_measurements
+        contact_forces_scale, contact_forces_shift = get_scale_shift(
+            self.cfg.normalization.contact_force_range
+        )
+        # Layout must match PPO_DreamWaQ vel slice: [obs | lin_vel(3) | ...]
+        self.privileged_obs_buf = torch.cat(
+            (
+                self.obs_buf,
+                self.base_lin_vel * self.obs_scales.lin_vel,
+                (self.contact_forces.view(self.num_envs, -1) - contact_forces_shift)
+                * contact_forces_scale,
+                heights,
+            ),
+            dim=-1,
+        )
+
         if self.add_noise:
-            self.obs_buf = self.obs_buf + (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec * self.cfg.noise.noise_level
+            self.obs_buf = (
+                self.obs_buf
+                + (2 * torch.rand_like(self.obs_buf) - 1)
+                * self.noise_scale_vec
+                * self.cfg.noise.noise_level
+            )
 
     def get_amp_observations(self):
         return torch.cat((self.dof_pos, self.base_lin_vel, self.base_ang_vel, self.dof_vel,self._get_base_heights().unsqueeze(1)), dim=-1)
@@ -648,7 +673,7 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         self.obs_motor_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
         self.obs_imu_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)  
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
-        self.vel_buf=torch.zeros(self.num_envs, 3, dtype=torch.float, device=self.device)
+        self.prev_privileged_obs_buf = torch.zeros_like(self.privileged_obs_buf)
         self.disturbance = torch.zeros(self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False)
 
     def _prepare_reward_function(self):

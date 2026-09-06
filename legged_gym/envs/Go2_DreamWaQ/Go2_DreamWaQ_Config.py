@@ -8,13 +8,14 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_single_obs = 45 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs)
         # critic 使用 3 帧堆叠特权观测（平移缓冲实现；对照实验：单帧版见 git 历史）
-        single_num_privileged_obs = 261  #不平衡的观测，包含了特权信息，正常传感器获得不到的信息
-        num_privileged_obs = 3 * single_num_privileged_obs  # 3帧特权观测 = 783
-        num_obs_hist=5 #  10帧正常的观测
-        num_latent_dims=16
-        num_explicit_dims=3
+        # 单帧特权观测：obs(45)+lin_vel(3)+contact(17bodies*3=51)+heights(187) = 286
+        single_num_privileged_obs = 292
+        num_privileged_obs = single_num_privileged_obs
+        num_obs_hist = 5
+        num_latent_dims = 16
+        num_explicit_dims = 3  # estimated base lin_vel
 
-        num_history_obs=num_obs_hist*num_single_obs
+        num_history_obs = num_obs_hist * num_single_obs
         num_actions = 12
         episode_length_s = 20 # episode length in seconds
         env_spacing = 3.  # not used with heightfields/trimeshes 
@@ -40,7 +41,11 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
+        # (no vision → no parkour gaps/bridges)
         terrain_proportions = [0.15, 0.15, 0.3, 0.3, 0.1]
+        add_roughness = True
+        height = [0.01, 0.04]
+        downsampled_scale = 0.2
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
     class commands:
@@ -162,10 +167,10 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             # stumble = -0.5
-            foot_clearance=-0.5
+            foot_clearance=-0.01
             # hip_pos=-0.05
             joint_power=-2e-5
-            rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
+            # rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         base_height_target = 0.40
@@ -180,6 +185,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             height_measurements = 5.0
         clip_observations = 100.
         clip_actions = 100.
+        contact_force_range = [0.0, 50.0]
 
     class noise:
         add_noise = True

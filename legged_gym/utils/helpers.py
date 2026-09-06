@@ -251,23 +251,31 @@ def export_policy_as_cts(actor_critic, path, ):
     exporter = PolicyExporterCTS(actor_critic)
     exporter.export(path)
 class PolicyExporterDWAQ(torch.nn.Module):
-    def __init__(self, actor_critic, ):
+    def __init__(self, actor_critic):
         super().__init__()
         self.actor = copy.deepcopy(actor_critic.actor)
-        self.vae = copy.deepcopy(actor_critic.vae)
+        # Integrated CENet (DreamWaQ-main): copy encoder heads + decoder
+        self.encoder = copy.deepcopy(actor_critic.encoder)
+        self.encode_mean_latent = copy.deepcopy(actor_critic.encode_mean_latent)
+        self.encode_mean_vel = copy.deepcopy(actor_critic.encode_mean_vel)
         self.actor.eval()
-        # self.vae.eval()
+        self.encoder.eval()
+
     def forward(self, obs_history):
-        (code),(code_vel,code_latent),(decode),(mean_vel,logvar_vel,mean_latent,logvar_latent)= self.vae.cenet_forward(obs_history[:,:-45])
-        actor_input = torch.cat(
-            (code,obs_history[:, -45:]), dim=1)
-        actions_mean = self.actor(actor_input)
-        return actions_mean
+        # obs_history layout: [hist_frames..., current_obs(45)] — use means for deterministic deploy
+        hist = obs_history[:, :-45]
+        obs = obs_history[:, -45:]
+        h = self.encoder(hist)
+        mean_latent = self.encode_mean_latent(h)
+        mean_vel = self.encode_mean_vel(h)
+        code = torch.cat((mean_vel, mean_latent), dim=-1)
+        actor_input = torch.cat((code, obs), dim=1)
+        return self.actor(actor_input)
 
     def export(self, path):
         os.makedirs(path, exist_ok=True)
-        export_path = os.path.join(path, 'policy_dwaq.pt')
-        self.to('cpu')
+        export_path = os.path.join(path, "policy_dwaq.pt")
+        self.to("cpu")
         self.eval()
         with torch.no_grad():
             traced_script_module = torch.jit.script(self)
@@ -275,85 +283,16 @@ class PolicyExporterDWAQ(torch.nn.Module):
             print(f"模型已导出至: {export_path}")
 
 
-def export_policy_as_dwaq(actor_critic, path, ):
-    if hasattr(actor_critic, 'vae'):
-        # assumes LSTM: TODO add GRU
+def export_policy_as_dwaq(actor_critic, path):
+    if hasattr(actor_critic, "encoder") and hasattr(actor_critic, "encode_mean_vel"):
         exporter = PolicyExporterDWAQ(actor_critic)
         exporter.export(path)
     else:
         os.makedirs(path, exist_ok=True)
-        path = os.path.join(path, 'policy_1.pt')
-        model = copy.deepcopy(actor_critic.actor).to('cpu')
+        path = os.path.join(path, "policy_1.pt")
+        model = copy.deepcopy(actor_critic.actor).to("cpu")
         traced_script_module = torch.jit.script(model)
         traced_script_module.save(path)
-
-# import os
-# import copy
-# import torch
-# import torch.onnx
-
-# class PolicyExporterDWAQ(torch.nn.Module):
-#     def __init__(self, actor_critic):
-#         super().__init__()
-#         self.actor = copy.deepcopy(actor_critic.actor)
-#         self.vae = copy.deepcopy(actor_critic.vae)
-#         self.actor.eval()
-#         self.vae.eval()          # 必须 eval 模式
-
-#     def forward(self, obs_history):
-#         # 与训练时完全一致
-#         (code,), *_ = self.vae.cenet_forward(obs_history[:, :-57])
-#         actor_input = torch.cat((code.unsqueeze(0), obs_history[:, -57:]), dim=1)
-#         actions_mean = self.actor(actor_input)
-#         return actions_mean
-
-#     # ==========  改写为 ONNX  ==========
-#     def export(self, path, opset=11):
-#         os.makedirs(path, exist_ok=True)
-#         onnx_file = os.path.join(path, 'policy_dwaq.onnx')
-
-#         # 1. 构造 dummy 输入（batch=1，长度与你训练时一致）
-#         seq_len = 285 +57                # 请改成你真实的 obs_history 总长度
-#         dummy_obs = torch.randn(1, seq_len)
-
-#         # 2. 切换到 CPU、eval、无梯度
-#         self.to('cpu')
-#         self.eval()
-#         with torch.no_grad():
-#             torch.onnx.export(
-#                 self,                                    # 模型
-#                 (dummy_obs,),                            # 输入 tuple
-#                 onnx_file,
-#                 input_names=['obs_history'],
-#                 output_names=['actions_mean'],
-#                 dynamic_axes={                           # batch 维度可变
-#                     'obs_history': {0: 'batch'},
-#                     'actions_mean': {0: 'batch'}
-#                 },
-#                 opset_version=opset
-#             )
-#         print(f'ONNX 模型已导出至: {onnx_file}')
-
-
-# def export_policy_as_dwaq(actor_critic, path):
-#     if hasattr(actor_critic, 'vae'):
-#         exporter = PolicyExporterDWAQ(actor_critic)
-#         exporter.export(path)
-#     else:
-#         # 不含 VAE 的分支也顺手改成 ONNX
-#         os.makedirs(path, exist_ok=True)
-#         onnx_file = os.path.join(path, 'policy_1.onnx')
-#         model = copy.deepcopy(actor_critic.actor).cpu().eval()
-#         dummy = torch.randn(1, actor_critic.actor_input_dim)  # 换成真实 dim
-#         with torch.no_grad():
-#             torch.onnx.export(
-#                 model, (dummy,), onnx_file,
-#                 input_names=['obs'],
-#                 output_names=['actions'],
-#                 dynamic_axes={'obs': {0: 'batch'}, 'actions': {0: 'batch'}},
-#                 opset_version=11
-#             )
-#         print(f'ONNX 模型已导出至: {onnx_file}')
 
 
 class LSTMEncoderAMP(nn.Module):

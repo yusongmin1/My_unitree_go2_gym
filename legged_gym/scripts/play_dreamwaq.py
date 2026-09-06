@@ -59,7 +59,7 @@ def play(args):
     env_cfg.commands.heading_command= False
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-    obs,obs_hist,_= env.get_observations()
+    obs, obs_hist = env.get_observations()
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
@@ -85,9 +85,10 @@ def play(args):
         env.commands[:, 0]=1.0
         env.commands[:, 1]=0.
         env.commands[:, 2]=0.0
-        actions = policy(obs.detach(),obs_hist.detach())
-        # dreamwaq 的 step 返回 7 个值，amp_dreamwaq 返回 9 个（多 reset_env_ids, terminal_amp_states），取前 7 个兼容两者
-        obs, _,  obs_hist,_, rews, dones, infos = env.step(actions.detach())[:7]
+        actions = policy(obs.detach(), obs_hist.detach())
+        # DreamWaQ: 7-tuple; AMP DreamWaQ: 9-tuple (extra reset_env_ids, terminal_amp_states)
+        step_out = env.step(actions.detach())
+        obs, _, _, obs_hist, rews, dones, infos = step_out[:7]
         if RECORD_FRAMES:
             if i % 2:
                 filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")

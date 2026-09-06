@@ -5,9 +5,9 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
     class env:
         frame_stack = 1 #action stack
         c_frame_stack = 1 #critic 网络的堆叠帧数
-        num_single_obs = 45 #这个是传感器可以获得到的信息（已删前3个零：zeros(2)+stand_command）
+        num_single_obs = 48 # =3(ang)+3(grav)+3(cmd)+12+12+12+2(phase)+1(stand_command)
         num_observations = int(frame_stack * num_single_obs) # 10帧正常的观测
-        single_num_privileged_obs = 86  # =3(线速度)+45(观测)+34(域随机)+4(足接触)，旧值89(obs 48维时)
+        single_num_privileged_obs = 89  # =3(线速度)+48(观测)+34(域随机)+4(足接触)
         num_privileged_obs = int(c_frame_stack * single_num_privileged_obs) # 3帧特权观测
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
@@ -45,12 +45,12 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-        resampling_time = 10. # time before command are changed[s]
-        heading_command = True # if true: compute ang vel command from heading error
+        resampling_time = 5. # time before command are changed[s]
+        heading_command = False # if true: compute ang vel command from heading error
         class ranges:
-            lin_vel_x = [-0.2,0.6] # min max [m/s]
+            lin_vel_x = [-0.5,0.5] # min max [m/s]
             lin_vel_y = [-0.0, 0.0]   # min max [m/s]
-            ang_vel_yaw = [-0.4, 0.4]    # min max [rad/s]
+            ang_vel_yaw = [-0.5, 0.5]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
@@ -92,8 +92,8 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 40.}  # [N*m/rad]
-        damping = {'joint': 1}     # [N*m*s/rad]
+        stiffness = {'joint': 28.}  # [N*m/rad]
+        damping = {'joint': 0.7}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -110,7 +110,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         threshold=5.0
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
-        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
+        collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
         default_dof_drive_mode = 3 # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
@@ -162,7 +162,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         joint_damping_range = [0.0,0.1]
 
         randomize_joint_armature = True
-        joint_armature_range = [0.003, 0.08]    #
+        joint_armature_range = [0.003, 0.008]    #
     class rewards:
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 0.95
@@ -199,7 +199,7 @@ class Go2_Handstand_Cfg_Yu( LeggedRobotCfg ):
         base_height_target = 0.52#0.25
         target_foot_height=0.06
         max_contact_force = 200. # forces above this value are penalized
-        cycle_time=1.6
+        cycle_time=0.8
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -275,9 +275,10 @@ class Go2_Handstand_PPO_Yu(LeggedRobotCfgPPO):
         desired_kl = 0.01
         max_grad_norm = 1.
         sym_loss = True
-        # 45 维 obs 镜像置换表（与 compute_observations 布局严格对齐）：
+        # 48 维 obs 镜像置换表（与 compute_observations 布局严格对齐）：
         # [0:3]角速度: 轴向量 (-wx, wy, -wz) | [3:6]重力投影: 极向量 (gx, -gy, gz)
         # [6:9]命令: (vx, -vy, -wyaw) | [9:21/21:33/33:45] dof_pos/vel/action: FL<->FR, RL<->RR, hip 取反
+        # [45:47]相位 sin/cos 不变 | [47] stand_command 不变
         obs_permutation = [-0.0001, 1, -2,            # ang_vel
                            3, -4, 5,                   # gravity (gy 取反)
                            6, -7, -8,                  # commands
@@ -292,7 +293,9 @@ class Go2_Handstand_PPO_Yu(LeggedRobotCfgPPO):
                            -36, 37, 38,                # actions FL <- FR
                            -33, 34, 35,                # actions FR <- FL
                            -42, 43, 44,                # actions RL <- RR
-                           -39, 40, 41]                # actions RR <- RL
+                           -39, 40, 41,                # actions RR <- RL
+                           45, 46,                     # phase sin/cos
+                           47]                         # stand_command
         act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
         frame_stack = 1
         sym_coef = 1.0
@@ -304,7 +307,7 @@ class Go2_Handstand_PPO_Yu(LeggedRobotCfgPPO):
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
-        experiment_name = 'go2_handstand'
+        experiment_name = 'go'
         run_name = ''
         # load and resume
         resume = False

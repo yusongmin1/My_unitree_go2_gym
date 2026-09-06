@@ -256,19 +256,6 @@ class LeggedRobotAMP_TS(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
 
-    def _get_phase(self):
-        cycle_time = self.cfg.rewards.cycle_time
-        phase = (self.episode_length_buf * self.dt)%cycle_time/cycle_time
-        return phase
-
-    def _get_gait_phase(self):
-        # return float mask 1 is stance, 0 is swing
-        phase = self._get_phase()
-        stance_mask = torch.zeros((self.num_envs, 2), device=self.device)
-        stance_mask[:, 0] = phase<0.5
-        stance_mask[:, 1] = phase>0.5
-        return stance_mask
-    
     def compute_observations(self):
         """ Computes observations
         """

@@ -210,19 +210,21 @@ class Go2_Handstand_Robot(BaseTask):
         """ Computes observations
         """
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
-        # 45 维布局：[0:3]角速度 [3:6]重力投影 [6:9]命令 [9:21]关节角 [21:33]关节速度 [33:45]动作
+        phase = self._get_phase()
+        sin_pos = torch.sin(2 * torch.pi * phase).unsqueeze(1)
+        cos_pos = torch.cos(2 * torch.pi * phase).unsqueeze(1)
+        # 48 维：[0:3]角速度 [3:6]重力 [6:9]命令 [9:21]关节角 [21:33]关节速
+        # [33:45]动作 [45:47]相位sin/cos [47:48]stand_command
         self.obs_buf = torch.cat((
                                     self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
                                     self.projected_gravity,#3 重力投影
                                     self.commands[:, :3] * self.commands_scale,#3 控制
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,#12 关节位置
                                     self.dof_vel * self.obs_scales.dof_vel,#12 关节速度
-                                    self.actions#12 动作
+                                    self.actions,#12 动作
+                                    sin_pos, cos_pos,#2 相位 (紧贴 stand_command 前)
+                                    self.stand_command,#1 ∈ {-1, 0, 1}
                                     ),dim=-1)
-        # add perceptive inputs if not blind
-        # if self.cfg.terrain.measure_heights:
-        #     heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
-        #     self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
@@ -407,13 +409,18 @@ class Go2_Handstand_Robot(BaseTask):
         else:
             self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         
-        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.20
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.10
         self.commands[env_ids[all_zero_mask]] = 0.0
 
         # 4. 新增：另外 5% 仅前两项（x,y 线速度）归零
         xy_zero_mask = torch.rand(len(env_ids), device=self.device) >0.9
         self.commands[env_ids[xy_zero_mask], :2] = 0.0
         self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
+
+        # stand_command ∈ {-1, 0, 1}，与速度指令同步重采样
+        self.stand_command[env_ids] = torch.randint(
+            0, 3, (len(env_ids), 1), device=self.device, dtype=torch.long
+        ).float() - 1.0
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -539,6 +546,8 @@ class Go2_Handstand_Robot(BaseTask):
         noise_vec[9:21] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
         noise_vec[21:33] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
         noise_vec[33:45] = 0. # previous actions
+        noise_vec[45:47] = 0. # phase sin/cos
+        noise_vec[47:48] = 0. # stand_command
         return noise_vec
 
     #----------------------------------------
