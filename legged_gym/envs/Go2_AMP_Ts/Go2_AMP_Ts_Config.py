@@ -39,7 +39,7 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
         num_terrain = 187  # terrain_obs_buf 维度（runner init_storage 需要）
         reference_state_initialization = True
         reference_state_initialization_prob = 0.85
-        num_domain_rand = 74  # = 70(域随机参数:1摩擦+1恢复+1质量+28连杆质量比+3质心+12kp+12kd+12力矩)+4(足接触) 旧值77(已删线速度)
+        num_domain_rand = 77  # =3(线速度)+70(域随机)+4(足接触)
         amp_motion_files = MOTION_FILES
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]

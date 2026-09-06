@@ -35,8 +35,8 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
     class env:
         num_envs = 8192
         num_observations = 45
-        num_privileged_obs = 233  # =70(域随机)+4(足接触)+187(地形高程)  encoder输入(privileged_buf)已删线速度，旧值236
-        num_critic_obs=281  # =45(obs)+233(特权)+3(线速度，critic评价value用) 恢复旧值
+        num_privileged_obs = 236  # =3(线速度)+42(域随机)+4(足接触)+187(地形高程)
+        num_critic_obs=281  # =45(obs)+236(privileged_buf)
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations

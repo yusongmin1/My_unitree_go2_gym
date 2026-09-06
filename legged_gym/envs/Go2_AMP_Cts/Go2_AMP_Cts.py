@@ -263,11 +263,12 @@ class Go2_AMP_Cts_Robot(BaseTask):
                     self.torques_multiplier
             ), dim=-1)
         self.privileged_buf= torch.cat((
+            self.base_lin_vel * self.obs_scales.lin_vel,
             domain_randomization_info,
             contact_mask,
-            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)  # 已删除线速度项
-        # critic 吃无噪声观测；privileged_buf（encoder 用）已删线速度
-        self.critic_obs_buf = torch.cat((self.obs_buf, self.privileged_buf, self.base_lin_vel * self.obs_scales.lin_vel), dim=-1)
+            torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements,), dim=-1)
+        # critic = 无噪声 obs + privileged_buf（已含线速度）
+        self.critic_obs_buf = torch.cat((self.obs_buf, self.privileged_buf), dim=-1)
         # 最后：actor 观测加噪（out-of-place，不影响已拼好的 critic）
         if self.add_noise:
             self.obs_buf = self.obs_buf + (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec * self.cfg.noise.noise_level

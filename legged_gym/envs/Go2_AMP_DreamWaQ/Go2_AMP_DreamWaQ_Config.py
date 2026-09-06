@@ -39,7 +39,7 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         num_single_obs = 45 #这个是传感器可以获得到的信息
         num_observations = int(frame_stack * num_single_obs)
         # critic 单帧特权：obs(45)+lin_vel(3)+contact(17*3=51)+heights(187) = 286
-        single_num_privileged_obs = 286
+        single_num_privileged_obs = 292
         num_privileged_obs = single_num_privileged_obs  # 单帧特权观测
         num_obs_hist=5 #  10帧正常的观测
         num_latent_dims=16

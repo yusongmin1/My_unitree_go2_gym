@@ -4,8 +4,8 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
     class env:
         num_envs = 8192
         num_observations = 45
-        num_privileged_obs = 233
-        num_critic_obs=281
+        num_privileged_obs = 236  # =3(线速度)+42(域随机)+4(足接触)+187(地形)
+        num_critic_obs=281  # =45(obs)+236(privileged_buf)
         num_obs_hist=5 #  10帧正常的观测
 
         num_history_obs=num_obs_hist*num_observations
