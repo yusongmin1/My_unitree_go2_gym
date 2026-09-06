@@ -1,7 +1,7 @@
 from sim2sim_config_loader import load_cfg
-Go2_Handstand_Cfg_Yu = load_cfg(
-    "legged_gym/envs/Go2_Stand/Go2_Handstand/Go2_Handstand_Config.py",
-    "Go2_Handstand_Cfg_Yu",
+Go2_Stand_Cfg_Yu = load_cfg(
+    "legged_gym/envs/Go2_Stand/Go2_Stand_Config.py",
+    "Go2_Stand_Cfg_Yu",
 )
 import math
 import numpy as np
@@ -189,11 +189,11 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, default="logs/go2_handstand/exported/policies/policy_1.pt",help='Run to load from.')
+    parser.add_argument('--load_model', type=str, default="logs/go2_stand/exported/policies/policy_1.pt",help='Run to load from.')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
 
-    class Sim2simCfg(Go2_Handstand_Cfg_Yu):
+    class Sim2simCfg(Go2_Stand_Cfg_Yu):
         class sim_config:
             mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
             sim_duration = 120.0

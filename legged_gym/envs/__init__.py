@@ -13,11 +13,8 @@ from legged_gym.envs.Go2_Flip.Go2_BackFlip.Go2_BackFlip_Config import Go2_BackFl
 from legged_gym.envs.Go2_Flip.Go2_Spring_Jump.Go2_Spring_Jump import Go2_Spring_Jump_Robot
 from legged_gym.envs.Go2_Flip.Go2_Spring_Jump.Go2_Spring_Jump_Config import Go2_Spring_Jump_Cfg_Yu, Go2_Spring_Jump_PPO_Yu
 
-from legged_gym.envs.Go2_Stand.Go2_Handstand.Go2_Handstand import Go2_Handstand_Robot
-from legged_gym.envs.Go2_Stand.Go2_Handstand.Go2_Handstand_Config import Go2_Handstand_Cfg_Yu,Go2_Handstand_PPO_Yu
-
-from legged_gym.envs.Go2_Stand.Go2_Leggedstand.Go2_Leggedstand import Go2_Leggedstand_Robot
-from legged_gym.envs.Go2_Stand.Go2_Leggedstand.Go2_Leggedstand_Config import Go2_Leggedstand_Cfg_Yu,Go2_Leggedstand_PPO_Yu
+from legged_gym.envs.Go2_Stand.Go2_Stand import Go2_Stand_Robot
+from legged_gym.envs.Go2_Stand.Go2_Stand_Config import Go2_Stand_Cfg_Yu, Go2_Stand_PPO_Yu
 
 # ========== DreamwaQ 任务（纯 DreamwaQ 算法）==========
 from legged_gym.envs.Go2_DreamWaQ.Go2_DreamWaQ import Go2_DreamWaQ_Robot
@@ -46,8 +43,7 @@ from legged_gym.utils.task_registry import task_registry
 # ===== 标准 PPO 任务（main 原有特技任务）=====
 task_registry.register( "go2_trot", Go2_Trot_Robot, Go2_Trot_Cfg_Yu(), Go2_Trot_PPO_Yu())
 task_registry.register( "go2_jump", Go2_Jump_Robot, Go2_Jump_Cfg_Yu(), Go2_Jump_PPO_Yu())
-task_registry.register( "go2_handstand", Go2_Handstand_Robot, Go2_Handstand_Cfg_Yu(), Go2_Handstand_PPO_Yu())
-task_registry.register( "go2_leggedstand", Go2_Leggedstand_Robot, Go2_Leggedstand_Cfg_Yu(), Go2_Leggedstand_PPO_Yu())
+task_registry.register( "go2_stand", Go2_Stand_Robot, Go2_Stand_Cfg_Yu(), Go2_Stand_PPO_Yu())
 task_registry.register( "go2_spring_jump", Go2_Spring_Jump_Robot, Go2_Spring_Jump_Cfg_Yu(), Go2_Spring_Jump_PPO_Yu())
 task_registry.register( "go2_backflip", Go2_BackFlip_Robot, Go2_BackFlip_Cfg_Yu(), Go2_BackFlip_PPO_Yu())
 

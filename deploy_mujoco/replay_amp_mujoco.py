@@ -1,18 +1,18 @@
 """在 MuJoCo 中回放 AMP 动捕数据（参考 sim2sim 脚本写法，不依赖 isaacgym）。
 
 用法：
-    python deploy_mujoco/replay_amp_mujoco.py                          # 回放 datasets/mocap_motions_go2 全部动作
+    python deploy_mujoco/replay_amp_mujoco.py                          # 回放全部动作
     python deploy_mujoco/replay_amp_mujoco.py --motion datasets/mocap_motions_go2/forward.txt
     python deploy_mujoco/replay_amp_mujoco.py --speed 0.5             # 慢放
+    python deploy_mujoco/replay_amp_mujoco.py --plot-hips             # 实时显示四个 hip 角度
 """
 import argparse
 import glob
 import os
-import sys
 import time
+from collections import deque
 
 import numpy as np
-import torch
 import mujoco
 import mujoco.viewer
 
@@ -24,6 +24,64 @@ def quat_xyzw_to_wxyz(q):
     """动捕数据四元数为 isaac 的 [x,y,z,w]，MuJoCo qpos 需要 [w,x,y,z]。"""
     x, y, z, w = q
     return np.array([w, x, y, z])
+
+
+class HipAnglePlotter:
+    """实时滚动绘制四条腿髋关节（hip）角度曲线。
+
+    关节顺序为 FL, FR, RL, RR，每条腿 [hip, thigh, calf]，
+    因此髋关节索引为 [0, 3, 6, 9]。
+    """
+    HIP_IDX = [0, 3, 6, 9]
+    LABELS = ['FL hip', 'FR hip', 'RL hip', 'RR hip']
+
+    def __init__(self, dt=0.02, window_s=10.0, refresh_every=5):
+        import matplotlib
+        matplotlib.use('TkAgg')
+        import matplotlib.pyplot as plt
+        self.plt = plt
+
+        self.refresh_every = refresh_every
+        self.max_points = max(2, int(window_s / (dt * refresh_every)))
+        self.t_buf = deque(maxlen=self.max_points)
+        self.q_buf = deque(maxlen=self.max_points)
+        self._count = 0
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(8, 4.5))
+        try:
+            self.fig.canvas.manager.set_window_title('Hip Joint Angles (real-time)')
+        except Exception:
+            pass
+        self.lines = []
+        for label in self.LABELS:
+            line, = self.ax.plot([], [], label=label, linewidth=1.2)
+            self.lines.append(line)
+        self.ax.set_xlabel('time [s]')
+        self.ax.set_ylabel('hip angle [rad]')
+        self.ax.set_title('Hip joint angles (rolling window)')
+        self.ax.grid(True, alpha=0.4)
+        self.ax.legend(loc='upper right', ncol=4)
+        self.fig.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.001)
+
+    def update(self, t, q):
+        self.t_buf.append(float(t))
+        self.q_buf.append(np.asarray(q)[self.HIP_IDX].copy())
+        self._count += 1
+        if self._count % self.refresh_every != 0:
+            return
+        ts = np.asarray(self.t_buf)
+        qs = np.asarray(self.q_buf)
+        for line, col in zip(self.lines, qs.T):
+            line.set_data(ts, col)
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.plt.pause(0.001)
+
+    def close(self):
+        self.plt.close(self.fig)
 
 
 def replay(args):
@@ -46,12 +104,16 @@ def replay(args):
         amp_loader.get_full_frame_at_time_batch(np.array([0]), np.array([0.0])))[0].numpy()
     mujoco.mj_forward(model, data)
 
-    camera_rot_per_sec = 0.0  # 固定视角，不环绕旋转
+    hip_plotter = None
+    if args.plot_hips:
+        hip_plotter = HipAnglePlotter(dt=dt, window_s=10.0, refresh_every=5)
+        print("已开启四个 hip 角度实时曲线窗口")
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.cam.distance = 3.0
         viewer.cam.elevation = -30
 
+        t_global = 0.0  # 跨轨迹累计时间，便于曲线连续显示
         for traj_idx in range(len(amp_loader.trajectory_lens)):
             traj_len = amp_loader.trajectory_lens[traj_idx]
             print(f"[{traj_idx + 1}/{len(amp_loader.trajectory_lens)}] "
@@ -92,6 +154,9 @@ def replay(args):
                 # 固定视角，仅 lookat 跟随机器人
                 viewer.cam.lookat[:] = np.array([root_pos[0], root_pos[1], root_pos[2]])
 
+                if hip_plotter is not None:
+                    hip_plotter.update(t_global, joint_pos)
+
                 viewer.sync()
 
                 # 实时同步
@@ -99,19 +164,24 @@ def replay(args):
                 if time_until_next > 0:
                     time.sleep(time_until_next)
                 t += dt
+                t_global += dt
 
+    if hip_plotter is not None:
+        hip_plotter.close()
     print("回放结束")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='AMP 动捕数据 MuJoCo 回放')
     parser.add_argument('--motion', type=str, default=None,
-                        help='动捕文件或目录（默认 datasets/mocap_motions_go2）')
+                        help='动捕文件或目录（默认 datasets/mocap_motions_go2_new）')
     parser.add_argument('--mjcf', type=str,
                         default=f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene_terrain.xml',
                         help='MuJoCo 模型路径')
     parser.add_argument('--dt', type=float, default=0.02, help='回放步长 [s]（与训练 env.dt 一致）')
     parser.add_argument('--speed', type=float, default=1.0, help='回放倍速')
+    parser.add_argument('--plot-hips', action='store_true',
+                        help='实时显示四个 hip 关节角度曲线（默认关闭）')
     args = parser.parse_args()
 
     if args.motion is None:

@@ -10,7 +10,7 @@
 </p>
  
 <p align="center">
-  本仓库融合了多种强化学习算法（标准 PPO、DreamwaQ、AMP、CTS），在一个统一框架内支持 12 种训练任务。
+  本仓库融合了多种强化学习算法（标准 PPO、DreamwaQ、AMP、CTS），在一个统一框架内支持 11 种训练任务。
 </p>
  
 ---
@@ -25,8 +25,7 @@
 | **标准 PPO** | `go2_jump` | `Go2_MoB/Go2_Jump/` | `PPO` / `OnPolicyRunner` |
 | **标准 PPO** | `go2_spring_jump` | `Go2_Flip/Go2_Spring_Jump/` | `PPO` / `OnPolicyRunner` |
 | **标准 PPO** | `go2_backflip` | `Go2_Flip/Go2_BackFlip/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_handstand` | `Go2_Stand/Go2_Handstand/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_leggedstand` | `Go2_Stand/Go2_Leggedstand/` | `PPO` / `OnPolicyRunner` |
+| **DreamwaQ** | `go2_stand` | `Go2_Stand/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **DreamwaQ** | `go2_dreamwaq` | `Go2_DreamWaQ/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **AMP + DreamwaQ** | `go2_amp_dreamwaq` | `Go2_AMP_DreamWaQ/` | `PPO_DreamWaQ_AMP` / `DreamWaQRunner_AMP` |
 | **CTS** | `go2_cts` | `Go2_Cts/` | `CTS` / `OnPolicyRunnerCTS` |
@@ -35,8 +34,8 @@
 | **AMP Student（蒸馏）** | `go2_amp_ts_student` | `Go2_AMP_Ts/` | `DistillPolicyRunner` + `ActorCritic_Distill`（LSTM） |
  
 ### 算法简介
-- **标准 PPO**：ETH legged_gym 原版 PPO，用于各类特技动作（trot/jump/backflip/handstand 等）。
-- **DreamwaQ**：基于隐式地形想象（CENet/VAE）的鲁棒四足运动，从历史观测编码出隐式地形 latent + 显式线速度估计。参考论文 [Learning Robust Quadrupedal Locomotion With Implicit Terrain Imagination via Deep Reinforcement Learning](https://arxiv.org/abs/2301.10602)。
+- **标准 PPO**：ETH legged_gym 原版 PPO，用于各类特技动作（trot/jump/backflip 等）。
+- **DreamwaQ**：基于隐式地形想象（CENet/VAE）的鲁棒四足运动，从历史观测编码出隐式地形 latent + 显式线速度估计。参考论文 [Learning Robust Quadrupedal Locomotion With Implicit Terrain Imagination via Deep Reinforcement Learning](https://arxiv.org/abs/2301.10602)。`go2_stand` 也使用该算法栈。
 - **AMP（Adversarial Motion Priors）**：用判别器引导策略学习参考动作（mocap 数据），让运动风格更自然。参考 [rl_amp](https://github.com/fan-ziqi/rl_amp)。
 - **CTS（Concurrent Teacher-Student）**：师生并行训练 + 隐变量蒸馏，teacher 吃 privileged obs，student 吃 history obs。参考论文 [arxiv 2405.10830](https://arxiv.org/abs/2405.10830)。
  
@@ -88,14 +87,6 @@ python legged_gym/scripts/train.py --task=go2_jump --headless
 ```
 
 ```bash
-python legged_gym/scripts/train.py --task=go2_handstand --headless
-```
-
-```bash
-python legged_gym/scripts/train.py --task=go2_leggedstand --headless
-```
-
-```bash
 python legged_gym/scripts/train.py --task=go2_spring_jump --headless
 ```
 
@@ -104,6 +95,10 @@ python legged_gym/scripts/train.py --task=go2_backflip --headless
 ```
  
 #### DreamwaQ 任务
+```bash
+python legged_gym/scripts/train.py --task=go2_stand --headless
+```
+
 ```bash
 python legged_gym/scripts/train.py --task=go2_dreamwaq --headless
 ```
@@ -168,14 +163,6 @@ python legged_gym/scripts/play.py --task=go2_jump
 ```
 
 ```bash
-python legged_gym/scripts/play.py --task=go2_handstand
-```
-
-```bash
-python legged_gym/scripts/play.py --task=go2_leggedstand
-```
-
-```bash
 python legged_gym/scripts/play.py --task=go2_spring_jump
 ```
 
@@ -184,6 +171,10 @@ python legged_gym/scripts/play.py --task=go2_backflip
 ```
  
 #### DreamwaQ / AMP + DreamwaQ 任务
+```bash
+python legged_gym/scripts/play_dreamwaq.py --task=go2_stand
+```
+
 ```bash
 python legged_gym/scripts/play_dreamwaq.py --task=go2_dreamwaq
 ```
@@ -225,12 +216,17 @@ python deploy_mujoco/replay_amp_mujoco.py --motion datasets/mocap_motions_go2/fo
 ```bash
 python deploy_mujoco/replay_amp_mujoco.py --speed 0.3
 ```
+```bash
+# 可选：实时显示四个 hip 关节角度曲线（默认关闭）
+python deploy_mujoco/replay_amp_mujoco.py  --motion datasets/mocap_motions_go2/forward.txt --plot-hips --speed 0.3
+```
  
 **说明**：
  
 - Play 启动参数与 Train 相同。
 - 默认加载实验文件夹上次运行的最后一个模型。
 - 可通过 `load_run` 和 `checkpoint` 指定其他模型。
+- `replay_amp_mujoco.py` 默认只回放；加 `--plot-hips` 会弹出 FL/FR/RL/RR hip 角度滚动曲线窗口。
  
 #### 💾 导出网络
  
@@ -262,15 +258,11 @@ python deploy_mujoco/sim2sim_go2_spring_jump.py
 python deploy_mujoco/sim2sim_go2_backflip.py
 ```
 
-```bash
-python deploy_mujoco/sim2sim_go2_handstand.py
-```
-
-```bash
-python deploy_mujoco/sim2sim_go2_leggedstand.py
-```
-
 #### DreamwaQ 任务（加载 policy_dwaq.pt）
+```bash
+python deploy_mujoco/sim2sim_go2_stand.py
+```
+
 ```bash
 python deploy_mujoco/sim2sim_go2_dreamwaq.py
 ```
@@ -310,13 +302,13 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 │   │   ├── base/                 # 基类（BaseTask / LeggedRobotCfg 等）
 │   │   ├── Go2_MoB/              # 标准 PPO: trot / stairs / jump
 │   │   ├── Go2_Flip/             # 标准 PPO: backflip / spring_jump
-│   │   ├── Go2_Stand/            # 标准 PPO: handstand / leggedstand
+│   │   ├── Go2_Stand/            # DreamwaQ: go2_stand（倒立/直立/四足）
 │   │   ├── Go2_DreamWaQ/         # DreamwaQ 任务
 │   │   ├── Go2_AMP_DreamWaQ/     # AMP + DreamwaQ 任务
 │   │   ├── Go2_Cts/              # CTS 任务
 │   │   ├── Go2_AMP_Cts/          # AMP + CTS 任务
 │   │   ├── Go2_AMP_Ts/           # AMP Teacher-Student 任务（teacher + student 配置）
-│   │   └── __init__.py           # 注册全部 12 个 task
+│   │   └── __init__.py           # 注册全部 11 个 task
 │   ├── scripts/                  # train.py + 各算法的 play 脚本
 │   └── utils/                    # task_registry（动态 runner 调度）/ helpers / terrain
 ├── rsl_rl/                       # 算法库（PPO / DreamwaQ / AMP / CTS 全部共存）
@@ -327,7 +319,7 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 │       ├── storage/              # RolloutStorage, RolloutStorageDreamWaQ, RolloutStorageCTS, ReplayBuffer
 │       └── datasets/             # AMPLoader（AMP 动作数据加载）
 ├── datasets/                     # AMP 动作捕捉数据（mocap_motions_go2 / mocap_motions_a1）
-├── deploy_mujoco/                # Sim2Sim 部署脚本（11 个：标准 PPO 6 + CTS 2 + DreamwaQ/AMP 2 + AMP_TS 1）+ 手柄/箭头工具
+├── deploy_mujoco/                # Sim2Sim 部署脚本（标准 PPO / DreamwaQ / CTS / AMP / AMP_TS）+ 手柄/箭头工具
 ├── resources/                    # 机器人资产（urdf / mjcf / mesh）
 └── logs/                         # 训练日志（按算法分类）
 ```
@@ -340,12 +332,11 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 3. - [ ] 原始PPO的全部在平坦地形上进行训练，后续需要迁移至不平坦地形
 4. - [ ] trot 的原地转圈在isaacgym中看到基座有点晃动，需要修改
 5. - [ ] stand 任务关节抖动，静止时后退，没有下落控制，粗糙地面没有加入训练 ,准备把倒立，直立，平地放到一个模型中去训练，直接粗糙地形，加相位
-6. - [ ] 跳远要修改粗糙地面上可以控制下落位置
+6. - [ ] 跳远要修改粗糙地面上，可以控制下落位置
 7. - [ ] 空翻任务使用amp进行约束
 
-8. - [ ] dreamwaq原理写的有问题，需要修改 2026/9/6 已修改好dreamwaq任务，有崩溃的可能
-9. - [ ] 爬楼梯任务走停住会翻车 dreamwaq任务，不会立即刹停，修改网络后会立刻刹停，
-   - [ ] cts ts任务可以做到,关节有点软，刹停后有一个缓慢回正的过程 
+8. - [x] dreamwaq原理写的有问题，需要修改 2026/9/6 已修改好dreamwaq任务，有崩溃的可能
+9. - [x] 爬楼梯任务走停住会翻车 dreamwaq任务，不会立即刹停，修改网络后会立刻刹停，cts任务本就可以立即刹停 2026/9/6
 10. - [ ] 步态规范程度不如开源框架himloco 以及dreamwaq 还有吴金泽那篇
 11. - [ ] amp后退拖地，我认为是amp参数没有调整好
 12. - [ ] amp数据集质量不高,前进的数据集质量较差
@@ -354,12 +345,12 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 15. - [x] 速度采样有死区，在amp任务中存在某些关节角度下发command不动的现象 2026/8/22 ,reset_dof_pos 0.5到1.5,尽量覆盖全部空间，此外对于amp任务，要等待至机器人可以完整上楼梯，否则会卡住导致command死区
 16. - [x] 四条腿抬脚高度和抬脚时间不一致，推测是feet_air_time奖励的影响，去掉feet_air_time奖励，发现四条腿抬脚高度趋于一致，amp_cts任务提供的是加上的，其他任务没有加，可以进行对比2026/8/24
 17. - [ ] 下楼梯会滑下去
-18. - [ ] 下楼梯后腿绊在楼梯上导致翻倒,dreamwaq任务
+18. - [ ] 下楼梯后腿绊在楼梯上导致翻倒,dreamwaq任务,这是奖励的问题
 19. - [ ] 走歪
 20. - [ ] 后退不走直线
 21. - [ ] 横着走特别慢 amp任务
-22. - [ ] 横着走会摔倒
-23. - [ ] 第一个台阶会被绊住
+22. - [ ] 横着走会摔倒，dreamwaq任务已经不会摔倒了
+23. - [ ] 第一个台阶会被绊住，这是奖励的问题
 24. - [ ] 一个楼梯没上去，后腿会发疯
 25. - [ ] 低速度跟踪不好
 26. - [ ] 速度过低时机器人在楼梯上被卡住，奖励的问题

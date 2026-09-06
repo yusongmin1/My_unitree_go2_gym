@@ -57,7 +57,7 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
-        border_size = 25 # [m]
+        border_size = 50 # [m]
         curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0

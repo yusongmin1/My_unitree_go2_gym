@@ -24,7 +24,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
-        border_size = 25 # [m]
+        border_size = 50 # [m]
         curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0
@@ -262,7 +262,7 @@ class Go2_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
         run_name = ''
         experiment_name = 'go2_dreamwaq'
         save_interval = 500 
-        max_iterations = 20000
+        max_iterations = 1000000
         # load and resume
         resume = False
         load_run = -1 # -1 = last run

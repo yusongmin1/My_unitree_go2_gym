@@ -216,6 +216,11 @@ class Terrain:
             add_extreme_gap_terrain.half_sloped_terrain(
                 terrain, level_index=difficulty * 2.5, depth=depth)
             self.add_roughness(terrain)
+        elif len(self.proportions) > 12 and choice < self.proportions[12]:
+            # 最后一列：纯粗糙地 ±rough_height（默认 ±3cm）
+            h = getattr(self.cfg, "rough_height", 0.03)
+            terrain_utils.random_uniform_terrain(
+                terrain, min_height=-h, max_height=h, step=0.005, downsampled_scale=0.2)
         else:
             # corridor
             add_extreme_gap_terrain.narrow_corridor(terrain, difficulty, depth=depth)

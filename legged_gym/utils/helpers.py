@@ -258,13 +258,14 @@ class PolicyExporterDWAQ(torch.nn.Module):
         self.encoder = copy.deepcopy(actor_critic.encoder)
         self.encode_mean_latent = copy.deepcopy(actor_critic.encode_mean_latent)
         self.encode_mean_vel = copy.deepcopy(actor_critic.encode_mean_vel)
+        self.num_obs = int(actor_critic.num_obs)
         self.actor.eval()
         self.encoder.eval()
 
     def forward(self, obs_history):
-        # obs_history layout: [hist_frames..., current_obs(45)] — use means for deterministic deploy
-        hist = obs_history[:, :-45]
-        obs = obs_history[:, -45:]
+        # obs_history layout: [hist_frames..., current_obs(num_obs)] — use means for deterministic deploy
+        hist = obs_history[:, :-self.num_obs]
+        obs = obs_history[:, -self.num_obs :]
         h = self.encoder(hist)
         mean_latent = self.encode_mean_latent(h)
         mean_vel = self.encode_mean_vel(h)
