@@ -1343,29 +1343,31 @@ class Go2_Stand_Robot(BaseTask):
         )
 
     def _foot_clearance_reward(self, foot_ids):
-        """着地足端相对粗糙地形的接触高度：foot_z - terrain ≈ offset + target。
-        仅对接触腿计分，并用水平速度加权。
+        """摆动腿抬脚高度跟踪（参考 Walk-These-Ways）：
+        ‖v_xy‖ · (foot_z - terrain - target - offset)²，无 contact 门控。
         """
         terrain_h = self.measured_feet_heights.mean(dim=-1).transpose(0, 1)  # (N, 4)
-        # 相对地形高度
         feet_h = self.feet_pos[:, foot_ids, 2] - terrain_h[:, foot_ids]
-        height_error = feet_h - self.cfg.rewards.foot_clearance_target - self.cfg.rewards.foot_height_offset
-        contact = self.contact_filt[:, foot_ids].float()
+        height_error = (
+            feet_h
+            - self.cfg.rewards.foot_clearance_target
+            - self.cfg.rewards.foot_height_offset
+        )
         feet_vel_xy_norm = torch.norm(self.feet_vel[:, foot_ids, :2], dim=-1)
         clearance_error = torch.sum(
-            contact * feet_vel_xy_norm * torch.square(height_error),
+            feet_vel_xy_norm * torch.square(height_error),
             dim=-1,
         )
         return torch.exp(-clearance_error / self.cfg.rewards.foot_clearance_tracking_sigma)
 
     def _reward_foot_clearance_quad(self):
-        """四足：四条着地腿的接触高度。stand_command=0。"""
+        """四足：四腿摆动抬脚高度。stand_command=0。"""
         return self._foot_clearance_reward([0, 1, 2, 3]) * (self.stand_command.squeeze(-1) == 0).float()
 
     def _reward_foot_clearance_handstand(self):
-        """handstand：前腿空中，后腿 RL/RR 着地接触高度。stand_command=-1。"""
-        return self._foot_clearance_reward([2, 3]) * (self.stand_command.squeeze(-1) == -1).float()
+        """handstand：前腿腾空摆动抬脚。stand_command=-1。"""
+        return self._foot_clearance_reward([0, 1]) * (self.stand_command.squeeze(-1) == -1).float()
 
     def _reward_foot_clearance_legstand(self):
-        """legstand：后腿空中，前腿 FL/FR 着地接触高度。stand_command=1。"""
-        return self._foot_clearance_reward([0, 1]) * (self.stand_command.squeeze(-1) == 1).float()
+        """legstand：后腿腾空摆动抬脚。stand_command=1。"""
+        return self._foot_clearance_reward([2, 3]) * (self.stand_command.squeeze(-1) == 1).float()

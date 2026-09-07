@@ -204,16 +204,15 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         base_height_target_quad = 0.33
-        base_height_target_handstand = 0.5  # 双足
+        base_height_target_handstand = 0.52  # 双足
         base_height_target_legstand = 0.5   # 双足
         base_height_sigma = 0.05
         body_pitch_target_quad = 0.0
         body_orientation_sigma_quad = 0.04
-        body_pitch_target_handstand = -1.466   # ≈84°，机头朝上
-        body_orientation_sigma_handstand = 1.2
+        body_pitch_target_handstand = -1.50   # ≈84°，机头朝上
+        body_orientation_sigma_handstand = 1.0
         body_pitch_target_legstand = 1.466  # ≈-84°，机头朝下
         body_orientation_sigma_legstand = 1.2
-        target_foot_height=0.06
         foot_clearance_target = 0.05
         foot_height_offset = 0.02
         foot_clearance_tracking_sigma = 0.01
