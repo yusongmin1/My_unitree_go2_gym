@@ -218,7 +218,7 @@ python deploy_mujoco/replay_amp_mujoco.py --speed 0.3
 ```
 ```bash
 # 可选：实时显示四个 hip 关节角度曲线（默认关闭）
-python deploy_mujoco/replay_amp_mujoco.py  --motion datasets/mocap_motions_go2/forward.txt --plot-hips --speed 0.3
+python deploy_mujoco/replay_amp_mujoco.py  --motion datasets/mocap_motions_go2/forward_hip_sym.txt --plot-hips --speed 0.3
 ```
  
 **说明**：

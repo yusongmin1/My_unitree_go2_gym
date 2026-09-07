@@ -206,7 +206,7 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         foot_clearance_tracking_sigma=0.01
-        base_height_target = 0.35
+        base_height_target = 0.38
         max_contact_force = 100. # forces above this value are penalized
         clearance_height_target=-0.2
     class normalization:

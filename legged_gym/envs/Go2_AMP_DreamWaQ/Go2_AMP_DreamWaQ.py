@@ -1027,7 +1027,7 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = self._get_base_heights()
-        return torch.abs(base_height - self.cfg.rewards.base_height_target)
+        return torch.square(base_height - self.cfg.rewards.base_height_target)
 
     def _reward_torques(self):
         # Penalize torques

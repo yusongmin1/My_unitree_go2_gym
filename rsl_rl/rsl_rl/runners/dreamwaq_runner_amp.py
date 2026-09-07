@@ -243,6 +243,8 @@ class DreamWaQRunner_AMP:
         self.writer.add_scalar("Loss/mean_recon_loss", locs["mean_recon_loss"], locs["it"])
         self.writer.add_scalar("Loss/AMP", locs["mean_amp_loss"], locs["it"])
         self.writer.add_scalar("Loss/AMP_grad", locs["mean_grad_pen_loss"], locs["it"])
+        self.writer.add_scalar("Loss/policy pred", locs["mean_policy_pred"], locs["it"])
+        self.writer.add_scalar("Loss/expert pred", locs["mean_expert_pred"], locs["it"])
         self.writer.add_scalar("Loss/learning_rate", self.alg.learning_rate, locs["it"])
         self.writer.add_scalar("Policy/mean_noise_std", mean_std.item(), locs["it"])
         self.writer.add_scalar("Perf/total_fps", fps, locs["it"])

@@ -320,7 +320,7 @@ class Go2_Stand_PPO_Yu(LeggedRobotCfgPPO):
                            -33, 34, 35,                # actions FR <- FL
                            -42, 43, 44,                # actions RL <- RR
                            -39, 40, 41,                # actions RR <- RL
-                           -45, -46,                     # phase sin/cos
+                           45, 46,                     # phase sin/cos
                            47]                         # stand_command
         act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
         frame_stack = 5  # obs_hist = 5 * 48，与 num_obs_hist 一致
