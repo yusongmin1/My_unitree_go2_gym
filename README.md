@@ -262,7 +262,7 @@ python deploy_mujoco/sim2sim_go2_backflip.py
 ```bash
 python deploy_mujoco/sim2sim_go2_stand.py
 ```
-键盘 / 手柄：`A` 四足 / `B` handstand / `Y` legstand；速度上限随模式切换（四足 `ranges_quad`，双足 `ranges_hand`）。
+键盘 / 手柄：`A` 四足 / `B` handstand / `Y` legstand；速度上限随模式切换（四足 `ranges_quad`，双足 `ranges_hand`）。加 `--plot-height` 可实时绘制基座高度。
 
 ```bash
 python deploy_mujoco/sim2sim_go2_dreamwaq.py

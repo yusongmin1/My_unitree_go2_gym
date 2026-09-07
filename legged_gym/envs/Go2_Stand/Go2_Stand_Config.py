@@ -26,12 +26,12 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
         border_size = 25 # [m]
-        curriculum = True
+        curriculum = False
         static_friction = 1.0
         dynamic_friction = 1.0
         restitution = 0.
         # rough terrain only:
-        measure_heights = False
+        measure_heights = True
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = False# select a unique terrain type and pass all arguments
@@ -169,15 +169,15 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
 
         class scales:
             termination = -200.0
-            tracking_lin_vel = 2.25
+            tracking_lin_vel = 1.75
             tracking_ang_vel = 1.0
             # lin_vel_z = 0.2
             # ang_vel_xy = 0.2
             torques = -0.0002
             dof_vel = -1e-4
             dof_acc = -2.5e-7
-            action_rate = -0.025
-            collision = -1.
+            action_rate = -0.01
+            collision = -2.0
             dof_pos_limits=-2.0
 
 
@@ -188,22 +188,29 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
             base_height_quad = 1.
             base_height_handstand = 1.
             base_height_legstand = 1.
-            default_hip_pos=-0.5
-            default_pos_reward=0.2
+            default_hip_pos=-0.25
+            # default_pos_reward=0.2
 
-            gait_quad = 0.5        # stand_command=0
-            gait_handstand = 0.5   # stand_command=-1 后腿支撑（前腿空中）
-            gait_legstand = 0.5    # stand_command=1 前腿支撑（后腿空中）
+            gait_quad = 0.6        # stand_command=0
+            gait_handstand = 0.6   # stand_command=-1 后腿支撑（前腿空中）
+            gait_legstand = 0.6    # stand_command=1 前腿支撑（后腿空中）
+
+
             rear_contact_hand =-1.0  # 惩罚腾空腿触地（handstand 前腿 / legstand 后腿）
             foot_slip = -0.1
-            foot_clearance_quad = 0.25
-            foot_clearance_handstand = 0.25
-            foot_clearance_legstand = 0.25
+            foot_clearance_quad = 0.3
+            foot_clearance_handstand = 0.3
+            foot_clearance_legstand = 0.3
+            feet_air_time_handstand = 1.0
+            feet_air_time_legstand = 1.0
+            dof_pos_handstand = -0.2  # 腾空前腿贴 default
+            dof_pos_legstand = -0.2   # 腾空后腿贴 default
+            # fo
 
 
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        base_height_target_quad = 0.33
+        base_height_target_quad = 0.35
         base_height_target_handstand = 0.52  # 双足
         base_height_target_legstand = 0.5   # 双足
         base_height_sigma = 0.05

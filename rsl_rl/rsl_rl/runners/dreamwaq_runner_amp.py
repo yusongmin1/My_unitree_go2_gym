@@ -51,6 +51,7 @@ class DreamWaQRunner_AMP:
             preload_transitions=True,
             num_preload_transitions=train_cfg["runner"]["amp_num_preload_transitions"],
             motion_files=self.cfg["amp_motion_files"],
+            amp_obs_dim=24,  # 关节角12 + 关节角速度12
         )
         amp_normalizer = Normalizer(amp_data.observation_dim)
         discriminator = AMPDiscriminator(

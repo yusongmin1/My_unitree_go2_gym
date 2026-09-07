@@ -56,13 +56,18 @@ class AMPLoader:
             preload_transitions=False,
             num_preload_transitions=1000000,
             motion_files=glob.glob('datasets/motion_files2/*'),
+            amp_obs_dim=31,
             ):
         """Expert dataset provides AMP observations from Dog mocap dataset.
 
         time_between_frames: Amount of time in seconds between transition.
+        amp_obs_dim: 31=关节角+基座线/角速度+关节速+高度；24=仅关节角+关节角速度。
         """
         self.device = device
         self.time_between_frames = time_between_frames
+        if amp_obs_dim not in (24, 31):
+            raise ValueError(f"amp_obs_dim must be 24 or 31, got {amp_obs_dim}")
+        self._observation_dim = int(amp_obs_dim)
         
         # Values to store for each trajectory.
         self.trajectories = []
@@ -284,19 +289,8 @@ class AMPLoader:
             if self.preload_transitions:
                 idxs = np.random.choice(
                     self.preloaded_s.shape[0], size=mini_batch_size)
-                s = self.preloaded_s[idxs, AMPLoader.JOINT_POSE_START_IDX:AMPLoader.JOINT_POSE_END_IDX]
-                s = torch.cat([
-                    s,
-                    self.preloaded_s[idxs, AMPLoader.LINEAR_VEL_START_IDX:AMPLoader.ANGULAR_VEL_END_IDX],
-                    self.preloaded_s[idxs, AMPLoader.JOINT_VEL_START_IDX:AMPLoader.JOINT_VEL_END_IDX],
-                    self.preloaded_s[idxs, AMPLoader.ROOT_POS_START_IDX + 2:AMPLoader.ROOT_POS_START_IDX + 3]], dim=-1)
-                s_next = self.preloaded_s_next[idxs, AMPLoader.JOINT_POSE_START_IDX:AMPLoader.JOINT_POSE_END_IDX]
-                s_next = torch.cat([
-                    s_next,
-                    self.preloaded_s_next[idxs, AMPLoader.LINEAR_VEL_START_IDX:AMPLoader.ANGULAR_VEL_END_IDX],
-                    self.preloaded_s_next[idxs, AMPLoader.JOINT_VEL_START_IDX:AMPLoader.JOINT_VEL_END_IDX],
-                    self.preloaded_s_next[idxs, AMPLoader.ROOT_POS_START_IDX + 2:AMPLoader.ROOT_POS_START_IDX + 3]], dim=-1)
-                # print("s.shape, s_next.shape", s.shape, s_next.shape)
+                s = self._amp_obs_from_full_frames(self.preloaded_s[idxs])
+                s_next = self._amp_obs_from_full_frames(self.preloaded_s_next[idxs])
             else:
                 s, s_next = [], []
                 traj_idxs = self.weighted_traj_idx_sample_batch(mini_batch_size)
@@ -311,10 +305,23 @@ class AMPLoader:
                 s_next = torch.vstack(s_next)
             yield s, s_next
 
+    def _amp_obs_from_full_frames(self, frames):
+        """从完整 mocap frame 提取与 env.get_amp_observations 对齐的 AMP 观测。"""
+        joint_pos = frames[:, AMPLoader.JOINT_POSE_START_IDX:AMPLoader.JOINT_POSE_END_IDX]
+        joint_vel = frames[:, AMPLoader.JOINT_VEL_START_IDX:AMPLoader.JOINT_VEL_END_IDX]
+        if self._observation_dim == 24:
+            return torch.cat([joint_pos, joint_vel], dim=-1)
+        return torch.cat([
+            joint_pos,
+            frames[:, AMPLoader.LINEAR_VEL_START_IDX:AMPLoader.ANGULAR_VEL_END_IDX],
+            joint_vel,
+            frames[:, AMPLoader.ROOT_POS_START_IDX + 2:AMPLoader.ROOT_POS_START_IDX + 3],
+        ], dim=-1)
+
     @property
     def observation_dim(self):
         """Size of AMP observations."""
-        return 31
+        return self._observation_dim
 
     @property
     def num_motions(self):

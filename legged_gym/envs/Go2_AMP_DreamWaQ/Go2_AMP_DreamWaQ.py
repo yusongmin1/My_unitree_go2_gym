@@ -302,7 +302,8 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
             )
 
     def get_amp_observations(self):
-        return torch.cat((self.dof_pos, self.base_lin_vel, self.base_ang_vel, self.dof_vel,self._get_base_heights().unsqueeze(1)), dim=-1)
+        # 24 维：关节角 12 + 关节角速度 12
+        return torch.cat((self.dof_pos, self.dof_vel), dim=-1)
     def create_sim(self):
         """ Creates simulation, terrain and evironments
         """

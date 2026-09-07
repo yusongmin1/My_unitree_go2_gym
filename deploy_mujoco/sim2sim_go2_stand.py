@@ -17,6 +17,73 @@ from pynput import keyboard
 MODE_NAMES = {-1: "handstand", 0: "quad", 1: "legstand"}
 
 
+class BaseHeightPlotter:
+    """实时滚动绘制基座高度，并标出当前模式的期望高度。"""
+
+    def __init__(self, cfg, dt=0.005, window_s=10.0, refresh_every=10):
+        import matplotlib
+        matplotlib.use("TkAgg")
+        import matplotlib.pyplot as plt
+
+        self.plt = plt
+        self.refresh_every = refresh_every
+        self.max_points = max(2, int(window_s / (dt * refresh_every)))
+        self.t_buf = deque(maxlen=self.max_points)
+        self.h_buf = deque(maxlen=self.max_points)
+        self._count = 0
+        self.target_by_mode = {
+            -1: float(cfg.rewards.base_height_target_handstand),
+            0: float(cfg.rewards.base_height_target_quad),
+            1: float(cfg.rewards.base_height_target_legstand),
+        }
+        self._stand_command = 0.0
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(8, 4.0))
+        try:
+            self.fig.canvas.manager.set_window_title("Base Height (real-time)")
+        except Exception:
+            pass
+        self.h_line, = self.ax.plot([], [], color="tab:blue", linewidth=1.4, label="base z")
+        self.target_line = self.ax.axhline(
+            self.target_by_mode[0], color="tab:orange", linestyle="--", linewidth=1.2, label="target"
+        )
+        self.ax.set_xlabel("time [s]")
+        self.ax.set_ylabel("base height [m]")
+        self.ax.set_title("Base height (rolling window)")
+        self.ax.set_ylim(0.0, 0.8)
+        self.ax.grid(True, alpha=0.4)
+        self.ax.legend(loc="upper right")
+        self.fig.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.001)
+
+    def set_mode(self, stand_command):
+        self._stand_command = float(stand_command)
+        target = self.target_by_mode[int(self._stand_command)]
+        self.target_line.set_ydata([target, target])
+        self.target_line.set_label(f"target {MODE_NAMES[int(self._stand_command)]} ({target:.2f}m)")
+        self.ax.legend(loc="upper right")
+
+    def update(self, t, base_z, stand_command=None):
+        if stand_command is not None and float(stand_command) != self._stand_command:
+            self.set_mode(stand_command)
+        self.t_buf.append(float(t))
+        self.h_buf.append(float(base_z))
+        self._count += 1
+        if self._count % self.refresh_every != 0:
+            return
+        ts = np.asarray(self.t_buf)
+        hs = np.asarray(self.h_buf)
+        self.h_line.set_data(ts, hs)
+        self.ax.relim()
+        self.ax.autoscale_view(scalex=True, scaley=False)
+        self.plt.pause(0.001)
+
+    def close(self):
+        self.plt.close(self.fig)
+
+
 def _range_max(lo_hi):
     return float(max(abs(lo_hi[0]), abs(lo_hi[1])))
 
@@ -152,13 +219,18 @@ def apply_mode_cmd_limits(vel_arrow, cfg, stand_command):
     print(f"[stand] 速度上限 vx/vy/yaw = {limits}")
 
 
-def run_mujoco(policy, cfg):
+def run_mujoco(policy, cfg, plot_height=False):
     mode_ctrl = StandModeController(initial=0.0)
     vx0, vy0, yaw0 = cmd_limits_for_mode(cfg, mode_ctrl.stand_command)
     vel_arrow = VelocityArrowViewer(max_cmd=(vx0, vy0, yaw0), gears=[0.5, 1.0])
     if vel_arrow.use_joystick:
         mode_ctrl.set_joystick(vel_arrow.joystick)
     apply_mode_cmd_limits(vel_arrow, cfg, mode_ctrl.stand_command)
+
+    height_plotter = None
+    if plot_height:
+        height_plotter = BaseHeightPlotter(cfg, dt=cfg.sim_config.dt, window_s=10.0, refresh_every=10)
+        height_plotter.set_mode(mode_ctrl.stand_command)
 
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
@@ -195,6 +267,8 @@ def run_mujoco(policy, cfg):
             mode_ctrl.update()  # 手柄 A/B/Y
             if mode_ctrl.consume_changed():
                 apply_mode_cmd_limits(vel_arrow, cfg, mode_ctrl.stand_command)
+                if height_plotter is not None:
+                    height_plotter.set_mode(mode_ctrl.stand_command)
 
             x_vel_cmd, y_vel_cmd, yaw_vel_cmd = float(cmd[0]), float(cmd[1]), float(cmd[2])
             stand_command = mode_ctrl.stand_command
@@ -248,12 +322,17 @@ def run_mujoco(policy, cfg):
             mujoco.mj_step(model, data)
             vel_arrow.draw_arrows(viewer, data)
             viewer.sync()
+            if height_plotter is not None:
+                height_plotter.update(data.time, float(data.qpos[2]), mode_ctrl.stand_command)
 
             time_until_next_step = model.opt.timestep - (time.time() - step_start)
             if time_until_next_step > 0:
                 time.sleep(time_until_next_step)
             count_lowlevel += 1
             sim_step += 1
+
+    if height_plotter is not None:
+        height_plotter.close()
 
 
 if __name__ == "__main__":
@@ -267,6 +346,11 @@ if __name__ == "__main__":
         help="Run to load from.",
     )
     parser.add_argument("--terrain", action="store_true", help="terrain or plane")
+    parser.add_argument(
+        "--plot-height",
+        action="store_true",
+        help="实时绘制基座高度曲线（含当前模式期望高度）",
+    )
     args = parser.parse_args()
 
     class Sim2simCfg(Go2_Stand_Cfg_Yu):
@@ -292,4 +376,4 @@ if __name__ == "__main__":
             )
 
     policy = torch.jit.load(args.load_model)
-    run_mujoco(policy, Sim2simCfg())
+    run_mujoco(policy, Sim2simCfg(), plot_height=args.plot_height)
