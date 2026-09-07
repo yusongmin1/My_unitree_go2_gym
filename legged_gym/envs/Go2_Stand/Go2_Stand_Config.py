@@ -8,7 +8,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         num_single_obs = 48 # =3(ang)+3(grav)+3(cmd)+12+12+12+2(phase)+1(stand_command)
         num_observations = int(frame_stack * num_single_obs)
         # privileged: obs(48)+lin_vel(3)+domain(~34)+contact_mask(4) = 89
-        single_num_privileged_obs = 89
+        single_num_privileged_obs = 100
         num_privileged_obs = single_num_privileged_obs
         num_obs_hist = 5
         num_latent_dims = 16
@@ -55,10 +55,17 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
-        class ranges:
-            lin_vel_x = [-0.5,0.5] # min max [m/s]
-            lin_vel_y = [-0.0, 0.0]   # min max [m/s]
-            ang_vel_yaw = [-0.5, 0.5]    # min max [rad/s]
+        # 四足 stand_command=0
+        class ranges_quad:
+            lin_vel_x = [-1.0, 1.0]
+            lin_vel_y = [-0.8, 0.8]
+            ang_vel_yaw = [-1.0, 1.0]
+            heading = [-3.14, 3.14]
+        # 双足 handstand/legstand stand_command=±1
+        class ranges_hand:
+            lin_vel_x = [-0.4, 0.4]
+            lin_vel_y = [-0.0, 0.0]
+            ang_vel_yaw = [-0.5, 0.5]
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
@@ -67,14 +74,14 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.1,   # [rad]
-            'RL_hip_joint': 0.1,   # [rad]
-            'FR_hip_joint': -0.1 ,  # [rad]
-            'RR_hip_joint': -0.1,   # [rad]
+            'FL_hip_joint': 0.0,   # [rad]
+            'RL_hip_joint': 0.0,   # [rad]
+            'FR_hip_joint': -0.0 ,  # [rad]
+            'RR_hip_joint': -0.0,   # [rad]
             'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 1.0,#1.,   # [rad]
+            'RL_thigh_joint': 0.8,#1.,   # [rad]
             'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 1.0,#1.,   # [rad]
+            'RR_thigh_joint': 0.8,#1.,   # [rad]
 
             'FL_calf_joint': -1.5,   # [rad]
             'RL_calf_joint': -1.5,    # [rad]
@@ -97,8 +104,8 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on = ["base"]
-        front_feet=['FL_foot', 'FR_foot']  # 前腿（倒立支撑腿）
-        rear_feet=['RL_foot', 'RR_foot']   # 后腿
+        front_feet=['FL_foot', 'FR_foot']  # legstand 支撑腿（后腿腾空）
+        rear_feet=['RL_foot', 'RR_foot']   # handstand 支撑腿（前腿腾空）
         threshold=5.0
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
@@ -135,7 +142,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.05, 0.05]
+        added_base_com_range = [-0.3, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -159,35 +166,61 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 0.95
         soft_torque_limit = 0.95
-        # stand_command: -1=倒立, 0=直立, 1=四足 → 对应 projected_gravity 期望
-        target_gravity_handstand = [-1.0, 0.0, 0.0]  # 倒立（前腿撑地）
-        target_gravity_upright = [1.0, 0.0, 0.0]     # 直立（后腿撑地）
-        target_gravity_quad = [0.0, 0.0, -1.0]       # 四足
 
         class scales:
-            termination = -0.0
-            tracking_lin_vel = 2.5
-            tracking_ang_vel = 1.5
-            lin_vel_z = 0.2
-            ang_vel_xy = 0.2
-            handstand_orientation = -1.0
+            termination = -200.0
+            tracking_lin_vel = 2.25
+            tracking_ang_vel = 1.0
+            # lin_vel_z = 0.2
+            # ang_vel_xy = 0.2
             torques = -0.0002
             dof_vel = -1e-4
             dof_acc = -2.5e-7
-            base_height = 1.
-            collision = -2.
             action_rate = -0.025
-            # default_pos =-0.1####
-            default_hip_pos=-0.1
-            # feet_clearance=0.4
-            default_pos_reward=0.2
+            collision = -1.
             dof_pos_limits=-2.0
+
+
+
+            body_orientation_quad = 0.9
+            body_orientation_handstand = 0.9
+            body_orientation_legstand = 0.9
+            base_height_quad = 1.
+            base_height_handstand = 1.
+            base_height_legstand = 1.
+            default_hip_pos=-0.5
+            default_pos_reward=0.2
+
+            gait_quad = 0.5        # stand_command=0
+            gait_handstand = 0.5   # stand_command=-1 后腿支撑（前腿空中）
+            gait_legstand = 0.5    # stand_command=1 前腿支撑（后腿空中）
+            rear_contact_hand =-1.0  # 惩罚腾空腿触地（handstand 前腿 / legstand 后腿）
+            foot_slip = -0.1
+            foot_clearance_quad = 0.25
+            foot_clearance_handstand = 0.25
+            foot_clearance_legstand = 0.25
+
+
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
-        base_height_target = 0.52#0.25
+        base_height_target_quad = 0.33
+        base_height_target_handstand = 0.5  # 双足
+        base_height_target_legstand = 0.5   # 双足
+        base_height_sigma = 0.05
+        body_pitch_target_quad = 0.0
+        body_orientation_sigma_quad = 0.04
+        body_pitch_target_handstand = -1.466   # ≈84°，机头朝上
+        body_orientation_sigma_handstand = 1.2
+        body_pitch_target_legstand = 1.466  # ≈-84°，机头朝下
+        body_orientation_sigma_legstand = 1.2
         target_foot_height=0.06
+        foot_clearance_target = 0.05
+        foot_height_offset = 0.02
+        foot_clearance_tracking_sigma = 0.01
         max_contact_force = 200. # forces above this value are penalized
         cycle_time=0.8
+        duty_factor = 0.6  # leg_phase∈[0,duty) 支撑，[duty,1) 摆动
+        gait_offsets = [0.0, 0.5, 0.5, 0.0]  # FL, FR, RL, RR 对角同相
 
 
     class normalization:
@@ -281,7 +314,7 @@ class Go2_Stand_PPO_Yu(LeggedRobotCfgPPO):
                            -33, 34, 35,                # actions FR <- FL
                            -42, 43, 44,                # actions RL <- RR
                            -39, 40, 41,                # actions RR <- RL
-                           45, 46,                     # phase sin/cos
+                           -45, -46,                     # phase sin/cos
                            47]                         # stand_command
         act_permutation = [-3, 4, 5,-0.0001, 1, 2 , -9, 10, 11,-6, 7, 8,]#关节电机的对陈关系
         frame_stack = 5  # obs_hist = 5 * 48，与 num_obs_hist 一致

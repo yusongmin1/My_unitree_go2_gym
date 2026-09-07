@@ -119,6 +119,7 @@ class Go2_Stand_Robot(BaseTask):
         self.front_feet_pos = self.rigid_state[:, self.front_foot_indices, 0:3]
         self.rear_feet_pos = self.rigid_state[:, self.rear_foot_indices, 0:3]
         self.rear_feet_vel = self.rigid_state[:, self.rear_foot_indices, 7:10]
+        self._update_gait()
         self._post_physics_step_callback()
         self.base_euler_xyz = get_euler_xyz_tensor(self.base_quat)
         # compute observations, rewards, resets, ...
@@ -215,17 +216,24 @@ class Go2_Stand_Robot(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     def _get_phase(self):
-        cycle_time = self.cfg.rewards.cycle_time
-        phase = (self.episode_length_buf * self.dt)%cycle_time/cycle_time
-        return phase
+        """全局归一化相位 ∈ [0, 1)。"""
+        return self.phase
 
-    def _get_gait_phase(self):
-        # return float mask 1 is stance, 0 is swing
-        phase = self._get_phase()
-        stance_mask = torch.zeros((self.num_envs, 2), device=self.device)
-        stance_mask[:, 0] = phase<0.5
-        stance_mask[:, 1] = phase>0.5
-        return stance_mask
+    def _update_gait(self):
+        """更新全局相位 / 各腿相位，并做接触滤波。
+        四足对角小跑 offsets=[0, 0.5, 0.5, 0]（FL, FR, RL, RR）；
+        占空比 duty_factor=0.6：leg_phase∈[0,0.6) 支撑，[0.6,1) 摆动。
+        """
+        period = self.cfg.rewards.cycle_time
+        duty = self.cfg.rewards.duty_factor
+        self.phase = (self.episode_length_buf * self.dt) % period / period
+        self.leg_phase = (self.phase.unsqueeze(1) + self.gait_offsets) % 1.0
+        self.is_stance = self.leg_phase < duty
+
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
+        self.contact_filt = torch.logical_or(contact, self.last_contacts_all)
+        self.last_contacts_all = contact
+
     def compute_observations(self):
         """ Computes observations (DreamWaQ: hist + prev_privileged + [obs|lin_vel|...]) """
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
@@ -250,19 +258,19 @@ class Go2_Stand_Robot(BaseTask):
                                     self.dof_vel * self.obs_scales.dof_vel,#12 关节速度
                                     self.actions,#12 动作
                                     sin_pos, cos_pos,#2 相位 (紧贴 stand_command 前)
-                                    self.stand_command,#1 ∈ {-1, 0, 1}
+                                    self.stand_command,#1 ∈ {-1 handstand, 0 四足, 1 legstand}
                                     ),dim=-1)
         domain_randomization_info = torch.cat((
-                    self.env_frictions,
                     self.added_base_masses,        # 1
                     self.added_base_com,          # 3
                     self.p_gains_multiplier ,             # num_actions
                     self.d_gains_multiplier,             # num_actions
+                    self.torques_multiplier,             # num_actions
                     self.joint_armatures,         # 1
                     self.joint_friction_coeffs,        # 1
                     self.joint_damping_coeffs,          # 1
                     self.restitution_coeffs,
-                    self.restitution_coeffs,
+                    self.friction_coeffs,
             ), dim=-1)
 
         # DreamWaQ CENet vel slice: privileged[:, num_obs:num_obs+3] = lin_vel
@@ -423,31 +431,46 @@ class Go2_Stand_Robot(BaseTask):
             self._push_robots()
 
     def _resample_commands(self, env_ids):
-        """ Randommly select commands of some environments
-            每次重置环境时，会随机生成一个目标速度，目标角度，目标角速度
-            此外每次 step后也会重新 随机生成一个目标速度，目标角度，目标角速度
-        Args:
-            env_ids (List[int]): Environments ids for which new commands are needed
-        """
-        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        if self.cfg.commands.heading_command:
-            self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        else:
-            self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        
-        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.10
-        self.commands[env_ids[all_zero_mask]] = 0.0
+        """按 stand_command 用四足 / 双足两套速度范围重采样命令。"""
+        if len(env_ids) == 0:
+            return
 
-        # 4. 新增：另外 5% 仅前两项（x,y 线速度）归零
-        xy_zero_mask = torch.rand(len(env_ids), device=self.device) >0.9
-        self.commands[env_ids[xy_zero_mask], :2] = 0.0
-        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
-
-        # stand_command ∈ {-1=倒立, 0=直立, 1=四足}，与速度指令同步重采样
+        # stand_command ∈ {-1=handstand, 0=四足, 1=legstand}，先定模式再采速度
         self.stand_command[env_ids] = torch.randint(
             0, 3, (len(env_ids), 1), device=self.device, dtype=torch.long
         ).float() - 1.0
+        cmd = self.stand_command[env_ids].squeeze(-1)
+        quad_ids = env_ids[cmd == 0]
+        hand_ids = env_ids[cmd != 0]
+
+        self._sample_vel_commands(quad_ids, self.command_ranges_quad)
+        self._sample_vel_commands(hand_ids, self.command_ranges_hand)
+
+        all_zero_mask = torch.rand(len(env_ids), device=self.device) < 0.10
+        self.commands[env_ids[all_zero_mask]] = 0.0
+
+        xy_zero_mask = torch.rand(len(env_ids), device=self.device) > 0.9
+        self.commands[env_ids[xy_zero_mask], :2] = 0.0
+        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)
+
+    def _sample_vel_commands(self, env_ids, ranges):
+        """用给定 ranges 采样线速度 / 角速度（或 heading）。"""
+        if len(env_ids) == 0:
+            return
+        self.commands[env_ids, 0] = torch_rand_float(
+            ranges["lin_vel_x"][0], ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device
+        ).squeeze(1)
+        self.commands[env_ids, 1] = torch_rand_float(
+            ranges["lin_vel_y"][0], ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device
+        ).squeeze(1)
+        if self.cfg.commands.heading_command:
+            self.commands[env_ids, 3] = torch_rand_float(
+                ranges["heading"][0], ranges["heading"][1], (len(env_ids), 1), device=self.device
+            ).squeeze(1)
+        else:
+            self.commands[env_ids, 2] = torch_rand_float(
+                ranges["ang_vel_yaw"][0], ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device
+            ).squeeze(1)
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -623,6 +646,16 @@ class Go2_Stand_Robot(BaseTask):
         self.commands_scale = torch.tensor([self.obs_scales.lin_vel, self.obs_scales.lin_vel, self.obs_scales.ang_vel], device=self.device, requires_grad=False,) # TODO change this
         self.feet_air_time = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_contacts = torch.zeros(self.num_envs, 2, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.last_contacts_all = torch.zeros(self.num_envs, 4, dtype=torch.bool, device=self.device, requires_grad=False)
+        # 对角小跑相位偏移 FL, FR, RL, RR
+        self.gait_offsets = torch.tensor(
+            getattr(self.cfg.rewards, 'gait_offsets', [0.0, 0.5, 0.5, 0.0]),
+            dtype=torch.float, device=self.device, requires_grad=False)
+        self.phase = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.leg_phase = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False)
+        self.is_stance = torch.zeros(self.num_envs, 4, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.contact_filt = torch.zeros(self.num_envs, 4, dtype=torch.bool, device=self.device, requires_grad=False)
+        self._update_gait()
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
@@ -640,13 +673,9 @@ class Go2_Stand_Robot(BaseTask):
         self.prev_privileged_obs_buf = torch.zeros_like(self.privileged_obs_buf)
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
-        self.descire_joint_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         for i in range(self.num_dofs):
             name = self.dof_names[i]
-            angle = self.cfg.init_state.default_joint_angles[name]
-            angle_2= self.cfg.init_state.descire_joint_angles[name]
-            self.default_dof_pos[i] = angle
-            self.descire_joint_pos[i] = angle_2
+            self.default_dof_pos[i] = self.cfg.init_state.default_joint_angles[name]
             found = False
             for dof_name in self.cfg.control.stiffness.keys():
                 if dof_name in name:
@@ -851,12 +880,11 @@ class Go2_Stand_Robot(BaseTask):
             self.rear_foot_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], rear_feet[i])
 
 
-        self.target_gravity_table = torch.tensor([
-            self.cfg.rewards.target_gravity_handstand,  # stand_command=-1 倒立
-            self.cfg.rewards.target_gravity_upright,    # stand_command=0 直立
-            self.cfg.rewards.target_gravity_quad,       # stand_command=1 四足
+        self.body_pitch_target_table = torch.tensor([
+            self.cfg.rewards.body_pitch_target_handstand,
+            self.cfg.rewards.body_pitch_target_quad,
+            self.cfg.rewards.body_pitch_target_legstand,
         ], dtype=torch.float, device=self.device, requires_grad=False)
-        self.rew_hanstand=torch.zeros(1,dtype=torch.float,device=self.device,requires_grad=False)
     def _get_env_origins(self):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
             Otherwise create a grid.
@@ -888,7 +916,9 @@ class Go2_Stand_Robot(BaseTask):
         self.dt = self.cfg.control.decimation * self.sim_params.dt
         self.obs_scales = self.cfg.normalization.obs_scales
         self.reward_scales = class_to_dict(self.cfg.rewards.scales)
-        self.command_ranges = class_to_dict(self.cfg.commands.ranges)
+        self.command_ranges_quad = class_to_dict(self.cfg.commands.ranges_quad)
+        self.command_ranges_hand = class_to_dict(self.cfg.commands.ranges_hand)
+        self.command_ranges = self.command_ranges_quad  # curriculum 兼容
         if self.cfg.terrain.mesh_type not in ['heightfield', 'trimesh']:
             self.cfg.terrain.curriculum = False
         self.max_episode_length_s = self.cfg.env.episode_length_s
@@ -1109,12 +1139,6 @@ class Go2_Stand_Robot(BaseTask):
         # Penalize xy axes base angular velocity
         return torch.exp(-torch.norm(torch.abs(self.base_ang_vel[:, 1:3]), dim=1))
 
-    def _reward_base_height(self):
-        # Penalize base height away from target
-        base_height = self._get_base_heights()
-        # print(self.root_states[0,2])
-        self.rew_hanstand=torch.mean(torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*5))
-        return torch.exp(-torch.abs(base_height - self.cfg.rewards.base_height_target)*5)
 
     def _reward_torques(self):
         # Penalize torques
@@ -1131,7 +1155,6 @@ class Go2_Stand_Robot(BaseTask):
     def _reward_action_rate(self):
         # Penalize changes in actions
         return  torch.sum(torch.square(self.last_actions - self.actions), dim=1)
-
     
     def _reward_collision(self):
         # Penalize collisions on selected bodies
@@ -1155,40 +1178,100 @@ class Go2_Stand_Robot(BaseTask):
         # penalize torques too close to the limit
         return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
 
+    def _mode_body_pitch_target(self):
+        """按 stand_command 取期望机身 pitch。"""
+        idx = (self.stand_command.squeeze(-1) + 1).long()  # -1,0,1 → 0,1,2
+        return self.body_pitch_target_table[idx]
+
+    def _tracking_orientation_gate(self):
+        """当前 pitch 与期望 pitch 相差不超过 30° 才给速度跟踪奖。"""
+        pitch_err = torch.abs(self.base_euler_xyz[:, 1] - self._mode_body_pitch_target())
+        return (pitch_err <= (30.0 * torch.pi / 180.0)).float()
+
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands
-        yaw = self.base_rpy[:, 2]
+        yaw = self.base_euler_xyz[:, 2]
         vx_heading = self.root_states[:, 7] * torch.cos(yaw) + self.root_states[:, 8] * torch.sin(yaw)
         vy_heading = -self.root_states[:, 7] * torch.sin(yaw) + self.root_states[:, 8] * torch.cos(yaw)
         vx_error = self.commands[:, 0] - vx_heading
         vy_error = self.commands[:, 1] - vy_heading
-        lin_vel_error_quad = (torch.square(vx_error) + torch.square(vy_error)) * (self.gait_mode == 0).float()
-        lin_vel_error_hand = torch.square(vx_error) * (self.gait_mode == 1).float()
-        lin_vel_error = lin_vel_error_quad + lin_vel_error_hand
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
-    
+        # 0=四足跟踪 xy；±1=双足(handstand/legstand)只跟踪 x
+        cmd = self.stand_command.squeeze(-1)
+        is_quad = (cmd == 0).float()
+        is_biped = (cmd != 0).float()
+        lin_vel_error = (
+            (torch.square(vx_error) + torch.square(vy_error)) * is_quad
+            + torch.square(vx_error) * is_biped
+        )
+        return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma) * self._tracking_orientation_gate()
+
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands
         ang_vel_error = torch.square(self.commands[:, 2] - self.root_states[:, 12])
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)
+        return torch.exp(-ang_vel_error / self.cfg.rewards.tracking_sigma) * self._tracking_orientation_gate()
 
-    def _reward_default_pos(self):
-        # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos), dim=1)
     def _reward_default_pos_reward(self):
-        # Penalize motion at zero commands
-        return torch.exp(-torch.sum(torch.abs(self.dof_pos - self.descire_joint_pos)[:,:6], dim=1))*(torch.mean(self.rew_hanstand)>0.70)
+        """腾空腿贴近 default：handstand 前腿[:6]，legstand 后腿[6:]。
+        仅在双足模式且机身高度跟踪较好时给奖。
+        """
+        joint_err = torch.abs(self.dof_pos - self.default_dof_pos)
+        cmd = self.stand_command.squeeze(-1)
+        is_hand = cmd == -1
+        is_leg = cmd == 1
+        err = torch.zeros(self.num_envs, device=self.device)
+        err = torch.where(is_hand, joint_err[:, :6].sum(dim=1), err)
+        err = torch.where(is_leg, joint_err[:, 6:].sum(dim=1), err)
+
+        base_height = self._get_base_heights()
+        target = torch.where(
+            is_hand,
+            torch.full_like(base_height, self.cfg.rewards.base_height_target_handstand),
+            torch.where(
+                is_leg,
+                torch.full_like(base_height, self.cfg.rewards.base_height_target_legstand),
+                base_height,
+            ),
+        )
+        height_ok = torch.exp(-torch.abs(base_height - target) * 5) > 0.70
+        return torch.exp(-err) * (is_hand | is_leg) * height_ok.float()
     
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
 
 
-    def _reward_handstand_orientation(self):
-        """按 stand_command 选倒立/直立/四足的期望重力投影，偏差越大惩罚越大。"""
-        idx = (self.stand_command.squeeze(-1) + 1).long()  # -1,0,1 → 0,1,2
-        target = self.target_gravity_table[idx]
-        return torch.square(self.projected_gravity - target).sum(dim=1)
+    def _reward_body_orientation_quad(self):
+        """四足姿态：roll≈0，pitch≈0。stand_command=0。"""
+        roll_error = torch.square(self.base_euler_xyz[:, 0])
+        pitch_error = torch.square(
+            self.base_euler_xyz[:, 1] - self.cfg.rewards.body_pitch_target_quad
+        )
+        reward = torch.exp(
+            -(roll_error + pitch_error) / self.cfg.rewards.body_orientation_sigma_quad
+        )
+        return reward * (self.stand_command.squeeze(-1) == 0).float()
+
+    def _reward_body_orientation_handstand(self):
+        """handstand：roll≈0，pitch≈+1.466。stand_command=-1。"""
+        roll_error = torch.square(self.base_euler_xyz[:, 0])
+        pitch_error = torch.square(
+            self.base_euler_xyz[:, 1] - self.cfg.rewards.body_pitch_target_handstand
+        )
+        reward = torch.exp(
+            -(roll_error + pitch_error) / self.cfg.rewards.body_orientation_sigma_handstand
+        )
+        return reward * (self.stand_command.squeeze(-1) == -1).float()
+
+    def _reward_body_orientation_legstand(self):
+        """legstand：roll≈0，pitch≈-1.466。stand_command=1。"""
+        roll_error = torch.square(self.base_euler_xyz[:, 0])
+        pitch_error = torch.square(
+            self.base_euler_xyz[:, 1] - self.cfg.rewards.body_pitch_target_legstand
+        )
+        reward = torch.exp(
+            -(roll_error + pitch_error) / self.cfg.rewards.body_orientation_sigma_legstand
+        )
+        return reward * (self.stand_command.squeeze(-1) == 1).float()
 
     def _reward_default_hip_pos(self):
         """
@@ -1199,39 +1282,90 @@ class Go2_Stand_Robot(BaseTask):
         return joint_diff
     
 
-    def _reward_feet_clearance(self):#鼓励抬脚高度
-        """
-        Calculates reward based on the clearance of the swing leg from the ground during movement.
-        Encourages appropriate lift of the feet during the swing phase of the gait.
-        """
-        # 足端相对地形高度：foot_z - mean(局部地形采样)，与 f4e0141 AMP DreamWaQ 一致
-        terrain_h = self.measured_feet_heights.mean(dim=-1).transpose(0, 1)  # (num_envs, num_feet)
-        self.feet_height = self.feet_pos[:, :, 2] - terrain_h - 0.02
-        left_feet_height=self.feet_height[:,2]
-        right_feet_height=self.feet_height[:,3]
-        # Compute swing mask
-        swing_mask = (1 - self._get_gait_phase())
-        phase=self._get_phase()
-        # feet height should larger than target feet height at the peak
-        target_height=(torch.abs(torch.sin(2*torch.pi*phase))*self.cfg.rewards.target_foot_height)
-        # print(left_feet_height.shape,right_feet_height.shape,target_height.shape)
-        rew=torch.exp(-torch.abs(left_feet_height-target_height)*10)*swing_mask[:,0]
-        # print(rew[0],torch.sum(torch.abs(left_feet_height-target_height),dim=1)[0])
-        rew+=torch.exp(-torch.abs(right_feet_height-target_height)*10)*swing_mask[:,1]
-        # print(rew.shape,left_feet_height.shape)
-        return rew*(torch.mean(self.rew_hanstand)>0.70)
 
     
-    def _reward_feet_air_time(self):
-        # Reward long steps
-        # Need to filter the contacts because the contact reporting of PhysX is unreliable on meshes
-        contact = self.contact_forces[:, self.rear_foot_indices, 2] > 1.
-        contact_filt = torch.logical_or(contact, self.last_contacts) 
-        self.last_contacts = contact
-        first_contact = (self.feet_air_time > 0.) * contact_filt
-        self.feet_air_time += self.dt
-        rew_airTime = torch.sum((self.feet_air_time - 0.4) * first_contact, dim=1) # reward only on first contact with the ground
-        # rew_airTime *= torch.norm(self.commands[:, :2], dim=1) 
-        self.feet_air_time *= ~contact_filt
-        return rew_airTime*(self.rew_hanstand>0.70)
+
     
+    def _reward_gait_quad(self):
+        """四足：四腿 contact 与 is_stance 一致。stand_command=0。"""
+        reward = torch.where(self.contact_filt == self.is_stance, 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == 0).float()
+
+    def _reward_gait_handstand(self):
+        """handstand：前腿空中、后腿撑地迈步，只看 RL/RR。stand_command=-1。"""
+        reward = torch.where(self.contact_filt[:, 2:4] == self.is_stance[:, 2:4], 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == -1).float()
+
+    def _reward_gait_legstand(self):
+        """legstand：后腿空中、前腿撑地迈步，只看 FL/FR。stand_command=1。"""
+        reward = torch.where(self.contact_filt[:, :2] == self.is_stance[:, :2], 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == 1).float()
+
+    def _reward_base_height_quad(self):
+        """四足期望机身高度。stand_command=0。"""
+        base_height = self._get_base_heights()
+        self.base_height = base_height
+        height_error = torch.square(base_height - self.cfg.rewards.base_height_target_quad)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        return reward * (self.stand_command.squeeze(-1) == 0).float()
+
+    def _reward_base_height_handstand(self):
+        """handstand 双足期望高度 0.5。stand_command=-1。"""
+        base_height = self._get_base_heights()
+        self.base_height = base_height
+        height_error = torch.square(base_height - self.cfg.rewards.base_height_target_handstand)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        rew = reward * (self.stand_command.squeeze(-1) == -1).float()
+        return rew
+
+    def _reward_base_height_legstand(self):
+        """legstand 双足期望高度 0.5。stand_command=1。"""
+        base_height = self._get_base_heights()
+        self.base_height = base_height
+        height_error = torch.square(base_height - self.cfg.rewards.base_height_target_legstand)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        return reward * (self.stand_command.squeeze(-1) == 1).float()
+
+    def _reward_foot_slip(self):
+        # Penalize feet sliding while in contact
+        contact_feet_vel = self.feet_vel * self.contact_filt.unsqueeze(-1)
+        penalize = torch.square(contact_feet_vel[:, :, :3])
+        return torch.sum(penalize, dim=(1, 2))
+
+    def _reward_rear_contact_hand(self):
+        """惩罚腾空腿触地：handstand 前腿 FL/FR，legstand 后腿 RL/RR。"""
+        cmd = self.stand_command.squeeze(-1)
+        front_contact = torch.sum(self.contact_filt[:, [0, 1]].float(), dim=1)
+        rear_contact = torch.sum(self.contact_filt[:, [2, 3]].float(), dim=1)
+        return (
+            front_contact * (cmd == -1).float()
+            + rear_contact * (cmd == 1).float()
+        )
+
+    def _foot_clearance_reward(self, foot_ids):
+        """着地足端相对粗糙地形的接触高度：foot_z - terrain ≈ offset + target。
+        仅对接触腿计分，并用水平速度加权。
+        """
+        terrain_h = self.measured_feet_heights.mean(dim=-1).transpose(0, 1)  # (N, 4)
+        # 相对地形高度
+        feet_h = self.feet_pos[:, foot_ids, 2] - terrain_h[:, foot_ids]
+        height_error = feet_h - self.cfg.rewards.foot_clearance_target - self.cfg.rewards.foot_height_offset
+        contact = self.contact_filt[:, foot_ids].float()
+        feet_vel_xy_norm = torch.norm(self.feet_vel[:, foot_ids, :2], dim=-1)
+        clearance_error = torch.sum(
+            contact * feet_vel_xy_norm * torch.square(height_error),
+            dim=-1,
+        )
+        return torch.exp(-clearance_error / self.cfg.rewards.foot_clearance_tracking_sigma)
+
+    def _reward_foot_clearance_quad(self):
+        """四足：四条着地腿的接触高度。stand_command=0。"""
+        return self._foot_clearance_reward([0, 1, 2, 3]) * (self.stand_command.squeeze(-1) == 0).float()
+
+    def _reward_foot_clearance_handstand(self):
+        """handstand：前腿空中，后腿 RL/RR 着地接触高度。stand_command=-1。"""
+        return self._foot_clearance_reward([2, 3]) * (self.stand_command.squeeze(-1) == -1).float()
+
+    def _reward_foot_clearance_legstand(self):
+        """legstand：后腿空中，前腿 FL/FR 着地接触高度。stand_command=1。"""
+        return self._foot_clearance_reward([0, 1]) * (self.stand_command.squeeze(-1) == 1).float()
