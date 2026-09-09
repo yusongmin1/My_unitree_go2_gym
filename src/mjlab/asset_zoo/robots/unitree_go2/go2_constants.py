@@ -56,7 +56,7 @@ HIP_ACTUATOR = ElectricActuator(
 KNEE_ACTUATOR = ElectricActuator(
   reflected_inertia=reflected_inertia(ROTOR_INERTIA, KNEE_GEAR_RATIO),
   velocity_limit=15.70,
-  effort_limit=33.5,
+  effort_limit=45.5,
 )
 
 # TODO: need check

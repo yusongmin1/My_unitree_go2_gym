@@ -199,7 +199,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
       mode="startup",
       func=mdp.randomize_body_mass,
       params={
-        "asset_cfg": SceneEntityCfg("robot", body_names=(".*",)),
+        "asset_cfg": SceneEntityCfg("robot", body_names=("trunk",)),
         "mass_range": (-1.0, 2.0),
         "operation": "add",
       },

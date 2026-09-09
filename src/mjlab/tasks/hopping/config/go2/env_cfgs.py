@@ -25,7 +25,7 @@ _CALF_ACTUATOR = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_calf_joint",),
   stiffness=20.0,
   damping=0.5,
-  effort_limit=45.43,
+  effort_limit=33.43,
 )
 
 # Initial state matching go2_jump (pos z=0.42, joint angles from go2_jump).
