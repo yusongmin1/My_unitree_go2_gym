@@ -190,8 +190,8 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
         "field": "body_ipos",
         "ranges": {
           0: (-0.025, 0.025),
-          1: (-0.05, 0.05),
-          2: (-0.05, 0.05),
+          1: (-0.03, 0.03),
+          2: (-0.03, 0.03),
         },
       },
     ),

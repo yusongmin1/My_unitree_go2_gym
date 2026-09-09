@@ -7,6 +7,11 @@ import warp as wp
 
 MJLAB_SRC_PATH: Path = Path(__file__).parent
 
+# Disable wandb by default (no login / offline sync prompts).
+# Override with WANDB_MODE=online and logger=wandb if you want cloud logging.
+os.environ.setdefault("WANDB_MODE", "disabled")
+os.environ.setdefault("WANDB_SILENT", "true")
+
 TYRO_FLAGS = (
   # Don't let users switch between types in unions. This produces a simpler CLI
   # with flatter helptext, at the cost of some flexibility. Type changes can
