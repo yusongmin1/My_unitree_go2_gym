@@ -1,0 +1,154 @@
+[build-system]
+requires = ["uv_build>=0.8.19,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
+name = "mjlab"
+version = "1.1.1"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+  {name = "The MjLab Developers"},
+]
+keywords = ["mujoco", "mujoco-warp", "simulation", "reinforcement-learning", "robotics"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+  "Environment :: GPU :: NVIDIA CUDA",
+  "Topic :: Scientific/Engineering",
+  "Natural Language :: English",
+]
+description = "Isaac Lab API, powered by MuJoCo-Warp, for RL and robotics research."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "prettytable",
+  "tqdm",
+  "tyro>=1.0.1",
+  "torch>=2.7.0",
+  "torchrunx>=0.3.4",
+  "warp-lang>=1.12.0.dev",
+  "mujoco-warp>=3.5.0",
+  "mujoco>=3.5.0",
+  "trimesh>=4.8.3",
+  "viser>=1.0.21",
+  "mediapy>=1.2.6",
+  "tensordict",
+  "rsl-rl-lib==4.0.1",
+  "tensorboard>=2.20.0",
+  "onnxscript>=0.5.4",
+  "wandb>=0.22.3",
+]
+
+[project.urls]
+  "Bug Reports" = "https://github.com/mujocolab/mjlab/issues"
+  "Source" = "https://github.com/mujocolab/mjlab"
+
+[project.scripts]
+train = "mjlab.scripts.train:main"
+play = "mjlab.scripts.play:main"
+demo = "mjlab.scripts.demo:main"
+list_envs = "mjlab.scripts.list_envs:main"
+viz-nan = "mjlab.scripts.nan_viz:main"
+
+[dependency-groups]
+dev = [
+  "ipdb>=0.13.13",
+  "pre-commit>=4.3.0",
+  "pyright>=1.1.408",
+  "pytest>=v9.0.2",
+  "ruff>=v0.14.14",
+  "ty>=v0.0.14",
+]
+docs = [
+  "myst-parser>=4.0.1",
+  "sphinx>=8.1.3",
+  "sphinx-autodoc-typehints>=3.0.1",
+  "sphinx-autobuild>=2024.10.3",
+  "sphinx-book-theme>=1.1.4",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx-design>=0.6.1",
+  "autodocsumm",
+  "sphinxemoji",
+  "sphinxcontrib.bibtex",
+  "sphinx-icon",
+  "sphinx-tabs",
+  "sphinx_multiversion",
+]
+
+[project.optional-dependencies]
+cu128 = ["torch>=2.7.0"]
+
+[tool.uv]
+required-environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com/"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "mujoco"
+url = "https://py.mujoco.org"
+explicit = true
+
+[tool.uv.sources]
+warp-lang = { index = "nvidia", marker = "sys_platform != 'darwin'" }
+torch = { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform != 'darwin'" }
+mujoco = { index = "mujoco" }
+mujoco-warp = { git = "https://github.com/google-deepmind/mujoco_warp", rev = "fc9158989525538db53a2a8c3c0f156cbfeca911" }
+
+[tool.ruff]
+src = ["src"]  # Helpful for recognizing first-party imports.
+indent-width = 2
+exclude = [
+  "src/mjlab/utils/lab_api",
+  "typings",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+ignore = ["B011"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+ignore = ["./typings", "./src/mjlab/utils/lab_api", "./docs"]
+stubPath = "typings"
+
+[tool.ty.environment]
+extra-paths = ["typings"]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["src/mjlab/utils/lab_api", "typings"]
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "--strict-markers"

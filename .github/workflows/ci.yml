@@ -1,0 +1,88 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '**.rst'
+      - 'docs/**'
+      - 'Makefile'
+      - 'LICENSE'
+      - 'scripts/benchmarks/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '**.rst'
+      - 'docs/**'
+      - 'Makefile'
+      - 'LICENSE'
+      - 'scripts/benchmarks/**'
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  lint-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          version: "0.9.27"
+      - name: Run lint
+        run: uvx ruff@0.14.14 check --diff
+      - name: Run format
+        run: uvx ruff@0.14.14 format --diff
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          version: "0.9.27"
+      - name: Test with python ${{ matrix.python-version }}
+        run: uv run pytest
+
+  pyright:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          version: "0.9.27"
+      - name: Test with python ${{ matrix.python-version }}
+        run: uv run pyright
+
+  ty-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          version: "0.9.27"
+      - name: Type check with python ${{ matrix.python-version }}
+        run: uv run ty check

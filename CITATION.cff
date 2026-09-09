@@ -1,0 +1,60 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  mjlab: A Lightweight Framework for GPU-Accelerated Robot Learning
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Kevin
+    family-names: Zakka
+    email: zakka@berkeley.edu
+  - given-names: Brent
+    family-names: Yi
+    email: brentyi@berkeley.edu
+  - given-names: Qiayuan
+    family-names: Liao
+    email: qiayuanl@berkeley.edu
+  - given-names: Louis
+    family-names: Le Lay
+    email: le.lay.louis@gmail.com
+  - given-names: Koushil
+    family-names: Sreenath
+  - given-names: Pieter
+    family-names: Abbeel
+repository-code: 'https://github.com/mujocolab/mjlab'
+keywords:
+  - mujoco
+  - mujoco-warp
+  - simulation
+  - reinforcement-learning
+  - robotics
+license: Apache-2.0
+commit: 20233215611f55fba8cff34a1ce3f9937ab63a25
+version: 1.1.1
+date-released: '2026-02-14'
+preferred-citation:
+  type: article
+  title: >-
+    mjlab: A Lightweight Framework for GPU-Accelerated Robot Learning
+  authors:
+    - given-names: Kevin
+      family-names: Zakka
+    - given-names: Qiayuan
+      family-names: Liao
+    - given-names: Brent
+      family-names: Yi
+    - given-names: Louis
+      family-names: Le Lay
+    - given-names: Koushil
+      family-names: Sreenath
+    - given-names: Pieter
+      family-names: Abbeel
+  year: 2026
+  url: https://arxiv.org/abs/2601.22074
+  identifiers:
+    - type: arxiv
+      value: 2601.22074

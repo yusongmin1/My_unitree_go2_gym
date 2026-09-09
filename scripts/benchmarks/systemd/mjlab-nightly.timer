@@ -1,0 +1,28 @@
+# mjlab Nightly Benchmark Timer
+#
+# This timer triggers the nightly training run.
+# Default: 2:00 AM daily
+#
+# Installation:
+#   1. Copy to ~/.config/systemd/user/mjlab-nightly.timer
+#   2. Enable: systemctl --user enable mjlab-nightly.timer
+#   3. Start: systemctl --user start mjlab-nightly.timer
+#
+# Check status: systemctl --user list-timers
+# Check next run: systemctl --user status mjlab-nightly.timer
+
+[Unit]
+Description=Run mjlab nightly benchmarks
+
+[Timer]
+# Run at 2:00 AM every day
+OnCalendar=*-*-* 02:00:00
+
+# Add randomized delay up to 30 minutes to avoid thundering herd
+RandomizedDelaySec=1800
+
+# If missed (e.g., machine was off), run on next boot
+Persistent=true
+
+[Install]
+WantedBy=timers.target

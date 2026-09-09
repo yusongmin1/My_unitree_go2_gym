@@ -1,0 +1,38 @@
+# mjlab Nightly Benchmark Service
+#
+# Installation:
+#   1. Copy this file to ~/.config/systemd/user/mjlab-nightly.service
+#   2. Edit the paths below to match your setup
+#   3. Enable with: systemctl --user enable mjlab-nightly.timer
+#   4. Start with: systemctl --user start mjlab-nightly.timer
+#
+# To run manually: systemctl --user start mjlab-nightly.service
+# To check logs: journalctl --user -u mjlab-nightly.service
+
+[Unit]
+Description=mjlab Nightly Training Benchmark
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Update these paths to match your setup
+Environment="PATH=/home/kevin/.local/bin:/home/kevin/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="HOME=/home/kevin"
+Environment="CUDA_DEVICE=0"
+Environment="WANDB_API_KEY="
+
+WorkingDirectory=/home/kevin/dev/mjlab
+ExecStart=/home/kevin/dev/mjlab/scripts/benchmarks/nightly_train.sh
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits (adjust as needed)
+Nice=10
+MemoryMax=32G
+
+[Install]
+WantedBy=default.target
