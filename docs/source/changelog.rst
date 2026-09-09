@@ -16,6 +16,8 @@ Added
   tracking can toggle these via ``enable_body_mass_rand`` /
   ``enable_actuator_gains_rand``, and optionally wrap actuators with a 0–3
   physics-step delay via ``enable_actuator_delay``.
+- Added ``play-go2-rand`` and ``PlayConfig.keep_randomization`` to play Go2
+  tracking with training-time domain randomization (default 50 envs).
 
 Version 1.1.1 (February 14, 2026)
 ---------------------------------

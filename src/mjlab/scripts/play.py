@@ -36,6 +36,8 @@ class PlayConfig:
   viewer: Literal["auto", "native", "viser"] = "auto"
   no_terminations: bool = False
   """Disable all termination conditions (useful for viewing motions with dummy agents)."""
+  keep_randomization: bool = False
+  """If True, load the training env cfg so domain randomization stays enabled."""
 
   # Internal flag used by demo script.
   _demo_mode: tyro.conf.Suppress[bool] = False
@@ -46,8 +48,13 @@ def run_play(task_id: str, cfg: PlayConfig):
 
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
 
-  env_cfg = load_env_cfg(task_id, play=True)
+  env_cfg = load_env_cfg(task_id, play=not cfg.keep_randomization)
   agent_cfg = load_rl_cfg(task_id)
+
+  if cfg.keep_randomization:
+    # Keep training-time DR, but allow long interactive sessions.
+    env_cfg.episode_length_s = int(1e9)
+    print("[INFO]: Domain randomization kept enabled (training env cfg)")
 
   DUMMY_MODE = cfg.agent in {"zero", "random"}
   TRAINED_MODE = not DUMMY_MODE

@@ -19,7 +19,7 @@ def unitree_go2_flat_tracking_env_cfg(
   play: bool = False,
   enable_body_mass_rand: bool = True,
   enable_actuator_gains_rand: bool = True,
-  enable_actuator_delay: bool = False,
+  enable_actuator_delay: bool = True,
 ) -> ManagerBasedRlEnvCfg:
   """Create Unitree Go2 flat terrain tracking configuration.
 
