@@ -18,6 +18,8 @@ Added
   physics-step delay via ``enable_actuator_delay``.
 - Added ``play-go2-rand`` and ``PlayConfig.keep_randomization`` to play Go2
   tracking with training-time domain randomization (default 50 envs).
+- Tracking saves now also export TorchScript ``policy.pt`` (for C++ deploy).
+  Convert an existing checkpoint with ``export-tracking-pt``.
 
 Version 1.1.1 (February 14, 2026)
 ---------------------------------

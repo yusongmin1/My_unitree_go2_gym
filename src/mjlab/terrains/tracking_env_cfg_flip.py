@@ -190,9 +190,28 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
         "field": "body_ipos",
         "ranges": {
           0: (-0.025, 0.025),
-          1: (-0.05, 0.05),
-          2: (-0.05, 0.05),
+          1: (-0.03, 0.03),
+          2: (-0.03, 0.03),
         },
+      },
+    ),
+    "add_body_mass": EventTermCfg(
+      mode="startup",
+      func=mdp.randomize_body_mass,
+      params={
+        "asset_cfg": SceneEntityCfg("robot", body_names=("trunk")),#"trunk",
+        "mass_range": (-1.0, 2.0),
+        "operation": "add",
+      },
+    ),
+    "actuator_gains": EventTermCfg(
+      mode="startup",
+      func=mdp.randomize_pd_gains,
+      params={
+        "asset_cfg": SceneEntityCfg("robot"),
+        "kp_range": (0.9, 1.1),
+        "kd_range": (0.9, 1.1),
+        "operation": "scale",
       },
     ),
     "encoder_bias": EventTermCfg(
@@ -200,7 +219,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.randomize_encoder_bias,
       params={
         "asset_cfg": SceneEntityCfg("robot"),
-        "bias_range": (-0.01, 0.01),
+        "bias_range": (-0.015, 0.015),
       },
     ),
     "foot_friction": EventTermCfg(

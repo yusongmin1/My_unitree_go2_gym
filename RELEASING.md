@@ -74,3 +74,17 @@ make build
 make publish
 git checkout main
 ```
+cd /home/zju/Downloads/mjlab-dev-go2-mimic
+
+for motion in \
+  go2_leftflip \
+  go2_rightflip 
+do
+  echo "========== Training $motion =========="
+python -m mjlab.scripts.train \
+    Mjlab-Tracking-Flat-Unitree-Go2-No-State-Estimation \
+    --env.commands.motion.motion-file "$PWD/motions/${motion}.npz" \
+    --env.scene.num-envs 4096 \
+    --agent.max-iterations 10000 \
+    --agent.run-name "$motion"
+done

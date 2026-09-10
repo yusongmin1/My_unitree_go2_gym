@@ -74,7 +74,8 @@ class NativeMujocoViewer(BaseViewer):
     self._scale: dict[str, float] = {}  # Per-term display scale factor.
     self._show_plots: bool = False
     self._show_debug_vis: bool = True
-    self._show_all_envs: bool = False
+    # Show every parallel env by default when num_envs > 1.
+    self._show_all_envs: bool = self.env.unwrapped.num_envs > 1
     self._plot_cfg = plot_cfg or PlotCfg()
 
     self.env_idx = self.cfg.env_idx
@@ -89,6 +90,11 @@ class NativeMujocoViewer(BaseViewer):
     if self.env.unwrapped.num_envs > 1:
       assert self.mjm is not None
       self.vd = mujoco.MjData(self.mjm)
+      self.log(
+        f"[INFO] Showing all {self.env.unwrapped.num_envs} envs "
+        "(press A to toggle)",
+        VerbosityLevel.INFO,
+      )
 
     self.pert = mujoco.MjvPerturb() if self.enable_perturbations else None
     self.vopt = mujoco.MjvOption()
@@ -188,7 +194,7 @@ class NativeMujocoViewer(BaseViewer):
         )
         self.env.unwrapped.update_visualizers(visualizer)
 
-      if self.vd is not None:
+      if self.vd is not None and self._show_all_envs:
         for i in range(self.env.unwrapped.num_envs):
           if i == self.env_idx:
             continue

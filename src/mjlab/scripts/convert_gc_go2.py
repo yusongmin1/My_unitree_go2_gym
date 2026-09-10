@@ -115,11 +115,18 @@ class MotionLoader:
   def _load_motion(self):
     motion = self._load_csv(self.motion_file)
 
-    if motion.shape[1] != _EXPECTED_COLS:
+    if motion.shape[1] < _EXPECTED_COLS:
       raise ValueError(
-        f"CSV 列数不匹配：期望 {_EXPECTED_COLS} 列（3 位置 + 4 四元数 + 12 DOF），"
-        f"实际得到 {motion.shape[1]} 列。"
+        f"CSV 列数不足：至少需要 {_EXPECTED_COLS} 列"
+        f"（3 位置 + 4 四元数 + 12 DOF），实际得到 {motion.shape[1]} 列。"
       )
+    # se3_trajopt 导出常含 vel/tau 后缀列；只取广义坐标前 19 列。
+    if motion.shape[1] > _EXPECTED_COLS:
+      print(
+        f"[INFO]: CSV 有 {motion.shape[1]} 列，仅使用前 {_EXPECTED_COLS} 列 "
+        "（pos + quat_xyzw + dof）。"
+      )
+      motion = motion[:, :_EXPECTED_COLS]
 
     self.motion_base_poss_input = motion[:, :3]   # (T, 3) xyz
     quat_xyzw = motion[:, 3:7]                    # (T, 4) xyzw

@@ -57,6 +57,7 @@ dependencies = [
 train = "mjlab.scripts.train:main"
 play = "mjlab.scripts.play:main"
 play-go2-rand = "mjlab.scripts.play_go2_rand:main"
+export-tracking-pt = "mjlab.scripts.export_tracking_torchscript:main"
 demo = "mjlab.scripts.demo:main"
 list_envs = "mjlab.scripts.list_envs:main"
 viz-nan = "mjlab.scripts.nan_viz:main"

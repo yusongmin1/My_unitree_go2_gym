@@ -336,6 +336,39 @@ def push_by_setting_velocity(
   asset.write_root_link_velocity_to_sim(vel_w, env_ids=env_ids)
 
 
+def push_by_setting_velocity_prob(
+  env: ManagerBasedRlEnv,
+  env_ids: torch.Tensor,
+  velocity_range: dict[str, tuple[float, float]],
+  prob_start: float = 1.0,
+  prob_end: float = 0.0,
+  decay_steps: int = 240_000,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> None:
+  """Like ``push_by_setting_velocity``, but apply with a decaying probability.
+
+  Probability is linearly interpolated from ``prob_start`` → ``prob_end`` over
+  ``decay_steps`` env steps (``env.common_step_counter``). After that it stays
+  at ``prob_end``. Each triggered env independently samples Bernoulli(p).
+
+  With ``num_steps_per_env=24``, 10k PPO iters ≈ 240k env steps.
+  """
+  if decay_steps <= 0:
+    prob = float(prob_end)
+  else:
+    t = min(max(env.common_step_counter / float(decay_steps), 0.0), 1.0)
+    prob = float(prob_start + (prob_end - prob_start) * t)
+  if prob <= 0.0 or len(env_ids) == 0:
+    return
+  mask = torch.rand(len(env_ids), device=env.device) < prob
+  selected = env_ids[mask]
+  if len(selected) == 0:
+    return
+  push_by_setting_velocity(
+    env, selected, velocity_range=velocity_range, asset_cfg=asset_cfg
+  )
+
+
 def apply_external_force_torque(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,

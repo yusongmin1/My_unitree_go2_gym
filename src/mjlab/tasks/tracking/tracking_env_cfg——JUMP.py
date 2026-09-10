@@ -34,14 +34,7 @@ VELOCITY_RANGE = {
   "pitch": (-0.52, 0.52),
   "yaw": (-0.78, 0.78),
 }
-VELOCITY_RANGE_2 = {
-  "x": (-0.0, 0.0),
-  "y": (-0.0, 0.0),
-  "z": (-0.0, 3.0),
-  "roll": (-0.0, 0.0),
-  "pitch": (-0.0, 0.0),
-  "yaw": (-0.0, 0.0),
-}
+
 
 def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
   """Create base tracking task configuration."""
@@ -181,24 +174,12 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
   ##
 
   events: dict[str, EventTermCfg] = {
-      "push_robot": EventTermCfg(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(1.0, 3.0),
-        params={"velocity_range": VELOCITY_RANGE},
-      ),
-      # "push_robot_2": EventTermCfg(
-      #   func=mdp.push_by_setting_velocity_prob,
-      #   mode="interval",
-      #   interval_range_s=(1.0, 2.0),
-      #   params={
-      #     "velocity_range": VELOCITY_RANGE_2,
-      #     # Env-step linear decay: 1.0 → 0 over ~10k iters (24 steps/iter).
-      #     "prob_start": 0.8,
-      #     "prob_end": 0.0,
-      #     "decay_steps": 480_00,
-      #   },
-      # ),
+    "push_robot": EventTermCfg(
+      func=mdp.push_by_setting_velocity,
+      mode="interval",
+      interval_range_s=(1.0, 3.0),
+      params={"velocity_range": VELOCITY_RANGE},
+    ),
     "base_com": EventTermCfg(
       mode="startup",
       func=mdp.randomize_field,
@@ -282,18 +263,13 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "motion_body_lin_vel": RewardTermCfg(
       func=mdp.motion_global_body_linear_velocity_error_exp,
-      weight=1.0,
+      weight=3.0,
       params={"command_name": "motion", "std": 2.0},
     ),
-    # "motion_anchor_lin_vel_z": RewardTermCfg(
-    #   func=mdp.motion_global_anchor_linear_velocity_z_error_exp,
-    #   weight=2.0,
-    #   params={"command_name": "motion", "std": 2.0},
-    # ),
     "motion_body_ang_vel": RewardTermCfg(
       func=mdp.motion_global_body_angular_velocity_error_exp,
-      weight=2.0,
-      params={"command_name": "motion", "std": 6.28},
+      weight=1.0,
+      params={"command_name": "motion", "std": 3.14},
     ),
     # Full tracking reward set. Per-task cfg can remove this term via flags.
     "motion_joint_torque": RewardTermCfg(

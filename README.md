@@ -71,7 +71,95 @@ uv run train Mjlab-Tracking-Flat-Unitree-G1 --registry-name your-org/motions/mot
 uv run play Mjlab-Tracking-Flat-Unitree-G1 --wandb-run-path your-org/mjlab/run-id
 ```
 
-### 3. Sanity-check with Dummy Agents
+### 3. Go2 Motion Tracking (local npz)
+
+Train / play Unitree Go2 tracking with a local motion file under `motions/`.
+Training is headless by default (`MUJOCO_GL=egl`). Logs and TensorBoard events
+go to `logs/rsl_rl/go2_tracking/`.
+
+**Train three long-jump motions sequentially** (4096 envs, 10000 iterations each):
+
+```bash
+cd /path/to/mjlab-dev-go2-mimic
+
+for motion in \
+  go2_longjump_0p0 \
+  go2_longjump_0p7 \
+  go2_longjump_m0p5
+do
+  echo "========== Training $motion =========="
+  uv run python -m mjlab.scripts.train \
+    Mjlab-Tracking-Flat-Unitree-Go2-No-State-Estimation \
+    --env.commands.motion.motion-file "$PWD/motions/${motion}.npz" \
+    --env.scene.num-envs 4096 \
+    --agent.max-iterations 10000 \
+    --agent.run-name "$motion"
+done
+```
+
+With state estimation in the actor obs, use task id
+`Mjlab-Tracking-Flat-Unitree-Go2` instead.
+
+**Play** (auto-picks name-sorted latest ``model_*.pt``).
+``--keep-randomization True`` keeps training-time DR and defaults to **50 envs**:
+
+```bash
+uv run python -m mjlab.scripts.play \
+  Mjlab-Tracking-Flat-Unitree-Go2-No-State-Estimation \
+  --motion-file $PWD/motions/go2_longjump_m0p5.npz \
+  --keep-randomization True
+```
+
+Override env count if needed: ``--num-envs 16``. Or use the helper:
+
+```bash
+uv run play-go2-rand --motion-file $PWD/motions/go2_longjump_m0p5.npz
+```
+
+Specify a checkpoint explicitly:
+
+```bash
+uv run python -m mjlab.scripts.play \
+  Mjlab-Tracking-Flat-Unitree-Go2-No-State-Estimation \
+  --motion-file $PWD/motions/go2_longjump_m0p5.npz \
+  --checkpoint-file logs/rsl_rl/go2_tracking/<run>/model_10000.pt \
+  --keep-randomization True
+```
+
+G1 example:
+
+```bash
+uv run python -m mjlab.scripts.play \
+  Mjlab-Tracking-Flat-Unitree-G1-No-State-Estimation \
+  --motion-file $PWD/motions/g1_fallandgetup1_850_940.npz \
+  --keep-randomization True \
+  --export-torchscript True
+```
+
+**Export TorchScript `policy.pt`** (for C++ deploy; training also writes
+`policy.pt` next to each checkpoint on save):
+
+```bash
+# While playing:
+uv run python -m mjlab.scripts.play \
+  Mjlab-Tracking-Flat-Unitree-Go2-No-State-Estimation \
+  --motion-file $PWD/motions/go2_longjump_m0p5.npz \
+  --checkpoint-file logs/rsl_rl/go2_tracking/<run>/model_10000.pt \
+  --export-torchscript True
+
+# Or convert only:
+uv run export-tracking-pt \
+  --checkpoint-file logs/rsl_rl/go2_tracking/<run>/model_10000.pt \
+  --motion-file $PWD/motions/go2_longjump_m0p5.npz
+```
+
+TensorBoard:
+
+```bash
+tensorboard --logdir logs/rsl_rl/go2_tracking
+```
+
+### 4. Sanity-check with Dummy Agents
 
 Use built-in agents to sanity check your MDP before training:
 

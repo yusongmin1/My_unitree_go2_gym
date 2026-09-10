@@ -44,6 +44,36 @@ class _OnnxMotionModel(nn.Module):
     )
 
 
+class _TorchScriptMotionModel(nn.Module):
+  """TorchScript model for C++ deploy: (obs, time_step) -> (actions, ...)."""
+
+  def __init__(self, actor, motion):
+    super().__init__()
+    self.policy = actor.as_jit()
+    self.register_buffer("joint_pos", motion.joint_pos.to("cpu"))
+    self.register_buffer("joint_vel", motion.joint_vel.to("cpu"))
+    self.register_buffer("body_pos_w", motion.body_pos_w.to("cpu"))
+    self.register_buffer("body_quat_w", motion.body_quat_w.to("cpu"))
+    self.register_buffer("body_lin_vel_w", motion.body_lin_vel_w.to("cpu"))
+    self.register_buffer("body_ang_vel_w", motion.body_ang_vel_w.to("cpu"))
+    self.time_step_total: int = int(self.joint_pos.shape[0])  # type: ignore[index]
+    self.input_size: int = int(actor.obs_dim)
+
+  def forward(self, x: torch.Tensor, time_step: torch.Tensor):
+    time_step_clamped = torch.clamp(
+      time_step.long().squeeze(-1), max=self.time_step_total - 1
+    )
+    return (
+      self.policy(x),
+      self.joint_pos[time_step_clamped],  # type: ignore[index]
+      self.joint_vel[time_step_clamped],  # type: ignore[index]
+      self.body_pos_w[time_step_clamped],  # type: ignore[index]
+      self.body_quat_w[time_step_clamped],  # type: ignore[index]
+      self.body_lin_vel_w[time_step_clamped],  # type: ignore[index]
+      self.body_ang_vel_w[time_step_clamped],  # type: ignore[index]
+    )
+
+
 class MotionTrackingOnPolicyRunner(MjlabOnPolicyRunner):
   env: RslRlVecEnvWrapper
 
@@ -89,11 +119,28 @@ class MotionTrackingOnPolicyRunner(MjlabOnPolicyRunner):
       dynamo=False,
     )
 
+  def export_policy_to_torchscript(
+    self, path: str, filename: str = "policy.pt"
+  ) -> None:
+    """Export TorchScript policy for C++ deploy (e.g. deploy_yu_prot)."""
+    os.makedirs(path, exist_ok=True)
+    cmd = cast(MotionCommand, self.env.unwrapped.command_manager.get_term("motion"))
+    model = _TorchScriptMotionModel(self.alg.get_policy(), cmd.motion)
+    model.to("cpu")
+    model.eval()
+    obs = torch.zeros(1, model.input_size)
+    time_step = torch.zeros(1, 1, dtype=torch.int64)
+    scripted = torch.jit.trace(model, (obs, time_step), strict=False)
+    out_path = os.path.join(path, filename)
+    torch.jit.save(scripted, out_path)
+    print(f"[INFO] Exported TorchScript policy to {out_path}")
+
   def save(self, path: str, infos=None):
     super().save(path, infos)
     policy_path = path.split("model")[0]
-    filename = policy_path.split("/")[-2] + ".onnx"
-    self.export_policy_to_onnx(policy_path, filename)
+    onnx_filename = policy_path.split("/")[-2] + ".onnx"
+    self.export_policy_to_onnx(policy_path, onnx_filename)
+    self.export_policy_to_torchscript(policy_path, "policy.pt")
     run_name: str = (
       wandb.run.name if self.logger.logger_type == "wandb" and wandb.run else "local"
     )  # type: ignore[assignment]
@@ -107,9 +154,10 @@ class MotionTrackingOnPolicyRunner(MjlabOnPolicyRunner):
         "body_names": list(motion_term.cfg.body_names),
       }
     )
-    attach_metadata_to_onnx(os.path.join(policy_path, filename), metadata)
+    attach_metadata_to_onnx(os.path.join(policy_path, onnx_filename), metadata)
     if self.logger.logger_type in ["wandb"]:
-      wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+      wandb.save(policy_path + onnx_filename, base_path=os.path.dirname(policy_path))
+      wandb.save(policy_path + "policy.pt", base_path=os.path.dirname(policy_path))
       if self.registry_name is not None:
         wandb.run.use_artifact(self.registry_name)  # type: ignore
         self.registry_name = None

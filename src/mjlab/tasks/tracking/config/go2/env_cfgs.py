@@ -126,6 +126,7 @@ def unitree_go2_flat_tracking_env_cfg(
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
     cfg.events.pop("push_robot", None)
+    cfg.events.pop("push_robot_2", None)
     motion_cmd.pose_range = {}
     motion_cmd.velocity_range = {}
     motion_cmd.sampling_mode = "start"

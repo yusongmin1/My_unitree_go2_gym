@@ -135,6 +135,7 @@ def unitree_g1_flat_tracking_env_cfg(
 
     cfg.observations["actor"].enable_corruption = False
     cfg.events.pop("push_robot", None)
+    cfg.events.pop("push_robot_2", None)
 
     # Disable RSI randomization.
     motion_cmd.pose_range = {}

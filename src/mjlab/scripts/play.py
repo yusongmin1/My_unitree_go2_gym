@@ -37,7 +37,11 @@ class PlayConfig:
   no_terminations: bool = False
   """Disable all termination conditions (useful for viewing motions with dummy agents)."""
   keep_randomization: bool = False
-  """If True, load the training env cfg so domain randomization stays enabled."""
+  """If True, use training env cfg (domain randomization on) and default to 50 envs."""
+  export_torchscript: bool = False
+  """If True, export TorchScript ``policy.pt`` after loading the checkpoint."""
+  export_torchscript_path: str | None = None
+  """Output path for TorchScript export. Default: ``<checkpoint_dir>/policy.pt``."""
 
   # Internal flag used by demo script.
   _demo_mode: tyro.conf.Suppress[bool] = False
@@ -54,7 +58,14 @@ def run_play(task_id: str, cfg: PlayConfig):
   if cfg.keep_randomization:
     # Keep training-time DR, but allow long interactive sessions.
     env_cfg.episode_length_s = int(1e9)
-    print("[INFO]: Domain randomization kept enabled (training env cfg)")
+    print("[INFO]: Domain randomization kept enabled")
+
+  # Resolve num_envs: keep_randomization defaults to 50 so DR is visible.
+  num_envs = cfg.num_envs
+  if num_envs is None and cfg.keep_randomization:
+    num_envs = 50
+  if num_envs is not None:
+    env_cfg.scene.num_envs = num_envs
 
   DUMMY_MODE = cfg.agent in {"zero", "random"}
   TRAINED_MODE = not DUMMY_MODE
@@ -131,10 +142,11 @@ def run_play(task_id: str, cfg: PlayConfig):
         raise FileNotFoundError(f"Checkpoint file not found: {resume_path}")
       print(f"[INFO]: Loading checkpoint: {resume_path.name}")
     elif cfg.wandb_run_path is None:
-      # 未指定 checkpoint 时，自动选择本地最新的 run 和其中最新的 checkpoint。
+      # 未指定 checkpoint 时，按 run 目录名字母序、再按 checkpoint 编号排序，
+      # 取最后一个（通常是最新时间戳 run 下、迭代数最大的 model_*.pt）。
       candidates = sorted(
         (p for p in log_root_path.glob("*/model_*.pt") if p.exists()),
-        key=lambda p: p.stat().st_mtime,
+        key=lambda p: (p.parent.name, f"{p.name:0>30}"),
       )
       if not candidates:
         raise FileNotFoundError(
@@ -143,7 +155,7 @@ def run_play(task_id: str, cfg: PlayConfig):
         )
       resume_path = candidates[-1]
       print(
-        f"[INFO]: Auto-selected latest checkpoint: {resume_path} "
+        f"[INFO]: Auto-selected checkpoint (name-sorted): {resume_path} "
         f"({len(candidates)} available)"
       )
     else:
@@ -163,8 +175,6 @@ def run_play(task_id: str, cfg: PlayConfig):
       )
     log_dir = resume_path.parent
 
-  if cfg.num_envs is not None:
-    env_cfg.scene.num_envs = cfg.num_envs
   if cfg.video_height is not None:
     env_cfg.viewer.height = cfg.video_height
   if cfg.video_width is not None:
@@ -176,6 +186,10 @@ def run_play(task_id: str, cfg: PlayConfig):
       "[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir)."
     )
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=render_mode)
+  print(
+    f"[INFO]: Playing with {env.num_envs} env(s); "
+    "viewer overlay should show Env 1/N (zoom out if robots look stacked)."
+  )
 
   if TRAINED_MODE and cfg.video:
     print("[INFO] Recording videos during play")
@@ -214,6 +228,22 @@ def run_play(task_id: str, cfg: PlayConfig):
       str(resume_path), load_cfg={"actor": True}, strict=True, map_location=device
     )
     policy = runner.get_inference_policy(device=device)
+
+    if cfg.export_torchscript:
+      from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+
+      if not isinstance(runner, MotionTrackingOnPolicyRunner):
+        raise RuntimeError(
+          "--export-torchscript is only supported for tracking runners."
+        )
+      assert resume_path is not None
+      out = (
+        Path(cfg.export_torchscript_path)
+        if cfg.export_torchscript_path is not None
+        else resume_path.parent / "policy.pt"
+      )
+      runner.export_policy_to_torchscript(str(out.parent), out.name)
+      print(f"[INFO]: TorchScript exported to {out}")
 
   # Handle "auto" viewer selection.
   if cfg.viewer == "auto":

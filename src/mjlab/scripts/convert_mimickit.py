@@ -271,6 +271,7 @@ def run_sim(
   output_name: str,
   render: bool,
   renderer: OffscreenRenderer | None,
+  output_file: str | None = None,
 ):
   motion = MotionLoader(
     motion_file=input_file,
@@ -373,6 +374,19 @@ def run_sim(
       ):
         log[k] = np.stack(log[k], axis=0)
 
+      if output_file is not None:
+        out = Path(output_file)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        print(f"保存到 {out}...")
+        np.savez(out, **log)
+        if render and frames:
+          import mediapy as media
+
+          video_path = out.with_suffix(".mp4")
+          print(f"生成视频 {video_path}...")
+          media.write_video(str(video_path), frames, fps=output_fps)
+        return
+
       print("保存到 /tmp/motion.npz...")
       np.savez("/tmp/motion.npz", **log)
 
@@ -411,6 +425,7 @@ def main(
   output_fps: int = 50,
   device: str = "cuda:0",
   render: bool = False,
+  output_file: str | None = None,
 ):
   """将 MimicKit .pkl 动作文件转换为 .npz 并上传到 wandb。
 
@@ -421,6 +436,7 @@ def main(
     output_fps: 输出帧率（默认 50 Hz）。
     device: 计算设备。
     render: 是否渲染视频并上传到 wandb。
+    output_file: 本地 .npz 输出路径；设置后仅保存本地，跳过 wandb 上传。
   """
   if robot is None:
     robot = _detect_robot(input_file)
@@ -454,6 +470,7 @@ def main(
     output_name=output_name,
     render=render,
     renderer=renderer,
+    output_file=output_file,
   )
 
 
