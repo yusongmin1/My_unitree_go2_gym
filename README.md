@@ -84,7 +84,7 @@ Learned Go2 skills (files under [`videos/`](videos/)):
   <tr>
     <td width="50%" align="center" valign="top">
       <video src="https://github.com/user-attachments/assets/800a0da9-42c4-4cb2-a20b-dcb2e0fa96f7" controls width="240" height="427"></video>
-      <br />Backflip
+      <br />Back flip
     </td>
     <td width="50%" align="center" valign="top">
       <video src="https://github.com/user-attachments/assets/39d54ec3-1454-4242-8abe-e9e5388f7281" controls width="240" height="427"></video>
