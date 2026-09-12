@@ -23,7 +23,7 @@ class AMPDiscriminator(nn.Module):
 
         self.trunk.train()
         self.amp_linear.train()
-
+        print(f"AMP Discriminator: {self}")
     def forward(self, x):
         h = self.trunk(x)
         d = self.amp_linear(h)

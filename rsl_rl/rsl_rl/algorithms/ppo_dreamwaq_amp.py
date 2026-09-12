@@ -316,7 +316,7 @@ class PPO_DreamWaQ_AMP:
             )
             amp_loss = 0.5 * (expert_loss + policy_loss)
             grad_pen_loss = self.discriminator.compute_grad_pen(
-                expert_state, expert_next_state, lambda_=10
+                expert_state, expert_next_state, lambda_=5
             )
 
             loss = (

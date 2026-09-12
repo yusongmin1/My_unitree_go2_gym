@@ -1178,10 +1178,16 @@ class Go2_Stand_Robot(BaseTask):
         return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
 
     def _tracking_vel_gate(self):
-        """四足始终可拿速度跟踪奖；双足仅当机身高度 > 0.45。"""
+        """四足始终可拿速度跟踪奖；双足仅当相对目标 pitch 误差 < 30°。"""
         cmd = self.stand_command.squeeze(-1)
         is_quad = cmd == 0
-        biped_ok = self._get_base_heights() > 0.40
+        pitch = self.base_euler_xyz[:, 1]
+        pitch_target = torch.where(
+            cmd == -1,
+            self.cfg.rewards.body_pitch_target_handstand,
+            self.cfg.rewards.body_pitch_target_legstand,
+        )
+        biped_ok = torch.abs(pitch - pitch_target) < (30.0 * np.pi / 180.0)
         return (is_quad | biped_ok).float()
 
     def _reward_tracking_lin_vel(self):
@@ -1206,31 +1212,6 @@ class Go2_Stand_Robot(BaseTask):
         ang_vel_error = torch.square(self.commands[:, 2] - self.root_states[:, 12])
         return torch.exp(-ang_vel_error / self.cfg.rewards.tracking_sigma) * self._tracking_vel_gate()
 
-    # def _reward_default_pos_reward(self):
-    #     """腾空腿贴近 default：handstand 前腿[:6]，legstand 后腿[6:]。
-    #     仅在双足模式且机身高度跟踪较好时给奖。
-    #     """
-    #     joint_err = torch.abs(self.dof_pos - self.default_dof_pos)
-    #     cmd = self.stand_command.squeeze(-1)
-    #     is_hand = cmd == -1
-    #     is_leg = cmd == 1
-    #     err = torch.zeros(self.num_envs, device=self.device)
-    #     err = torch.where(is_hand, joint_err[:, :6].sum(dim=1), err)
-    #     err = torch.where(is_leg, joint_err[:, 6:].sum(dim=1), err)
-
-    #     base_height = self._get_base_heights()
-    #     target = torch.where(
-    #         is_hand,
-    #         torch.full_like(base_height, self.cfg.rewards.base_height_target_handstand),
-    #         torch.where(
-    #             is_leg,
-    #             torch.full_like(base_height, self.cfg.rewards.base_height_target_legstand),
-    #             base_height,
-    #         ),
-    #     )
-    #     height_ok = torch.exp(-torch.abs(base_height - target) * 5) > 0.70
-    #     return torch.exp(-err) * (is_hand | is_leg) * height_ok.float()
-    
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
@@ -1276,11 +1257,6 @@ class Go2_Stand_Robot(BaseTask):
         """
         joint_diff = torch.abs(self.dof_pos[:,0])+torch.abs(self.dof_pos[:,3])+torch.abs(self.dof_pos[:,6])+torch.abs(self.dof_pos[:,9])
         return joint_diff
-    
-
-
-    
-
     
     def _reward_gait_quad(self):
         """四足：四腿 contact 与 is_stance 全部一致才得 1，否则 0。stand_command=0。"""
