@@ -82,37 +82,41 @@ go to `logs/rsl_rl/go2_tracking/`.
 Learned Go2 skills (files under [`videos/`](videos/)):
 <table width="100%">
   <tr>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/800a0da9-42c4-4cb2-a20b-dcb2e0fa96f7" controls width="200" height="356"></video>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/800a0da9-42c4-4cb2-a20b-dcb2e0fa96f7" controls width="240" height="427"></video>
       <br />Backflip
     </td>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/39d54ec3-1454-4242-8abe-e9e5388f7281" controls width="200" height="356"></video>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/39d54ec3-1454-4242-8abe-e9e5388f7281" controls width="240" height="427"></video>
       <br />Front flip
     </td>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/a7419df5-61e3-4dad-9d27-cb5a811a656c" controls width="200" height="356"></video>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/a7419df5-61e3-4dad-9d27-cb5a811a656c" controls width="240" height="427"></video>
       <br />Left flip
     </td>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/8e613766-5154-401c-acf8-30e16f4333f2" controls width="200" height="356"></video>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/8e613766-5154-401c-acf8-30e16f4333f2" controls width="240" height="427"></video>
       <br />Right flip
     </td>
   </tr>
   <tr>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/e52d7050-4e29-4154-b262-4362de74b10c" controls width="200" height="356"></video>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/e52d7050-4e29-4154-b262-4362de74b10c" controls width="240" height="427"></video>
       <br />Jump up
     </td>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/6671fdd5-c6d3-4ec1-9518-9cd5b92cce30" controls width="200" height="356"></video>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/6671fdd5-c6d3-4ec1-9518-9cd5b92cce30" controls width="240" height="427"></video>
       <br />Jump forward
     </td>
-    <td width="25%" align="center" valign="top">
-      <video src="https://github.com/user-attachments/assets/a85a9024-c823-4b3a-ad54-ea8cc9d7476c" controls width="200" height="356"></video>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <video src="https://github.com/user-attachments/assets/a85a9024-c823-4b3a-ad54-ea8cc9d7476c" controls width="240" height="427"></video>
       <br />Jump back
     </td>
-    <td width="25%"></td>
+    <td width="50%"></td>
   </tr>
 </table>
 
