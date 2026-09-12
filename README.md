@@ -84,33 +84,53 @@ Learned Go2 skills (files under [`videos/`](videos/)):
 <table>
   <tr>
     <td align="center">
-      <video src="videos/backflip.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/800a0da9-42c4-4cb2-a20b-dcb2e0fa96f7
+
+
+https://github.com/user-attachments/assets/b881475f-5b98-43eb-b6d9-6607835460de
+
+" controls width="280"></video>
       <br />Backflip
     </td>
     <td align="center">
-      <video src="videos/front_flip.mp4" controls width="280"></video>
+      <video src="
+
+https://github.com/user-attachments/assets/39d54ec3-1454-4242-8abe-e9e5388f7281
+
+" controls width="280"></video>
       <br />Front flip
     </td>
     <td align="center">
-      <video src="videos/left_flip.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/a7419df5-61e3-4dad-9d27-cb5a811a656c
+" controls width="280"></video>
       <br />Left flip
     </td>
     <td align="center">
-      <video src="videos/right_flip.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/8e613766-5154-401c-acf8-30e16f4333f2
+" controls width="280"></video>
       <br />Right flip
     </td>
   </tr>
   <tr>
     <td align="center">
-      <video src="videos/jump_up.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/e52d7050-4e29-4154-b262-4362de74b10c
+" controls width="280"></video>
       <br />Jump up
     </td>
     <td align="center">
-      <video src="videos/jump_forward.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/6671fdd5-c6d3-4ec1-9518-9cd5b92cce30
+" controls width="280"></video>
       <br />Jump forward
     </td>
     <td align="center">
-      <video src="videos/jump_back.mp4" controls width="280"></video>
+      <video src="
+https://github.com/user-attachments/assets/a85a9024-c823-4b3a-ad54-ea8cc9d7476c
+" controls width="280"></video>
       <br />Jump back
     </td>
     <td></td>
