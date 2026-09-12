@@ -8,6 +8,9 @@ Upcoming version (not yet released)
 Added
 ^^^^^
 
+- Added ``motion_anchor_ang_vel_x`` reward
+  (``motion_global_anchor_angular_velocity_x_error_exp``) to track
+  world-frame x angular velocity of the motion anchor.
 - Added a dedicated VS Code task for ``mjlab.scripts.convert_gc_go2`` with
   prompts for CSV path, FPS, device selection, optional line range, and video
   rendering.

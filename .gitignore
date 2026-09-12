@@ -1,5 +1,5 @@
 wandb/
-logs/
+# logs/
 onnx/
 videos/
 __pycache__/
@@ -7,7 +7,7 @@ MUJOCO_LOG.TXT
 debug.py
 .vscode/
 *.ipynb_checkpoints/
-motions/
+# motions/
 *_rerun*
 artifacts/
 .venv/

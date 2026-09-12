@@ -262,12 +262,12 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
   rewards: dict[str, RewardTermCfg] = {
     "motion_global_root_pos": RewardTermCfg(
       func=mdp.motion_global_anchor_position_error_exp,
-      weight=1.5,
+      weight=0.5,
       params={"command_name": "motion", "std": 0.3},
     ),
     "motion_global_root_ori": RewardTermCfg(
       func=mdp.motion_global_anchor_orientation_error_exp,
-      weight=0.5,
+      weight=1.5,
       params={"command_name": "motion", "std": 0.4},
     ),
     "motion_body_pos": RewardTermCfg(
@@ -285,11 +285,16 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=1.0,
       params={"command_name": "motion", "std": 2.0},
     ),
-    # "motion_anchor_lin_vel_z": RewardTermCfg(
-    #   func=mdp.motion_global_anchor_linear_velocity_z_error_exp,
-    #   weight=2.0,
-    #   params={"command_name": "motion", "std": 2.0},
-    # ),
+    "motion_anchor_lin_vel_z": RewardTermCfg(
+      func=mdp.motion_global_anchor_linear_velocity_z_error_exp,
+      weight=1.0,
+      params={"command_name": "motion", "std": 1.0},
+    ),
+    "motion_anchor_ang_vel_x": RewardTermCfg(
+      func=mdp.motion_global_anchor_angular_velocity_x_error_exp,
+      weight=1.0,
+      params={"command_name": "motion", "std": 6.28},
+    ),
     "motion_body_ang_vel": RewardTermCfg(
       func=mdp.motion_global_body_angular_velocity_error_exp,
       weight=2.0,
@@ -327,7 +332,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
     "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
     "anchor_pos": TerminationTermCfg(
       func=mdp.bad_anchor_pos_z_only,
-      params={"command_name": "motion", "threshold": 1.0},
+      params={"command_name": "motion", "threshold": 0.5},
     ),
     "anchor_ori": TerminationTermCfg(
       func=mdp.bad_anchor_ori,
@@ -341,7 +346,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.bad_motion_body_pos_z_only,
       params={
         "command_name": "motion",
-        "threshold": 1.0,
+        "threshold": 0.5,
         "body_names": (),  # Set per-robot.
       },
     ),

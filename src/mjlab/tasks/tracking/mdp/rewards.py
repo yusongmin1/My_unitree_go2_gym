@@ -106,6 +106,17 @@ def motion_global_anchor_linear_velocity_z_error_exp(
   return torch.exp(-error / std**2)
 
 
+def motion_global_anchor_angular_velocity_x_error_exp(
+  env: ManagerBasedRlEnv, command_name: str, std: float
+) -> torch.Tensor:
+  """Track world-frame x angular velocity of the motion anchor (current frame)."""
+  command = cast(MotionCommand, env.command_manager.get_term(command_name))
+  error = torch.square(
+    command.anchor_ang_vel_w[:, 0] - command.robot_anchor_ang_vel_w[:, 0]
+  )
+  return torch.exp(-error / std**2)
+
+
 def motion_global_body_angular_velocity_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str,
