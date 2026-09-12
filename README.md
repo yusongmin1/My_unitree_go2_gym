@@ -77,6 +77,46 @@ Train / play Unitree Go2 tracking with a local motion file under `motions/`.
 Training is headless by default (`MUJOCO_GL=egl`). Logs and TensorBoard events
 go to `logs/rsl_rl/go2_tracking/`.
 
+#### Demo Videos
+
+Learned Go2 skills (files under [`videos/`](videos/)):
+
+<table>
+  <tr>
+    <td align="center">
+      <video src="videos/backflip.mp4" controls width="280"></video>
+      <br />Backflip
+    </td>
+    <td align="center">
+      <video src="videos/front_flip.mp4" controls width="280"></video>
+      <br />Front flip
+    </td>
+    <td align="center">
+      <video src="videos/left_flip.mp4" controls width="280"></video>
+      <br />Left flip
+    </td>
+    <td align="center">
+      <video src="videos/right_flip.mp4" controls width="280"></video>
+      <br />Right flip
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <video src="videos/jump_up.mp4" controls width="280"></video>
+      <br />Jump up
+    </td>
+    <td align="center">
+      <video src="videos/jump_forward.mp4" controls width="280"></video>
+      <br />Jump forward
+    </td>
+    <td align="center">
+      <video src="videos/jump_back.mp4" controls width="280"></video>
+      <br />Jump back
+    </td>
+    <td></td>
+  </tr>
+</table>
+
 **Train three long-jump motions sequentially** (4096 envs, 10000 iterations each):
 
 ```bash
@@ -307,3 +347,9 @@ design and abstractions mjlab builds upon.
 Thanks to the MuJoCo Warp team — especially Erik Frey and Taylor Howell — for
 answering our questions, giving helpful feedback, and implementing features
 based on our requests countless times.
+
+Go2 agile reference motions (flips, jumps, etc.) are generated with
+[se3_trajopt](https://github.com/Renkunzhao/se3_trajopt).
+Tracking training and demos for this work live on the
+[dev/go2-mimic](https://github.com/Renkunzhao/mjlab/tree/dev/go2-mimic)
+branch.
