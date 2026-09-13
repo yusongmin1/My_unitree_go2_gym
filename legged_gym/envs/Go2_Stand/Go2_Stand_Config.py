@@ -204,8 +204,6 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
             foot_clearance_quad = 0.3
             foot_clearance_handstand = 0.3
             foot_clearance_legstand = 0.3
-            feet_air_time_handstand = 1.0
-            feet_air_time_legstand = 1.0
             dof_pos_handstand = -0.2  # 腾空前腿贴 default
             dof_pos_legstand = -0.2   # 腾空后腿贴 default
             # fo
@@ -217,16 +215,21 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         base_height_target_handstand = 0.52  # 双足
         base_height_target_legstand = 0.5   # 双足
         base_height_sigma = 0.05
+
         body_pitch_target_quad = 0.0
         body_orientation_sigma_quad = 0.04
-        body_pitch_target_handstand = -1.50   # ≈84°，机头朝上
+
+        body_pitch_target_handstand = -1.57   # ≈84°，机头朝上
         body_orientation_sigma_handstand = 1.0
         body_pitch_target_legstand = 1.466  # ≈-84°，机头朝下
         body_orientation_sigma_legstand = 1.2
+
         foot_clearance_target = 0.05
         foot_height_offset = 0.02
         foot_clearance_tracking_sigma = 0.01
+
         max_contact_force = 200. # forces above this value are penalized
+        
         cycle_time=0.8
         duty_factor = 0.6  # leg_phase∈[0,duty) 支撑，[duty,1) 摆动
         gait_offsets = [0.0, 0.5, 0.5, 0.0]  # FL, FR, RL, RR 对角同相

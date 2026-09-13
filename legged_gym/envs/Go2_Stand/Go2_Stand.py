@@ -178,7 +178,6 @@ class Go2_Stand_Robot(BaseTask):
         # reset buffers
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
-        self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
         # fill extras
@@ -232,11 +231,6 @@ class Go2_Stand_Robot(BaseTask):
 
         contact = self.contact_forces[:, self.feet_indices, 2] > 1.
         self.contact_filt = torch.logical_or(contact, self.last_contacts_all)
-        # 各足首次落地的空中时间奖励（按腿缓存，再按模式取支撑腿）
-        first_contact = (self.feet_air_time > 0.) * self.contact_filt
-        self.feet_air_time += self.dt
-        self.feet_air_time_rew = (self.feet_air_time - 0.4) * first_contact.float()
-        self.feet_air_time *= ~self.contact_filt
         self.last_contacts_all = contact
 
     def compute_observations(self):
@@ -661,8 +655,6 @@ class Go2_Stand_Robot(BaseTask):
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
         self.commands_scale = torch.tensor([self.obs_scales.lin_vel, self.obs_scales.lin_vel, self.obs_scales.ang_vel], device=self.device, requires_grad=False,) # TODO change this
-        self.feet_air_time = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False)
-        self.feet_air_time_rew = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_contacts_all = torch.zeros(self.num_envs, 4, dtype=torch.bool, device=self.device, requires_grad=False)
         # 对角小跑相位偏移 FL, FR, RL, RR
         self.gait_offsets = torch.tensor(
@@ -1360,14 +1352,6 @@ class Go2_Stand_Robot(BaseTask):
     def _reward_foot_clearance_legstand(self):
         """legstand：后腿腾空前腿摆动抬脚。stand_command=1。"""
         return self._foot_clearance_reward([0, 1]) * (self.stand_command.squeeze(-1) == 1).float()
-
-    def _reward_feet_air_time_handstand(self):
-        """handstand：后腿 RL/RR 支撑迈步的空中时间。stand_command=-1。"""
-        return self.feet_air_time_rew[:, 2:4].sum(dim=1) * (self.stand_command.squeeze(-1) == -1).float()
-
-    def _reward_feet_air_time_legstand(self):
-        """legstand：前腿 FL/FR 支撑迈步的空中时间。stand_command=1。"""
-        return self.feet_air_time_rew[:, :2].sum(dim=1) * (self.stand_command.squeeze(-1) == 1).float()
 
     def _reward_dof_pos_handstand(self):
         """handstand：前腿腾空，惩罚前腿关节偏离 default。stand_command=-1。"""

@@ -192,7 +192,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
-            feet_air_time =  1.0
+            # feet_air_time =  1.0
             # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
