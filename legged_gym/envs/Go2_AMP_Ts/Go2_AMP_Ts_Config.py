@@ -86,7 +86,10 @@ class Go2_AMP_Ts_Cfg_Yu( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class asset( LeggedRobotCfg.asset ):
-        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
+        armature = 0.0  # 分关节设置，见 armature_hip / armature_calf
+        # mjlab Go2: ROTOR_INERTIA=0.000111842; hip gear=6.33; calf gear=6.33*1.92
+        armature_hip = 0.0044813859138   # hip & thigh reflected
+        armature_calf = 0.016520181032632315
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
@@ -185,7 +188,7 @@ class Go2_AMP_Ts_PPO_Yu( LeggedRobotCfgPPO ):
         run_name = ''
         experiment_name = 'go2_amp_ts'
         student_name = 'go2_amp_ts_student'
-        max_iterations = 20000 # number of policy updates
+        max_iterations = 50000 # number of policy updates
 
         amp_reward_coef = 0.5
         amp_motion_files = MOTION_FILES

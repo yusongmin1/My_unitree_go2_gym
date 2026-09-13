@@ -353,6 +353,13 @@ class Go2_DreamWaQ_Robot(BaseTask):
                 self.soft_dof_pos_limits[i, 0] = m - 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
                 self.soft_dof_pos_limits[i, 1] = m + 0.5 * r * self.cfg.rewards.soft_dof_pos_limit
 
+        # mjlab Go2 分关节 armature：hip/thigh vs calf
+        for i in range(len(props)):
+            if "calf" in self.dof_names[i]:
+                props["armature"][i] = self.cfg.asset.armature_calf
+            else:
+                props["armature"][i] = self.cfg.asset.armature_hip
+
         return props
     def _process_rigid_body_props(self, props, env_id):
         # randomize base mass

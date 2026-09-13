@@ -140,7 +140,10 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         linear_damping = 0.
         max_angular_velocity = 1000.
         max_linear_velocity = 1000.
-        armature = 0.00448  # 电机转子惯量（折算到关节的等效惯量）
+        armature = 0.0  # 分关节设置，见 armature_hip / armature_calf
+        # mjlab Go2: ROTOR_INERTIA=0.000111842; hip gear=6.33; calf gear=6.33*1.92
+        armature_hip = 0.0044813859138   # hip & thigh reflected
+        armature_calf = 0.016520181032632315
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
@@ -179,8 +182,8 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 0.95
         class scales:
             termination = -0.0
-            tracking_lin_vel = 1.0
-            tracking_ang_vel = 0.5
+            tracking_lin_vel = 1.5
+            tracking_ang_vel = 0.75
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
@@ -288,7 +291,7 @@ class Go2_AMP_Cts_PPO_Yu(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCriticCTS'
         algorithm_class_name = 'AMPCTS'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 20000 # number of policy updates
+        max_iterations = 50000 # number of policy updates
 
         # logging
         save_interval = 500 # check for potential saves every this many iterations

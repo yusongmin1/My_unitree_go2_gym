@@ -238,6 +238,8 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
         self.obs_hist_buf[env_ids] = 0
         self.prev_privileged_obs_buf[env_ids] = 0
+        for i in range(self.critic_history.maxlen):
+            self.critic_history[i][env_ids] = 0
     def compute_reward(self):
         """ Compute rewards
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
@@ -282,7 +284,8 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
             self.cfg.normalization.contact_force_range
         )
         # Layout must match PPO_DreamWaQ vel slice: [obs | lin_vel(3) | ...]
-        self.privileged_obs_buf = torch.cat(
+        # 单帧特权再堆叠 c_frame_stack 帧；最新帧在前，CENet 仍用 [num_obs:num_obs+3]
+        privileged_single = torch.cat(
             (
                 self.obs_buf,
                 self.base_lin_vel * self.obs_scales.lin_vel,
@@ -292,7 +295,8 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
             ),
             dim=-1,
         )
-
+        self.critic_history.append(privileged_single.clone())
+        self.privileged_obs_buf = torch.cat(list(reversed(self.critic_history)), dim=-1)
         if self.add_noise:
             self.obs_buf = (
                 self.obs_buf
@@ -393,6 +397,12 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
             self.torques_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.torque_multiplier_range[0], self.cfg.domain_rand.torque_multiplier_range[1], (1, self.num_actions), device=self.device)
         if self.cfg.domain_rand.randomize_motor_zero_offset:
             self.motor_zero_offsets[env_id, :] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (1,self.num_actions), device=self.device)
+        # mjlab Go2 分关节 armature：hip/thigh vs calf
+        for i in range(len(props)):
+            if "calf" in self.dof_names[i]:
+                props["armature"][i] = self.cfg.asset.armature_calf
+            else:
+                props["armature"][i] = self.cfg.asset.armature_hip
         return props
     def _process_rigid_body_props(self, props, env_id):
         # randomize base mass
@@ -675,6 +685,16 @@ class Go2_AMP_DreamWaQ_Robot(BaseTask):
         self.obs_imu_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)  
         self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
         self.prev_privileged_obs_buf = torch.zeros_like(self.privileged_obs_buf)
+        self.critic_history = deque(maxlen=self.cfg.env.c_frame_stack)
+        for _ in range(self.cfg.env.c_frame_stack):
+            self.critic_history.append(
+                torch.zeros(
+                    self.num_envs,
+                    self.cfg.env.single_num_privileged_obs,
+                    dtype=torch.float,
+                    device=self.device,
+                )
+            )
         self.disturbance = torch.zeros(self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False)
 
     def _prepare_reward_function(self):

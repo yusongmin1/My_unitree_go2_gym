@@ -121,7 +121,10 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         linear_damping = 0.
         max_angular_velocity = 1000.
         max_linear_velocity = 1000.
-        armature = 0.
+        armature = 0.0  # 分关节设置，见 armature_hip / armature_calf
+        # mjlab Go2: ROTOR_INERTIA=0.000111842; hip gear=6.33; calf gear=6.33*1.92
+        armature_hip = 0.0044813859138   # hip & thigh reflected
+        armature_calf = 0.016520181032632315
         thickness = 0.01
     class domain_rand:
         randomize_friction = True
@@ -160,8 +163,8 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         randomize_joint_damping = True
         joint_damping_range = [0.0,0.1]
 
-        randomize_joint_armature = True
-        joint_armature_range = [0.003, 0.006]    #
+        randomize_joint_armature = False
+        joint_armature_range = [0.003, 0.006]    # unused when randomize_joint_armature=False
     class rewards:
         soft_dof_pos_limit = 0.9 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 0.95
@@ -329,7 +332,7 @@ class Go2_Stand_PPO_Yu(LeggedRobotCfgPPO):
         policy_class_name = 'ActorCriticDreamWaQ'
         algorithm_class_name = 'PPO_DreamWaQ'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 15000 # number of policy updates
+        max_iterations = 50000 # number of policy updates
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations

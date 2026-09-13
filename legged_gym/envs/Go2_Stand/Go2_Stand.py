@@ -387,14 +387,26 @@ class Go2_Stand_Robot(BaseTask):
         if self.cfg.domain_rand.randomize_joint_damping:
             self.joint_damping_coeffs[env_id, 0] = torch_rand_float(self.cfg.domain_rand.joint_damping_range[0], self.cfg.domain_rand.joint_damping_range[1], (1, 1), device=self.device)
         
-        # randomization of the motor armature in issac gym
+        # mjlab Go2 分关节 armature：hip/thigh vs calf；可选整体缩放随机
+        armature_scale = 1.0
         if self.cfg.domain_rand.randomize_joint_armature:
-            self.joint_armatures[env_id, 0] = torch_rand_float(self.cfg.domain_rand.joint_armature_range[0], self.cfg.domain_rand.joint_armature_range[1], (1, 1), device=self.device)
-        
+            armature_scale = torch_rand_float(
+                self.cfg.domain_rand.joint_armature_range[0],
+                self.cfg.domain_rand.joint_armature_range[1],
+                (1, 1),
+                device=self.device,
+            ).item()
+            self.joint_armatures[env_id, 0] = armature_scale
+        else:
+            self.joint_armatures[env_id, 0] = self.cfg.asset.armature_hip
+
         for i in range(len(props)):
              props["friction"][i] = self.joint_friction_coeffs[env_id, 0]
              props["damping"][i]  = self.joint_damping_coeffs[env_id, 0]
-             props["armature"][i] = self.joint_armatures[env_id, 0]
+             if "calf" in self.dof_names[i]:
+                 props["armature"][i] = self.cfg.asset.armature_calf * armature_scale
+             else:
+                 props["armature"][i] = self.cfg.asset.armature_hip * armature_scale
 
         return props
     def _process_rigid_body_props(self, props, env_id):

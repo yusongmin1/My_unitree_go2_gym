@@ -354,6 +354,12 @@ class Go2_Cts_Robot(BaseTask):
             self.torques_multiplier[env_id, :] = torch_rand_float(self.cfg.domain_rand.torque_multiplier_range[0], self.cfg.domain_rand.torque_multiplier_range[1], (1, self.num_actions), device=self.device)
         if self.cfg.domain_rand.randomize_motor_zero_offset:
             self.motor_zero_offsets[env_id, :] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (1,self.num_actions), device=self.device)
+        # mjlab Go2 分关节 armature：hip/thigh vs calf
+        for i in range(len(props)):
+            if "calf" in self.dof_names[i]:
+                props["armature"][i] = self.cfg.asset.armature_calf
+            else:
+                props["armature"][i] = self.cfg.asset.armature_hip
         return props
     def _process_rigid_body_props(self, props, env_id):
         # randomize base mass
