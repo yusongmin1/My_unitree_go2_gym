@@ -148,9 +148,9 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 0.95
         class scales:
             termination = -0.0
-            tracking_lin_vel = 1.0
-            tracking_ang_vel = 0.5
-            lin_vel_z = -1.0
+            tracking_lin_vel = 1.5
+            tracking_ang_vel = 0.75
+            lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
             base_height=-5.0
@@ -164,7 +164,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             action_smoothness = -0.01
             stumble = -0.5
             foot_clearance=-0.5
-            hip_pos=-0.05
+            hip_pos=-0.1
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
         base_height_target = 0.38

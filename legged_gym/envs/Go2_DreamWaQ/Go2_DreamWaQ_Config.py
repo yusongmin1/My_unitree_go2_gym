@@ -155,8 +155,8 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 0.95
         class scales:
             termination = -0.0
-            tracking_lin_vel = 1.0
-            tracking_ang_vel = 0.5
+            tracking_lin_vel = 1.5
+            tracking_ang_vel = 0.75
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
@@ -169,9 +169,9 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
-            # stumble = -0.5
+            stumble = -0.5
             foot_clearance=-0.01
-            # hip_pos=-0.05
+            hip_pos=-0.1
             joint_power=-2e-5
             # rear_hip_limit = -1. # 后腿（RL/RR）髋关节 >0.4 或 <-0.4 rad 时 -1 惩罚
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
@@ -265,7 +265,7 @@ class Go2_DreamWaQ_PPO_Yu(LeggedRobotCfgPPO):
         run_name = ''
         experiment_name = 'go2_dreamwaq'
         save_interval = 500 
-        max_iterations = 50000
+        max_iterations = 1000000
         # load and resume
         resume = False
         load_run = -1 # -1 = last run

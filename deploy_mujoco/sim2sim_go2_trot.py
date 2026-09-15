@@ -198,7 +198,7 @@ if __name__ == '__main__':
 
     class Sim2simCfg(Go2_Trot_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
+            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/parkour.xml'
             sim_duration = 120.0
             dt = 0.005
             decimation = 4

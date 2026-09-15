@@ -236,9 +236,10 @@ class Go2_Stand_Robot(BaseTask):
     def compute_observations(self):
         """ Computes observations (DreamWaQ: hist + prev_privileged + [obs|lin_vel|...]) """
         contact_mask = self.contact_forces[:, self.feet_indices, 2] > 1.
-        phase = self._get_phase()
-        sin_pos = torch.sin(2 * torch.pi * phase).unsqueeze(1)
-        cos_pos = torch.cos(2 * torch.pi * phase).unsqueeze(1)
+        # 分腿步态时钟（照抄 quad2hand 的 clock_input）：四腿各自 sin/cos 相位共 8 维，
+        # 腿间对角结构（offsets）显式进入 obs，策略可直接读到"该哪条腿支撑/摆动"
+        clock_input = torch.cat([torch.sin(2 * torch.pi * self.leg_phase),
+                                 torch.cos(2 * torch.pi * self.leg_phase)], dim=-1)
 
         # History: append previous obs (exclude current frame)
         self.obs_hist_buf = torch.cat((self.obs_hist_buf[:, self.num_obs:], self.obs_buf), dim=-1)
@@ -247,8 +248,8 @@ class Go2_Stand_Robot(BaseTask):
         if len(reset_ids) > 0:
             self.prev_privileged_obs_buf[reset_ids] = 0
 
-        # 48 维：[0:3]角速度 [3:6]重力 [6:9]命令 [9:21]关节角 [21:33]关节速
-        # [33:45]动作 [45:47]相位sin/cos [47:48]stand_command
+        # 54 维：[0:3]角速度 [3:6]重力 [6:9]命令 [9:21]关节角 [21:33]关节速
+        # [33:45]动作 [45:53]分腿相位sin/cos×4 [53:54]stand_command
         self.obs_buf = torch.cat((
                                     self.base_ang_vel  * self.obs_scales.ang_vel,#3 基座角速度
                                     self.projected_gravity,#3 重力投影
@@ -256,7 +257,7 @@ class Go2_Stand_Robot(BaseTask):
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,#12 关节位置
                                     self.dof_vel * self.obs_scales.dof_vel,#12 关节速度
                                     self.actions,#12 动作
-                                    sin_pos, cos_pos,#2 相位 (紧贴 stand_command 前)
+                                    clock_input,#8 分腿相位 (紧贴 stand_command 前)
                                     self.stand_command,#1 ∈ {-1 handstand, 0 四足, 1 legstand}
                                     ),dim=-1)
         domain_randomization_info = torch.cat((
@@ -604,8 +605,8 @@ class Go2_Stand_Robot(BaseTask):
         noise_vec[9:21] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
         noise_vec[21:33] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
         noise_vec[33:45] = 0. # previous actions
-        noise_vec[45:47] = 0. # phase sin/cos
-        noise_vec[47:48] = 0. # stand_command
+        noise_vec[45:53] = 0. # 分腿相位 sin/cos（不加噪）
+        noise_vec[53:54] = 0. # stand_command
         return noise_vec
 
     #----------------------------------------
@@ -1209,12 +1210,12 @@ class Go2_Stand_Robot(BaseTask):
             (torch.square(vx_error) + torch.square(vy_error)) * is_quad
             + torch.square(vx_error) * is_biped
         )
-        return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma) * self._tracking_vel_gate()
+        return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma) #* self._tracking_vel_gate()
 
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands
         ang_vel_error = torch.square(self.commands[:, 2] - self.root_states[:, 12])
-        return torch.exp(-ang_vel_error / self.cfg.rewards.tracking_sigma) * self._tracking_vel_gate()
+        return torch.exp(-ang_vel_error / self.cfg.rewards.tracking_sigma) #* self._tracking_vel_gate()
 
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
@@ -1233,7 +1234,7 @@ class Go2_Stand_Robot(BaseTask):
         return reward * (self.stand_command.squeeze(-1) == 0).float()
 
     def _reward_body_orientation_handstand(self):
-        """handstand：roll≈0，pitch≈+1.466。stand_command=-1。"""
+        """handstand：roll≈0，pitch≈-1.57（后腿撑、机身 x 朝上）。stand_command=-1。"""
         roll_error = torch.square(self.base_euler_xyz[:, 0])
         pitch_error = torch.square(
             self.base_euler_xyz[:, 1] - self.cfg.rewards.body_pitch_target_handstand
@@ -1244,7 +1245,7 @@ class Go2_Stand_Robot(BaseTask):
         return reward * (self.stand_command.squeeze(-1) == -1).float()
 
     def _reward_body_orientation_legstand(self):
-        """legstand：roll≈0，pitch≈-1.466。stand_command=1。"""
+        """legstand：roll≈0，pitch≈+1.466（前腿撑、机身 x 朝下）。stand_command=1。"""
         roll_error = torch.square(self.base_euler_xyz[:, 0])
         pitch_error = torch.square(
             self.base_euler_xyz[:, 1] - self.cfg.rewards.body_pitch_target_legstand
@@ -1263,29 +1264,26 @@ class Go2_Stand_Robot(BaseTask):
         return joint_diff
     
     def _reward_gait_quad(self):
-        """四足：四腿 contact 与 is_stance 全部一致才得 1，否则 0。stand_command=0。"""
-        match = self.contact_filt == self.is_stance
-        reward = match.all(dim=1).float()
-        return reward * (self.stand_command.squeeze(-1) == 0).float()
+        """四足：四腿 contact 与 is_stance 一致比例。stand_command=0。"""
+        reward = torch.where(self.contact_filt == self.is_stance, 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == 0).float()
 
     def _reward_gait_handstand(self):
-        """handstand：后腿 RL/RR 与相位全部一致才得 1。stand_command=-1。"""
-        match = self.contact_filt[:, 2:4] == self.is_stance[:, 2:4]
-        reward = match.all(dim=1).float()
-        return reward * (self.stand_command.squeeze(-1) == -1).float()
+        """handstand：后腿 RL/RR 与相位一致比例。stand_command=-1。"""
+        reward = torch.where(self.contact_filt[:, 2:4] == self.is_stance[:, 2:4], 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == -1).float()
 
     def _reward_gait_legstand(self):
-        """legstand：前腿 FL/FR 与相位全部一致才得 1。stand_command=1。"""
-        match = self.contact_filt[:, :2] == self.is_stance[:, :2]
-        reward = match.all(dim=1).float()
-        return reward * (self.stand_command.squeeze(-1) == 1).float()
+        """legstand：前腿 FL/FR 与相位一致比例。stand_command=1。"""
+        reward = torch.where(self.contact_filt[:, :2] == self.is_stance[:, :2], 1.0, 0.0)
+        return reward.mean(dim=1) * (self.stand_command.squeeze(-1) == 1).float()
 
     def _reward_base_height_quad(self):
         """四足期望机身高度。stand_command=0。"""
         base_height = self._get_base_heights()
         self.base_height = base_height
         height_error = torch.square(base_height - self.cfg.rewards.base_height_target_quad)
-        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma_quad)
         return reward * (self.stand_command.squeeze(-1) == 0).float()
 
     def _reward_base_height_handstand(self):
@@ -1293,7 +1291,7 @@ class Go2_Stand_Robot(BaseTask):
         base_height = self._get_base_heights()
         self.base_height = base_height
         height_error = torch.square(base_height - self.cfg.rewards.base_height_target_handstand)
-        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma_stand)
         rew = reward * (self.stand_command.squeeze(-1) == -1).float()
         return rew
 
@@ -1302,7 +1300,7 @@ class Go2_Stand_Robot(BaseTask):
         base_height = self._get_base_heights()
         self.base_height = base_height
         height_error = torch.square(base_height - self.cfg.rewards.base_height_target_legstand)
-        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma)
+        reward = torch.exp(-height_error / self.cfg.rewards.base_height_sigma_stand)
         return reward * (self.stand_command.squeeze(-1) == 1).float()
 
     def _reward_foot_slip(self):

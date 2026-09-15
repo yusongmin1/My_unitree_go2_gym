@@ -15,7 +15,7 @@
     <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
     <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="20 20" reflectance="0.0"/>
-    <hfield name="perlin_hfield" size="1.0 0.75 0.2 0.2" file="height_field.png" />
+    <hfield name="perlin_hfield" size="5.0 3.75 0.247 0.001" file="height_field_tiled.png" />
     <hfield name="image_hfield" size="1.0 1.0 0.02 0.1" file="unitree_hfield.png" />
     <texture type="2d" name="rough_tex" builtin="checker" rgb1="0.7 0.7 0.7" rgb2="0.3 0.3 0.3" width="100" height="100"/>
     <texture name="wood_tex" type="2d" builtin="flat" rgb1="0.55 0.35 0.2" width="512" height="512" />
@@ -99,6 +99,28 @@
     <geom pos="24.45 0.0 0.5" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
     <geom pos="24.75 0.0 0.3" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
     <geom pos="25.05 0.0 0.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>
+    <!-- 15cm stairs beside the front 20cm stairs (same x layout, y=-4.5) -->
+    <geom name="stair15_up_0"  pos="18.15 -4.5 0.075" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_1"  pos="18.45 -4.5 0.225" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_2"  pos="18.75 -4.5 0.375" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_3"  pos="19.05 -4.5 0.525" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_4"  pos="19.35 -4.5 0.675" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_5"  pos="19.65 -4.5 0.825" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_6"  pos="19.95 -4.5 0.975" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_7"  pos="20.25 -4.5 1.125" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_8"  pos="20.55 -4.5 1.275" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_up_9"  pos="20.85 -4.5 1.425" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_plat"  pos="21.6  -4.5 1.425" type="box" size="0.6 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_0"  pos="22.35 -4.5 1.425" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_1"  pos="22.65 -4.5 1.275" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_2"  pos="22.95 -4.5 1.125" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_3"  pos="23.25 -4.5 0.975" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_4"  pos="23.55 -4.5 0.825" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_5"  pos="23.85 -4.5 0.675" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_6"  pos="24.15 -4.5 0.525" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_7"  pos="24.45 -4.5 0.375" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_8"  pos="24.75 -4.5 0.225" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
+    <geom name="stair15_dn_9"  pos="25.05 -4.5 0.075" type="box" size="0.15 2 0.075" quat="1 0 0 0"/>
     <body name="scene_box25" pos="11.0 5.0 0.125">
       <geom name="scene_g25" type="box" size="0.5 0.5 0.125" rgba="0.8 0.2 0.2 1"/>
     </body>
@@ -281,7 +303,7 @@
     <geom pos="32.272431360980896 6.191809900984576 -0.25" type="box" size="0.2697477262181022 0.26160032283159856 0.2514154359253294" quat="0.9987428184279926 0.03211553967794984 0.03713990933426557 -0.010099598227023016" />
     <geom pos="32.272431360980896 6.411285541920249 -0.25" type="box" size="0.26327819993915696 0.2714861589666563 0.2579565419996769" quat="0.9938745790994166 -0.05002470116842947 -0.097675298645099 0.01305321138870088" />
     <geom pos="32.272431360980896 6.5701617398718914 -0.25" type="box" size="0.26691018196306854 0.2535040767291905 0.26963989926936244" quat="0.9956469229609891 -0.050958369126028226 -0.03839181101974538 0.06794496494188768" />
-    <geom type="hfield" hfield="perlin_hfield" pos="31.27491374180905 4.0 0.0" quat="1.0 0.0 0.0 0.0" />
+    <geom type="hfield" hfield="perlin_hfield" pos="15.0 -16.0 0.0" quat="1.0 0.0 0.0 0.0" />
     <geom type="hfield" hfield="image_hfield" pos="31.27491374180905 2.0 0.0" quat="0.7073882691671999 0.0 0.0 -0.706825181105366" />
 
     <geom pos="50.23391374180905 1.8982025386783976e-17 0.082" type="box" size="0.5 0.17532467532467533 0.0001" quat="0.7071067811865476 0.0 0.0 0.7071067811865475" contype="0" conaffinity="0" group="1" material="mat_stair_8cm" rgba="1 1 1 1" />

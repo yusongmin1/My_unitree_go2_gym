@@ -46,7 +46,10 @@ class VelocityArrowViewer:
         else:
             print("[viewer_utils] 未检测到手柄，使用键盘控制。")
             print("  键盘: 6/7=前进/后退, 8/9=左/右平移, -/=左转/右转, 1=归零, [/]=降/升档")
-        print(f"[viewer_utils] 当前档位: {self.gears[self.gear_idx]} m/s（L2 降档 / R2 升档，范围 {self.gears}）")
+        print(f"[viewer_utils] 档位表（L2 降档 / R2 升档）:")
+        for i, g in enumerate(self.gears):
+            mark = " <-" if i == self.gear_idx else ""
+            print(f"  [{i + 1}] {self._format_gear_limits(g)}{mark}")
 
         # ----- 键盘监听（手柄不可用时启用，或作为后备）-----
         self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
@@ -60,16 +63,27 @@ class VelocityArrowViewer:
         """当前档位对应的前进最大速度 [m/s]。"""
         return self.gears[self.gear_idx]
 
+    def _limits_for_gear(self, gear_vx):
+        """给定前进档位，返回缩放后的 (vx_max, vy_max, yaw_max)。"""
+        scale = gear_vx / self.max_cmd[0]
+        return (self.max_cmd[0] * scale, self.max_cmd[1] * scale, self.max_cmd[2] * scale)
+
+    def _format_gear_limits(self, gear_vx=None):
+        """格式化档位三轴上限：vx / vy / yaw。"""
+        if gear_vx is None:
+            gear_vx = self.gear
+        vx, vy, yaw = self._limits_for_gear(gear_vx)
+        return f"vx={vx:.2f} m/s, vy={vy:.2f} m/s, yaw={yaw:.2f} rad/s"
+
     def _gear_max_cmd(self):
         """按当前档位缩放后的 (vx_max, vy_max, yaw_max)。"""
-        scale = self.gear / self.max_cmd[0]
-        return (self.max_cmd[0] * scale, self.max_cmd[1] * scale, self.max_cmd[2] * scale)
+        return self._limits_for_gear(self.gear)
 
     def _change_gear(self, delta):
         new_idx = min(max(self.gear_idx + delta, 0), len(self.gears) - 1)
         if new_idx != self.gear_idx:
             self.gear_idx = new_idx
-            print(f"\n[档位] 最大速度 -> {self.gear} m/s")
+            print(f"\n[档位] -> {self._format_gear_limits()}")
             self._clip_cmd()
 
     def _clip_cmd(self):
@@ -125,7 +139,11 @@ class VelocityArrowViewer:
                 self._change_gear(+1)
             # 限幅（按当前档位）
             self._clip_cmd()
-            print(f"\r[键盘] cmd: vx={self.cmd[0]:.2f}, vy={self.cmd[1]:.2f}, yaw={self.cmd[2]:.2f}, 档位={self.gear}", end='')
+            print(
+                f"\r[键盘] cmd: vx={self.cmd[0]:.2f}, vy={self.cmd[1]:.2f}, yaw={self.cmd[2]:.2f} | "
+                f"档位 {self._format_gear_limits()}   ",
+                end='',
+            )
         except AttributeError:
             pass
 

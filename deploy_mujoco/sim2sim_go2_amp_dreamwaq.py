@@ -57,7 +57,11 @@ def run_mujoco(policy, cfg):
         None
     """
     # 初始化手柄/键盘输入 + 箭头绘制工具（手柄优先，无手柄回退键盘）
-    # 楼梯任务四档速度：0.5 / 1.0 / 1.5 / 2.0 m/s（L2 降档 / R2 升档）
+    # 楼梯任务四档（按 vx 定义，vy/yaw 同比缩放；max_cmd=1.5/1.0/1.5）:
+    #   vx: 0.5 / 1.0 / 1.5 / 2.0
+    #   vy: 0.33 / 0.67 / 1.0 / 1.33
+    #   yaw: 0.5 / 1.0 / 1.5 / 2.0
+    # L2 降档 / R2 升档
     vel_arrow = VelocityArrowViewer(max_cmd=(x_vel_max, y_vel_max, yaw_vel_max),
                                     gears=[0.5, 1.0, 1.5, 2.0])
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)

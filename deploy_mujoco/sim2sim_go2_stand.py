@@ -3,7 +3,6 @@ Go2_Stand_Cfg_Yu = load_cfg(
     "legged_gym/envs/Go2_Stand/Go2_Stand_Config.py",
     "Go2_Stand_Cfg_Yu",
 )
-import math
 import numpy as np
 import mujoco, mujoco.viewer
 from collections import deque
@@ -99,9 +98,10 @@ def cmd_limits_for_mode(cfg, stand_command):
 
 
 class StandModeController:
-    """A/B/Y（手柄或键盘）切换三种步态。
-    A → quad(0), B → handstand(-1), Y → legstand(+1)。
-    键盘无手柄时也可用 2/3/4。
+    """切换三种步态。
+    手柄：A=四足(0) / B=handstand(-1) / Y=legstand(+1)；
+          十字键 上/左/右 同样可用（拧右摇杆时若误触 A/B/Y，可改用十字键）。
+    键盘：a/b/y 或 2/3/4。
     """
 
     # Xbox / 常见手柄：A=0, B=1, X=2, Y=3
@@ -113,16 +113,23 @@ class StandModeController:
         "y": 1.0, "Y": 1.0,
         "2": -1.0, "3": 0.0, "4": 1.0,
     }
+    # hat: (x, y)，y=+1 上，x=-1 左，x=+1 右
+    HAT_TO_MODE = {
+        (0, 1): 0.0,    # 上 → quad
+        (-1, 0): -1.0,  # 左 → handstand
+        (1, 0): 1.0,    # 右 → legstand
+    }
 
     def __init__(self, initial=0.0, joystick=None):
         self.stand_command = float(initial)
         self.changed = True
         self.joystick = joystick
         self._prev_btn = {self.BTN_A: False, self.BTN_B: False, self.BTN_Y: False}
+        self._prev_hat = (0, 0)
         self._listener = keyboard.Listener(on_press=self._on_key)
         self._listener.daemon = True
         self._listener.start()
-        print("[stand] 模式: A=四足(0), B=handstand(-1), Y=legstand(+1)（键盘 a/b/y 或 2/3/4）")
+        print("[stand] 模式: A=四足 / B=handstand / Y=legstand；十字键 上/左/右 亦可（键盘 a/b/y 或 2/3/4）")
         print(f"[stand] 当前模式: {MODE_NAMES[int(self.stand_command)]} ({int(self.stand_command)})")
 
     def set_joystick(self, joystick):
@@ -147,18 +154,23 @@ class StandModeController:
             self._set_mode(self.KEY_TO_MODE[ch])
 
     def update(self):
-        """每帧轮询手柄 A/B/Y（边沿触发）。需在 pygame.event.pump 之后调用。"""
+        """每帧轮询 A/B/Y 与十字键（边沿触发）。需在 pygame.event.pump 之后调用。"""
         if self.joystick is None:
             return
         try:
             nbtn = self.joystick.get_numbuttons()
+            for btn, mode in self.BTN_TO_MODE.items():
+                pressed = nbtn > btn and bool(self.joystick.get_button(btn))
+                if pressed and not self._prev_btn[btn]:
+                    self._set_mode(mode)
+                self._prev_btn[btn] = pressed
+            if self.joystick.get_numhats() >= 1:
+                hat = tuple(self.joystick.get_hat(0))
+                if hat != self._prev_hat and hat in self.HAT_TO_MODE:
+                    self._set_mode(self.HAT_TO_MODE[hat])
+                self._prev_hat = hat
         except Exception:
             return
-        for btn, mode in self.BTN_TO_MODE.items():
-            pressed = nbtn > btn and bool(self.joystick.get_button(btn))
-            if pressed and not self._prev_btn[btn]:
-                self._set_mode(mode)
-            self._prev_btn[btn] = pressed
 
     def consume_changed(self):
         flag = self.changed
@@ -217,6 +229,25 @@ def apply_mode_cmd_limits(vel_arrow, cfg, stand_command):
     if stand_command != 0:
         vel_arrow.cmd[1] = 0.0  # 双足不采侧向速度
     print(f"[stand] 速度上限 vx/vy/yaw = {limits}")
+    print("[stand] 档位表:")
+    for i, g in enumerate(vel_arrow.gears):
+        mark = " <-" if i == vel_arrow.gear_idx else ""
+        print(f"  [{i + 1}] {vel_arrow._format_gear_limits(g)}{mark}")
+
+
+def _leg_clock_input(count_lowlevel, cfg):
+    """与训练 _update_gait / clock_input 一致：分腿 sin×4 + cos×4。"""
+    period = float(cfg.rewards.cycle_time)
+    phase = (count_lowlevel * cfg.sim_config.dt) % period / period
+    offsets = np.asarray(
+        getattr(cfg.rewards, "gait_offsets", [0.0, 0.5, 0.5, 0.0]),
+        dtype=np.float32,
+    )
+    leg_phase = (phase + offsets) % 1.0
+    return np.concatenate(
+        [np.sin(2.0 * np.pi * leg_phase), np.cos(2.0 * np.pi * leg_phase)],
+        axis=0,
+    ).astype(np.float32)
 
 
 def run_mujoco(policy, cfg, plot_height=False):
@@ -239,9 +270,10 @@ def run_mujoco(policy, cfg, plot_height=False):
     data.qpos[-num_actuated_joints:] = cfg.robot_config.default_dof_pos
     mujoco.mj_step(model, data)
 
-    n_obs = cfg.env.num_single_obs  # 48
+    n_obs = cfg.env.num_single_obs  # 54
     n_hist = cfg.env.num_obs_hist  # 5 历史 + 当前 → 共 6 帧（DreamWaQ CENet）
     hist_len = n_hist + 1
+    assert n_obs == 54, f"go2_stand obs 应为 54 维（分腿相位），当前 num_single_obs={n_obs}"
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.cam.distance = 3.0
@@ -279,8 +311,9 @@ def run_mujoco(policy, cfg, plot_height=False):
 
             if count_lowlevel % cfg.sim_config.decimation == 0:
                 obs = np.zeros([1, n_obs], dtype=np.float32)
-                # 与训练一致：[0:3]ang [3:6]grav [6:9]cmd [9:21]dof_pos
-                # [21:33]dof_vel [33:45]action [45:47]phase [47]stand_command
+                # 与训练一致 54 维：
+                # [0:3]ang [3:6]grav [6:9]cmd [9:21]dof_pos [21:33]dof_vel
+                # [33:45]action [45:53]分腿相位sin/cos×4 [53]stand_command
                 obs[0, 0:3] = omega * cfg.normalization.obs_scales.ang_vel
                 obs[0, 3:6] = gvec
                 obs[0, 6] = x_vel_cmd * cfg.normalization.obs_scales.lin_vel
@@ -289,11 +322,8 @@ def run_mujoco(policy, cfg, plot_height=False):
                 obs[0, 9:21] = (q - cfg.robot_config.default_dof_pos) * cfg.normalization.obs_scales.dof_pos
                 obs[0, 21:33] = dq * cfg.normalization.obs_scales.dof_vel
                 obs[0, 33:45] = action
-
-                phase = (count_lowlevel * cfg.sim_config.dt) % cfg.rewards.cycle_time / cfg.rewards.cycle_time
-                obs[0, 45] = math.sin(2 * math.pi * phase)
-                obs[0, 46] = math.cos(2 * math.pi * phase)
-                obs[0, 47] = stand_command
+                obs[0, 45:53] = _leg_clock_input(count_lowlevel, cfg)
+                obs[0, 53] = stand_command
 
                 obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)
                 hist_obs.append(obs)
@@ -355,7 +385,7 @@ if __name__ == "__main__":
 
     class Sim2simCfg(Go2_Stand_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f"{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml"
+            mujoco_model_path = f"{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene_terrain.xml"
             sim_duration = 120.0
             dt = 0.005
             decimation = 4
@@ -367,10 +397,10 @@ if __name__ == "__main__":
             # MuJoCo 顺序 FL, FR, RL, RR；与训练 default_joint_angles 对齐
             default_dof_pos = np.array(
                 [
-                    0.0, 0.8, -1.5,
-                    0.0, 0.8, -1.5,
-                    0.0, 0.8, -1.5,
-                    0.0, 0.8, -1.5,
+                    0.1, 0.8, -1.5,   # FL
+                    -0.1, 1.0, -1.5,  # FR
+                    0.1, 0.8, -1.5,   # RL
+                    -0.1, 1.0, -1.5,  # RR
                 ],
                 dtype=np.double,
             )
