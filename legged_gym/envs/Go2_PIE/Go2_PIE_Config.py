@@ -206,6 +206,45 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
             gravity = 0.05
             height_measurements = 0.1
 
+    # ===== MGDP warp 深度相机（迁移自 MGDP-master random_dog）=====
+    class camera:
+        camera_type = 'warp'            # 'warp'（Warp 光线投射）| 'isaac'（未迁移，勿用）
+        use_camera = True
+        use_lidar = False
+        # 图像栈帧数：None->单帧 (num_envs,1,H,W)；2->双帧历史 (num_envs,2,H,W)
+        image_nums = 2
+        # 对齐 parkour_mjlab：60×106 渲染 → 左右各 crop 10 → 60×86（无双线性）
+        crop_left = 10
+        crop_right = 10
+        # 缓冲/策略输入尺寸 [H, W] = [height, width - crop_left - crop_right]
+        output_hw = [60, 86]
+
+        # --- 噪声（对齐 MGDP: gaussian 0.03, dropout 0.1）---
+        noise_gaussian = 0.03           # 高斯噪声 std（米）
+        noise_dropout = 0.1             # 像素置零概率
+        # --- 量程 + 归一化（唯一源；对齐 parkour_mjlab PIE）---
+        normalize = True
+        near_clip = 0.1                 # min_depth
+        far_clip = 3.0                  # cutoff_distance
+
+        # --- 深度图更新频率：每 update_interval 个 policy step 刷新一次 ---
+        # dt=0.02s(50Hz) 时 interval=5 -> 10Hz，对齐 MGDP
+        update_interval = 5
+
+        # --- warp 相机内参/外参 ---
+        # 原始出图 60×106 @ 87°（与 mjlab / extreme 渲染规格一致）
+        width = 106
+        height = 60
+        horizontal_fov_deg = 87.0
+        calculate_depth = True          # True: 平面深度(z)；False: 范围距离(斜距)
+        # 相机安装位置（基座系，前 x 上 z）：对齐 MGDP go2 头部相机
+        offset_translation = [0.34, 0.0, 0.07]
+        offset_rotation_deg = [0.0, 30.0, 0.0]   # 俯仰 30°（对齐 MGDP go2 头部相机）
+        # 相机安装外参随机化（每 env 固定一次，对齐 MGDP）
+        offset_trans_rand = [[-0.02, -0.02, -0.02], [0.02, 0.02, 0.02]]  # min/max [m]
+        offset_rot_rand = [[0.0, -2.0, 0.0], [0.0, 2.0, 0.0]]           # deg min/max（yaw ±2°）
+
+
     # viewer camera:
     class viewer:
         ref_env = 0

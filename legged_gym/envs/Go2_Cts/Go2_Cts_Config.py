@@ -91,7 +91,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf","base"]
+        penalize_contacts_on = ["thigh", ]#"calf","base"
         terminate_after_contacts_on =["base"]
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
@@ -156,7 +156,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             base_height=-5.0
             torques = -0.0001#
             dof_acc = -2.5e-7#-7
-            collision = -1.
+            # collision = -1.
             action_rate = -0.01
             # feet_air_time =  1.0
             # stand_still=-0.5

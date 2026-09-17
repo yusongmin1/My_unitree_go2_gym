@@ -14,6 +14,15 @@ from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_fl
 from legged_gym.utils.helpers import class_to_dict
 from legged_gym.envs.Go2_PIE.Go2_PIE_Config import Go2_PIE_Cfg_Yu
 
+# ===== MGDP warp 深度相机迁移 =====
+if getattr(getattr(Go2_PIE_Cfg_Yu, 'camera', None), 'camera_type', None) == 'warp':
+    from legged_gym.warp_sensor import WarpManager
+    from legged_gym.warp_sensor.config.sensor_config import (
+        Config as WarpConfig, Camera as WarpCameraCfg, ImageProcess as WarpImageProcess,
+        Noise as WarpNoise, TransRand as WarpTransRand, RotRand as WarpRotRand,
+        Offset as WarpOffset, DepthCameraPattern as WarpDepthPattern,
+    )
+
 class Go2_PIE_Robot(BaseTask):
     def __init__(self, cfg: Go2_PIE_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
@@ -37,6 +46,8 @@ class Go2_PIE_Robot(BaseTask):
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
+        # ===== MGDP warp 深度相机：读取噪声/归一化参数，分配图像缓冲 =====
+        self._init_camera_buffers()
         self._init_buffers()
         self._prepare_reward_function()
         self.init_done = True
@@ -126,6 +137,8 @@ class Go2_PIE_Robot(BaseTask):
         self.last_last_actions[:] = self.last_actions[:]
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
+        # MGDP：policy step 计数器（驱动 update_interval 深度刷新）
+        self.global_counter += 1
 
     def check_termination(self):
         """ Check if environments need to be reset.
@@ -276,6 +289,11 @@ class Go2_PIE_Robot(BaseTask):
                 * self.noise_scale_vec
                 * self.cfg.noise.noise_level
             )
+
+        # ===== MGDP：深度图按 update_interval 周期刷新（10Hz）=====
+        if self.use_camera:
+            if self.global_counter % self.cfg.camera.update_interval == 0:
+                self.get_camera_sensor()
 
     def create_sim(self):
         """ Creates simulation, terrain and evironments
@@ -568,6 +586,113 @@ class Go2_PIE_Robot(BaseTask):
         if (torch.mean(self.episode_sums["tracking_lin_vel"][low_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]) and (torch.mean(self.episode_sums["tracking_lin_vel"][high_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]):
             self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
             self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
+
+    # ==================== MGDP warp 深度相机（迁移） ====================
+
+    def _init_camera_buffers(self):
+        """初始化图像缓冲 + WarpManager。
+        必须在 create_sim()（terrain 已生成）之后、_init_buffers() 之前调用。
+        """
+        self.use_camera = self.cfg.camera.use_camera
+        self.use_lidar = self.cfg.camera.use_lidar
+        self.image_nums = self.cfg.camera.image_nums
+        self.crop_left = int(self.cfg.camera.crop_left)
+        self.crop_right = int(self.cfg.camera.crop_right)
+        # 输出尺寸：高不变，宽 = width - crop_left - crop_right
+        self.output_hw = list(self.cfg.camera.output_hw)  # [H, W]
+        self.noise_gaussian = self.cfg.camera.noise_gaussian
+        self.noise_dropout = self.cfg.camera.noise_dropout
+        self.normalize = self.cfg.camera.normalize
+        self.global_counter = 0
+
+        if not self.use_camera:
+            self.image_buf = None
+            return
+
+        assert self.output_hw[0] == self.cfg.camera.height
+        assert self.output_hw[1] == self.cfg.camera.width - self.crop_left - self.crop_right
+
+        if self.image_nums is None:
+            buf_shape = (self.num_envs, 1, self.output_hw[0], self.output_hw[1])
+        else:
+            buf_shape = (self.num_envs, self.image_nums, self.output_hw[0], self.output_hw[1])
+        self.image_buf = torch.zeros(*buf_shape, device=self.device, dtype=torch.float)
+
+        cam_cfg = self.cfg.camera
+        near = float(cam_cfg.near_clip)
+        far = float(cam_cfg.far_clip)
+        warp_cam = WarpCameraCfg()
+        warp_cam.pattern.height = cam_cfg.height
+        warp_cam.pattern.width = cam_cfg.width
+        warp_cam.pattern.horizontal_fov_deg = cam_cfg.horizontal_fov_deg
+        warp_cam.pattern.max_range = far
+        warp_cam.pattern.min_range = near
+        warp_cam.pattern.calculate_depth = cam_cfg.calculate_depth
+        warp_cam.offset.translation = cam_cfg.offset_translation
+        warp_cam.offset.rotation = cam_cfg.offset_rotation_deg
+        warp_cam.offset.trans_rand = WarpTransRand(
+            min=list(cam_cfg.offset_trans_rand[0]), max=list(cam_cfg.offset_trans_rand[1]))
+        warp_cam.offset.rot_rand = WarpRotRand(
+            min=list(cam_cfg.offset_rot_rand[0]), max=list(cam_cfg.offset_rot_rand[1]))
+        # 不做 resize：出图保持 60×106，crop 在 get_camera_sensor 里做
+        warp_cam.process = WarpImageProcess(
+            resize=None,
+            noise=None,
+            clip=None,
+            normalize=False,
+        )
+
+        warp_cfg = WarpConfig()
+        warp_cfg.camera = warp_cam
+        warp_cfg.lidar = None
+
+        self.terrain.vertices -= np.array(
+            [self.terrain.cfg.border_size, self.terrain.cfg.border_size, 0])
+        if 'cuda' in str(self.device):
+            warp_device = self.device
+        elif torch.cuda.is_available():
+            warp_device = 'cuda:0'
+        else:
+            warp_device = 'cpu'
+        self.warp_manager = WarpManager(
+            self.num_envs, self, cfg=warp_cfg, device=warp_device, enable_viz=False)
+        self.terrain.vertices += np.array(
+            [self.terrain.cfg.border_size, self.terrain.cfg.border_size, 0])
+
+    def get_camera_sensor(self):
+        """深度图流水线：
+        warp 渲染(miss→far) → 左右 crop → 加噪 → clamp/far 归一化 → 入栈 image_buf。
+        """
+        self.warp_manager.warp_update_frame()
+        cur_images = self.warp_manager['camera'].data.squeeze(1).to(self.device)  # (N,H,W)
+
+        # parkour_mjlab：左右各裁 crop_left / crop_right（无双线性）
+        w = cur_images.shape[-1]
+        cur_images = cur_images[..., self.crop_left : w - self.crop_right]
+
+        if self.noise_gaussian is not None:
+            cur_images = cur_images + torch.randn_like(cur_images) * self.noise_gaussian
+        if self.noise_dropout is not None:
+            cur_images = cur_images * (torch.rand_like(cur_images) > self.noise_dropout)
+
+        if self.normalize:
+            near = float(self.cfg.camera.near_clip)
+            far = float(self.cfg.camera.far_clip)
+            if far < 1e-6:
+                far = 1e-6
+            cur_images = (cur_images.clamp(near, far) / far).clamp(0.0, 1.0)
+
+        if self.image_nums:
+            self.image_buf = torch.cat(
+                [self.image_buf[:, 1:], cur_images.unsqueeze(1)], dim=1)
+        else:
+            self.image_buf = cur_images
+
+        if self.image_nums is not None and self.image_nums > 1:
+            at_reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+            if len(at_reset_env_ids) > 0:
+                self.image_buf[at_reset_env_ids, 0] = cur_images[at_reset_env_ids]
+                self.image_buf[at_reset_env_ids, 1] = cur_images[at_reset_env_ids]
 
     def _get_noise_scale_vec(self):
         """ Sets a vector used to scale the noise added to the observations.

@@ -160,7 +160,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            base_height=-5.0
+            base_height=-2.0
             # torques = -0.0001#
             dof_acc = -2.5e-7#-7
             # collision = -1.
