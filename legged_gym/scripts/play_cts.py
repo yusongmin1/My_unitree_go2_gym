@@ -58,9 +58,9 @@ def play(args):
     img_idx = 0
 
     for i in range(10*int(env.max_episode_length)):
-        env.commands[:, 0]=0.6
+        env.commands[:, 0]=0.0
         env.commands[:, 1]=0.
-        env.commands[:, 2]=0.0
+        env.commands[:, 2]=1.0
         actions = policy(obs.detach(),obs_hist_buf.detach())
         obs, privileged_obs,obs_hist_buf, critic_obs, _, _,_ = env.step(actions.detach())
         # print(obs[0])

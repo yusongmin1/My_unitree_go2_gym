@@ -385,6 +385,60 @@ def half_sloped_terrain(terrain, level_index, platform_size=2.,
     down_heights = (max_height - slope_strength * (xs - down_start)).astype(np.int16)
     terrain.height_field_raw[down_start:down_end, start_y:end_y] = down_heights[:, None]
 
+
+def half_stairs_terrain(terrain, step_width, step_height, platform_size=2.,
+                        final_platform_length=5, depth=0.6):
+    """类似 ramp 的纵向布局：入口平台 → 上楼梯 → 中平台 → 下楼梯 → 尾平台。
+    step_width / step_height 单位为米；高度沿前进方向（terrain.width）累加。
+    """
+    step_w = max(1, int(round(step_width / terrain.horizontal_scale)))
+    step_h = max(1, int(round(step_height / terrain.vertical_scale)))
+    platform = int(platform_size / terrain.horizontal_scale)
+    base_height = int(-depth / terrain.vertical_scale)
+
+    start_y, end_y = 20, terrain.length - 20
+    terrain.height_field_raw[:] = base_height
+    terrain.height_field_raw[:, start_y:end_y] = 0
+
+    # 入口平台
+    terrain.height_field_raw[0:platform, start_y:end_y] = 0
+
+    # 上楼梯：platform → 2*platform
+    up_start, up_end = platform, 2 * platform
+    height = 0
+    x = up_start
+    while x < up_end:
+        height += step_h
+        x_next = min(x + step_w, up_end)
+        terrain.height_field_raw[x:x_next, start_y:end_y] = height
+        x = x_next
+    max_height = height
+
+    # 中平台
+    mid_start, mid_end = 2 * platform, 3 * platform
+    terrain.height_field_raw[mid_start:mid_end, start_y:end_y] = max_height
+
+    # 下楼梯：3*platform 起，与上坡同长
+    down_start = 3 * platform
+    down_end = min(down_start + (up_end - up_start), terrain.width)
+    height = max_height
+    x = down_start
+    while x < down_end and height > 0:
+        x_next = min(x + step_w, down_end)
+        terrain.height_field_raw[x:x_next, start_y:end_y] = height
+        height = max(0, height - step_h)
+        x = x_next
+
+    # 尾平台归零
+    final_start = min(max(x, 4 * platform), terrain.width)
+    final_end = min(final_start + int(final_platform_length / terrain.horizontal_scale), terrain.width)
+    terrain.height_field_raw[final_start:final_end, start_y:end_y] = 0
+    if final_end < terrain.width:
+        terrain.height_field_raw[final_end:terrain.width, start_y:end_y] = 0
+
+    return terrain
+
+
 def pyramid_stairs_terrain(terrain, step_width, step_height, platform_size=1.):
 
     # switch parameters to discrete units

@@ -221,10 +221,15 @@ class Go2_Stand_Robot(BaseTask):
     def _update_gait(self):
         """更新全局相位 / 各腿相位，并做接触滤波。
         四足对角小跑 offsets=[0, 0.5, 0.5, 0]（FL, FR, RL, RR）；
-        占空比 duty_factor=0.6：leg_phase∈[0,0.6) 支撑，[0.6,1) 摆动。
+        占空比按模式取值：四足 duty=0.5，双足（handstand/legstand）duty=0.6。
         """
         period = self.cfg.rewards.cycle_time
-        duty = self.cfg.rewards.duty_factor
+        cmd = self.stand_command.squeeze(-1)
+        duty = torch.where(
+            cmd == 0,
+            torch.tensor(self.cfg.rewards.duty_factor_quad, device=self.device),
+            torch.tensor(self.cfg.rewards.duty_factor_biped, device=self.device),
+        ).unsqueeze(1)  # (num_envs, 1) 与 leg_phase (num_envs, 4) 广播
         self.phase = (self.episode_length_buf * self.dt) % period / period
         self.leg_phase = (self.phase.unsqueeze(1) + self.gait_offsets) % 1.0
         self.is_stance = self.leg_phase < duty
@@ -449,7 +454,7 @@ class Go2_Stand_Robot(BaseTask):
 
         # stand_command ∈ {-1=handstand, 0=四足, 1=legstand}，先定模式再采速度
         self.stand_command[env_ids] = torch.randint(
-            0, 3, (len(env_ids), 1), device=self.device, dtype=torch.long
+            1, 2, (len(env_ids), 1), device=self.device, dtype=torch.long
         ).float() - 1.0
         cmd = self.stand_command[env_ids].squeeze(-1)
         quad_ids = env_ids[cmd == 0]
@@ -1256,12 +1261,9 @@ class Go2_Stand_Robot(BaseTask):
         return reward * (self.stand_command.squeeze(-1) == 1).float()
 
     def _reward_default_hip_pos(self):
-        """
-        Calculates the reward for keeping joint positions close to default positions, with a focus 
-        on penalizing deviation in yaw and roll directions. Excludes yaw and roll from the main penalty.
-        """
-        joint_diff = torch.abs(self.dof_pos[:,0])+torch.abs(self.dof_pos[:,3])+torch.abs(self.dof_pos[:,6])+torch.abs(self.dof_pos[:,9])
-        return joint_diff
+        # Penalize hip joints that are far from the default position
+        hip_dof_indice = [0, 3, 6, 9]
+        return torch.sum(torch.square(self.dof_pos[:, hip_dof_indice] ), dim=-1)
     
     def _reward_gait_quad(self):
         """四足：四腿 contact 与 is_stance 一致比例。stand_command=0。"""

@@ -81,7 +81,7 @@ class Terrain:
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
 
             choice = np.random.uniform(0, 1)
-            difficulty = np.random.choice([0.5])
+            difficulty = np.random.choice([0.9])
             terrain = self.make_terrain(choice, difficulty)
             self.add_terrain_to_map(terrain, i, j)
         
@@ -149,18 +149,21 @@ class Terrain:
             if choice < self.proportions[0]/ 2:
                 slope *= -1
             terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
+            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.03, max_height=0.03, step=0.03, downsampled_scale=0.2)
         elif choice < self.proportions[1]:
             terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
-            terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005, downsampled_scale=0.2)
+            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005, downsampled_scale=0.2)
         elif choice < self.proportions[3]:
             if choice<self.proportions[2]:
                 step_height *= -1
             terrain_utils.pyramid_stairs_terrain(terrain, step_width=0.31, step_height=step_height, platform_size=3.)
+            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.03, max_height=0.03, step=0.03, downsampled_scale=0.2)
         elif choice < self.proportions[4]:
             num_rectangles = 20
             rectangle_min_size = 1.
             rectangle_max_size = 2.
             terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.)
+            
         # ---- extreme_gap parkour (replaces random / gap / pit) ----
         elif choice < self.proportions[5]:
             # single-gap
@@ -212,18 +215,33 @@ class Terrain:
                 platform_size=2.0, depth=depth)
             self.add_roughness(terrain)
         elif choice < self.proportions[11]:
-            # ramp
+            # ramp：难度线性插值，最高 33°（tanθ = strength * vs / hs）
+            min_strength = 2.0
+            max_strength = np.tan(np.deg2rad(33.0)) * self.cfg.horizontal_scale / self.cfg.vertical_scale
+            slope_strength = min_strength + (max_strength - min_strength) * difficulty
             add_extreme_gap_terrain.half_sloped_terrain(
-                terrain, level_index=difficulty * 2.5, depth=depth)
+                terrain, level_index=difficulty * 2.5, depth=depth, slope_strength=slope_strength)
             self.add_roughness(terrain)
         elif len(self.proportions) > 12 and choice < self.proportions[12]:
+            # 上下楼梯（台阶宽 0.25m）：前上后下，高度同原始楼梯
+            add_extreme_gap_terrain.half_stairs_terrain(
+                terrain, step_width=0.25, step_height=step_height,
+                platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif len(self.proportions) > 13 and choice < self.proportions[13]:
+            # 上下楼梯（台阶宽 0.30m）
+            add_extreme_gap_terrain.half_stairs_terrain(
+                terrain, step_width=0.30, step_height=step_height,
+                platform_size=2.0, depth=depth)
+            self.add_roughness(terrain)
+        elif len(self.proportions) > 14 and choice < self.proportions[14]:
             # 最后一列：纯粗糙地 ±rough_height（默认 ±3cm）
             h = getattr(self.cfg, "rough_height", 0.03)
             terrain_utils.random_uniform_terrain(
                 terrain, min_height=-h, max_height=h, step=0.005, downsampled_scale=0.2)
         else:
             # corridor
-            add_extreme_gap_terrain.narrow_corridor(terrain, difficulty, depth=depth)
+            terrain_utils.random_uniform_terrain(terrain, min_height=-0.03, max_height=0.03, step=0.03, downsampled_scale=0.2)
 
         return terrain
 

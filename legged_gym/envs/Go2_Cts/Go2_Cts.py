@@ -172,6 +172,9 @@ class Go2_Cts_Robot(BaseTask):
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
+        # episode 重置后清除 spin 状态（由下一次常规重采样重新以 0.1 概率决定）
+        self.is_spinning[env_ids] = False
+        self.spin_timer[env_ids] = 0.0
         if self.cfg.domain_rand.randomize_pd_gains:
             self.p_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.stiffness_multiplier_range[0], self.cfg.domain_rand.stiffness_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)
             self.d_gains_multiplier[env_ids, :] = torch_rand_float(self.cfg.domain_rand.damping_multiplier_range[0], self.cfg.domain_rand.damping_multiplier_range[1], (len(env_ids), self.num_actions), device=self.device)   
@@ -385,12 +388,37 @@ class Go2_Cts_Robot(BaseTask):
         """
         #
         env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0).nonzero(as_tuple=False).flatten()
-        self._resample_commands(env_ids)
+
+        # ---------- 原地转圈（spin）逻辑 ----------
+        # 进入概率 0.1（每次常规重采样时掷骰）；采样时间 5s（独立于 resampling_time=10s）
+        # spin 期间 xy=0，yaw 直接采样 ±0.8 rad/s，不走 heading 闭环
+        self.spin_timer += self.dt
+        # 1) 到期（5s）的 spin 环境：退出 spin，加入本次重采样队列
+        spin_end_ids = (self.is_spinning & (self.spin_timer >= 5.0)).nonzero(as_tuple=False).flatten()
+        if len(spin_end_ids) > 0:
+            self.is_spinning[spin_end_ids] = False
+            self.spin_timer[spin_end_ids] = 0.0
+            env_ids = torch.unique(torch.cat((env_ids, spin_end_ids)))
+        # 2) 重采样队列：0.1 概率进入 spin，其余常规重采样
+        spin_start_mask = torch.rand(len(env_ids), device=self.device) < 0.1
+        spin_start_ids = env_ids[spin_start_mask]
+        walk_ids = env_ids[~spin_start_mask]
+        if len(spin_start_ids) > 0:
+            self.is_spinning[spin_start_ids] = True
+            self.spin_timer[spin_start_ids] = 0.0
+            self.commands[spin_start_ids, :2] = 0.0
+            self.commands[spin_start_ids, 2] = torch_rand_float(-0.8, 0.8, (len(spin_start_ids), 1), device=self.device).squeeze(1)
+        if len(walk_ids) > 0:
+            self.is_spinning[walk_ids] = False  # 常规重采样后不再是 spin 状态
+            self._resample_commands(walk_ids)
+
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading),
-                                             self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1])  # 随角速度课程动态收缩/扩大
+            yaw_cmd = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading),
+                                 self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1])  # 随角速度课程动态收缩/扩大
+            # spin 环境保留直接采样的 yaw 命令，其余环境用 heading 闭环
+            self.commands[:, 2] = torch.where(self.is_spinning, self.commands[:, 2], yaw_cmd)
         if self.cfg.terrain.measure_heights:
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
@@ -581,6 +609,8 @@ class Go2_Cts_Robot(BaseTask):
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.commands = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
+        self.is_spinning = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)  # 原地转圈环境标志
+        self.spin_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)  # 原地转圈已持续时间[s]
         self.commands_scale = torch.tensor([self.obs_scales.lin_vel, self.obs_scales.lin_vel, self.obs_scales.ang_vel], device=self.device, requires_grad=False)
         self.last_last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)  
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)

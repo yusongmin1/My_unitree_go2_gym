@@ -22,7 +22,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         test = False
 
     class terrain:
-        mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
         border_size = 25 # [m]
@@ -185,18 +185,18 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
 
 
 
-            body_orientation_quad = 1.0
-            body_orientation_handstand = 1.0
-            body_orientation_legstand = 1.0
+            body_orientation_quad = 1.5
+            body_orientation_handstand = 1.5
+            body_orientation_legstand = 1.5
             base_height_quad = 1.
             base_height_handstand = 1.
             base_height_legstand = 1.
             default_hip_pos=-0.25
             # default_pos_reward=0.2
 
-            gait_quad = 0.6        # stand_command=0
-            gait_handstand = 0.6   # stand_command=-1 后腿支撑（前腿空中）
-            gait_legstand = 0.6    # stand_command=1 前腿支撑（后腿空中）
+            gait_quad = 0.9       # stand_command=0
+            gait_handstand = 0.9   # stand_command=-1 后腿支撑（前腿空中）
+            gait_legstand = 0.9    # stand_command=1 前腿支撑（后腿空中）
 
 
             rear_contact_hand =-1.0  # 惩罚腾空腿触地（handstand 前腿 / legstand 后腿）
@@ -234,7 +234,8 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         max_contact_force = 200. # forces above this value are penalized
 
         cycle_time=0.5
-        duty_factor = 0.55  # leg_phase∈[0,duty) 支撑，[duty,1) 摆动
+        duty_factor_quad = 0.5    # 四足：leg_phase∈[0,duty) 支撑，[duty,1) 摆动
+        duty_factor_biped = 0.6   # 双足（handstand/legstand）：支撑占比更大更稳
         gait_offsets = [0.0, 0.5, 0.5, 0.0]  # FL, FR, RL, RR 对角同相
 
 
@@ -309,7 +310,7 @@ class Go2_Stand_PPO_Yu(LeggedRobotCfgPPO):
         desired_kl = 0.01
         max_grad_norm = 1.
         vae_kl_weight = 1.0
-        sym_loss = False
+        sym_loss = True
         # 54 维 obs 镜像置换表（与 compute_observations 布局严格对齐）：
         # [0:3]角速度: 轴向量 (-wx, wy, -wz) | [3:6]重力投影: 极向量 (gx, -gy, gz)
         # [6:9]命令: (vx, -vy, -wyaw) | [9:21/21:33/33:45] dof_pos/vel/action: FL<->FR, RL<->RR, hip 取反

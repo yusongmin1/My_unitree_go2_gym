@@ -20,6 +20,10 @@ from legged_gym.envs.Go2_Stand.Go2_Stand_Config import Go2_Stand_Cfg_Yu, Go2_Sta
 from legged_gym.envs.Go2_DreamWaQ.Go2_DreamWaQ import Go2_DreamWaQ_Robot
 from legged_gym.envs.Go2_DreamWaQ.Go2_DreamWaQ_Config import Go2_DreamWaQ_Cfg_Yu, Go2_DreamWaQ_PPO_Yu
 
+# ========== PIE 任务（从 DreamwaQ 复制，后续改造为 parkour PIE）==========
+from legged_gym.envs.Go2_PIE.Go2_PIE import Go2_PIE_Robot
+from legged_gym.envs.Go2_PIE.Go2_PIE_Config import Go2_PIE_Cfg_Yu, Go2_PIE_PPO_Yu
+
 # ========== AMP + DreamwaQ 任务（AMP 判别器 + DreamwaQ 算法）==========
 from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ import Go2_AMP_DreamWaQ_Robot
 from legged_gym.envs.Go2_AMP_DreamWaQ.Go2_AMP_DreamWaQ_Config import Go2_AMP_DreamWaQ_Cfg_Yu, Go2_AMP_DreamWaQ_PPO_Yu
@@ -49,6 +53,9 @@ task_registry.register( "go2_backflip", Go2_BackFlip_Robot, Go2_BackFlip_Cfg_Yu(
 
 # ===== DreamwaQ 任务 =====
 task_registry.register( "go2_dreamwaq", Go2_DreamWaQ_Robot, Go2_DreamWaQ_Cfg_Yu(), Go2_DreamWaQ_PPO_Yu())
+
+# ===== PIE 任务（从 DreamwaQ 复制）=====
+task_registry.register( "go2_pie", Go2_PIE_Robot, Go2_PIE_Cfg_Yu(), Go2_PIE_PPO_Yu())
 
 # ===== AMP + DreamwaQ 任务 =====
 task_registry.register( "go2_amp_dreamwaq", Go2_AMP_DreamWaQ_Robot, Go2_AMP_DreamWaQ_Cfg_Yu(), Go2_AMP_DreamWaQ_PPO_Yu())

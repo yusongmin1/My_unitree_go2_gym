@@ -10,7 +10,7 @@
 </p>
  
 <p align="center">
-  本仓库融合了多种强化学习算法（标准 PPO、DreamwaQ、AMP、CTS），在一个统一框架内支持 11 种训练任务。
+  本仓库融合了多种强化学习算法（标准 PPO、DreamwaQ、AMP、CTS、PIE），在一个统一框架内支持 12 种训练任务。
 </p>
  
 ---
@@ -27,6 +27,7 @@
 | **标准 PPO** | `go2_backflip` | `Go2_Flip/Go2_BackFlip/` | `PPO` / `OnPolicyRunner` |
 | **DreamwaQ** | `go2_stand` | `Go2_Stand/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **DreamwaQ** | `go2_dreamwaq` | `Go2_DreamWaQ/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
+| **PIE（DreamwaQ 栈）** | `go2_pie` | `Go2_PIE/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **AMP + DreamwaQ** | `go2_amp_dreamwaq` | `Go2_AMP_DreamWaQ/` | `PPO_DreamWaQ_AMP` / `DreamWaQRunner_AMP` |
 | **CTS** | `go2_cts` | `Go2_Cts/` | `CTS` / `OnPolicyRunnerCTS` |
 | **AMP + CTS** | `go2_amp_cts` | `Go2_AMP_Cts/` | `AMPCTS` / `OnPolicyRunnerCTSAMP` |
@@ -38,6 +39,7 @@
 - **DreamwaQ**：基于隐式地形想象（CENet/VAE）的鲁棒四足运动，从历史观测编码出隐式地形 latent + 显式线速度估计。参考论文 [Learning Robust Quadrupedal Locomotion With Implicit Terrain Imagination via Deep Reinforcement Learning](https://arxiv.org/abs/2301.10602)。`go2_stand` 也使用该算法栈。
 - **AMP（Adversarial Motion Priors）**：用判别器引导策略学习参考动作（mocap 数据），让运动风格更自然。参考 [rl_amp](https://github.com/fan-ziqi/rl_amp)。
 - **CTS（Concurrent Teacher-Student）**：师生并行训练 + 隐变量蒸馏，teacher 吃 privileged obs，student 吃 history obs。参考论文 [arxiv 2405.10830](https://arxiv.org/abs/2405.10830)。
+- **PIE（Parkour with Interval Exercises，跑酷任务）**：基于 DreamwaQ 算法栈的跑酷地形任务。地形为跑酷 7 类（断崖 gap / 石阵 / 双排石 / 单排石 / 独木桥 / 跨栏 / 半坡，共 0.65；半坡最高约 33°）+ 纵向上下楼梯（台阶宽 0.25m / 0.30m 各 0.10）+ 纯粗糙地（0.15），复用 `terrain.py` 的 curriculum 难度分级。
  
 ---
  
@@ -101,6 +103,11 @@ python legged_gym/scripts/train.py --task=go2_stand --headless
 
 ```bash
 python legged_gym/scripts/train.py --task=go2_dreamwaq --headless
+```
+ 
+#### PIE 任务（跑酷地形，DreamwaQ 栈）
+```bash
+python legged_gym/scripts/train.py --task=go2_pie --headless
 ```
  
 #### AMP + DreamwaQ 任务
@@ -181,6 +188,11 @@ python legged_gym/scripts/play_dreamwaq.py --task=go2_dreamwaq
 
 ```bash
 python legged_gym/scripts/play_dreamwaq.py --task=go2_amp_dreamwaq
+```
+ 
+#### PIE 任务（DreamwaQ 栈）
+```bash
+python legged_gym/scripts/play_dreamwaq.py --task=go2_pie
 ```
  
 #### CTS 任务
@@ -305,11 +317,12 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 │   │   ├── Go2_Flip/             # 标准 PPO: backflip / spring_jump
 │   │   ├── Go2_Stand/            # DreamwaQ: go2_stand（倒立/直立/四足）
 │   │   ├── Go2_DreamWaQ/         # DreamwaQ 任务
+│   │   ├── Go2_PIE/              # PIE 跑酷任务（DreamwaQ 栈 + 跑酷地形）
 │   │   ├── Go2_AMP_DreamWaQ/     # AMP + DreamwaQ 任务
 │   │   ├── Go2_Cts/              # CTS 任务
 │   │   ├── Go2_AMP_Cts/          # AMP + CTS 任务
 │   │   ├── Go2_AMP_Ts/           # AMP Teacher-Student 任务（teacher + student 配置）
-│   │   └── __init__.py           # 注册全部 11 个 task
+│   │   └── __init__.py           # 注册全部 12 个 task
 │   ├── scripts/                  # train.py + 各算法的 play 脚本
 │   └── utils/                    # task_registry（动态 runner 调度）/ helpers / terrain
 ├── rsl_rl/                       # 算法库（PPO / DreamwaQ / AMP / CTS 全部共存）
