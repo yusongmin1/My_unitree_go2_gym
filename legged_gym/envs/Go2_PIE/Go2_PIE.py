@@ -128,11 +128,19 @@ class Go2_PIE_Robot(BaseTask):
         self.last_dof_vel[:] = self.dof_vel[:]
 
     def check_termination(self):
-        """ Check if environments need to be reset
+        """ Check if environments need to be reset.
+        对齐 MGDP gap_parkour：跑酷地形上基座/足端掉进坑（z < -0.1）即终止。
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
+
+        # 掉坑终止：仅跑酷类（idx 5~13，含 gap/石阵/桥/栏/坡/上下楼梯）
+        if hasattr(self, "env_class"):
+            parkour = (self.env_class >= 5) & (self.env_class <= 13)
+            base_fall = self.root_states[:, 2] < -0.1
+            foot_fall = torch.min(self.feet_pos[:, :, 2], dim=1).values < -0.1
+            self.reset_buf |= parkour & (base_fall | foot_fall)
 
     def reset_idx(self, env_ids):
         """ Reset some environments.
@@ -481,7 +489,17 @@ class Go2_PIE_Robot(BaseTask):
         if self.custom_origins:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-            self.root_states[env_ids, :2] += torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device) # xy position within 1m of the center
+            # 跑酷走廊仅宽 4m：对齐 MGDP，xy 扰动 ±0.2m（原先 ±1m 会把机器人甩进坑）
+            if hasattr(self, "env_class"):
+                parkour = (self.env_class[env_ids] >= 5) & (self.env_class[env_ids] <= 13)
+                parkour_ids = env_ids[parkour]
+                other_ids = env_ids[~parkour]
+                if len(parkour_ids) > 0:
+                    self.root_states[parkour_ids, :2] += torch_rand_float(-0.2, 0.2, (len(parkour_ids), 2), device=self.device)
+                if len(other_ids) > 0:
+                    self.root_states[other_ids, :2] += torch_rand_float(-0.5, 0.5, (len(other_ids), 2), device=self.device)
+            else:
+                self.root_states[env_ids, :2] += torch_rand_float(-0.2, 0.2, (len(env_ids), 2), device=self.device)
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
@@ -529,6 +547,8 @@ class Go2_PIE_Robot(BaseTask):
                                                    torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
                                                    torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+        if hasattr(self, "terrain_class"):
+            self.env_class[env_ids] = self.terrain_class[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
 
     def update_command_curriculum(self, env_ids):
         """ Implements a curriculum of increasing commands
@@ -823,6 +843,11 @@ class Go2_PIE_Robot(BaseTask):
             self.max_terrain_level = self.cfg.terrain.num_rows
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
             self.env_origins[:] = self.terrain_origins[self.terrain_levels, self.terrain_types]
+            if hasattr(self.terrain, "terrain_type"):
+                self.terrain_class = torch.from_numpy(self.terrain.terrain_type).to(self.device).to(torch.long)
+                self.env_class = self.terrain_class[self.terrain_levels, self.terrain_types]
+            else:
+                self.env_class = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         else:
             self.custom_origins = False
             self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
