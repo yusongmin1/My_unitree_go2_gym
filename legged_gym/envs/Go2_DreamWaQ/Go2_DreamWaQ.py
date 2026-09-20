@@ -131,6 +131,8 @@ class Go2_DreamWaQ_Robot(BaseTask):
         """ Check if environments need to be reset
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
+        # free-fall window: ignore base contacts until torques are enabled
+        self.reset_buf &= self.episode_length_buf > 50
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
 
@@ -453,7 +455,10 @@ class Go2_DreamWaQ_Robot(BaseTask):
 
         torques = p_gains * (actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
         torques*=self.torques_multiplier
-        return torch.clip(torques, -self.torque_limits, self.torque_limits)
+        torques = torch.clip(torques, -self.torque_limits, self.torque_limits)
+        # free-fall: no actuation until episode_length_buf > 50
+        torques = torques * (self.episode_length_buf > 50).unsqueeze(-1)
+        return torques
     
     def _reset_dofs(self, env_ids):
         """ Resets DOF position and velocities of selected environmments
@@ -471,9 +476,7 @@ class Go2_DreamWaQ_Robot(BaseTask):
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
     def _reset_root_states(self, env_ids):
-        """ Resets ROOT states position and velocities of selected environmments
-            Sets base position based on the curriculum
-            Selects randomized base velocities within -0.5:0.5 [m/s, rad/s]
+        """ Resets ROOT states: elevated spawn, fully random Euler, zero velocity (free-fall).
         Args:
             env_ids (List[int]): Environemnt ids
         """
@@ -485,8 +488,14 @@ class Go2_DreamWaQ_Robot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        # base velocities
-        self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
+        # random full Euler → quat (x, y, z, w)
+        n = len(env_ids)
+        roll = torch_rand_float(-np.pi, np.pi, (n, 1), device=self.device).squeeze(-1)
+        pitch = torch_rand_float(-np.pi, np.pi, (n, 1), device=self.device).squeeze(-1)
+        yaw = torch_rand_float(-np.pi, np.pi, (n, 1), device=self.device).squeeze(-1)
+        self.root_states[env_ids, 3:7] = quat_from_euler_xyz(roll, pitch, yaw)
+        # drop from air with zero initial velocity
+        self.root_states[env_ids, 7:13] = 0.
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -983,49 +992,49 @@ class Go2_DreamWaQ_Robot(BaseTask):
 
     def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
-        return torch.square(self.base_lin_vel[:, 2])
+        return torch.square(self.base_lin_vel[:, 2])*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
-        return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
+        return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_orientation(self):
         # Penalize non flat base orientation
-        return torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
+        return torch.square(1 - self.projected_gravity[:, 2])#self.projected_gravity[:, 2])
 
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = self._get_base_heights()
-        return torch.square(base_height - self.cfg.rewards.base_height_target)
+        return torch.square(base_height - self.cfg.rewards.base_height_target)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_torques(self):
         # Penalize torques
-        return torch.sum(torch.square(self.torques), dim=1)
+        return torch.sum(torch.square(self.torques), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_dof_vel(self):
         # Penalize dof velocities
-        return torch.sum(torch.square(self.dof_vel), dim=1)
+        return torch.sum(torch.square(self.dof_vel), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
     
     def _reward_dof_power(self):
         # Penalize power consumption
-        return torch.sum(torch.abs(self.torques * self.dof_vel), dim=1)
+        return torch.sum(torch.abs(self.torques * self.dof_vel), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_dof_acc(self):
         # Penalize dof accelerations
-        return torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)
+        return torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_action_rate(self):
         # Penalize changes in actions
-        return torch.sum(torch.square(self.last_actions - self.actions), dim=1)
+        return torch.sum(torch.square(self.last_actions - self.actions), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_action_smoothness(self):
         '''Penalize action smoothness'''
         action_smoothness_cost = torch.sum(torch.square(self.actions - 2*self.last_actions + self.last_last_actions), dim=-1)
-        return action_smoothness_cost
+        return action_smoothness_cost*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_collision(self):
         # Penalize collisions on selected bodies
-        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_termination(self):
         # Terminal reward / penalty
@@ -1034,41 +1043,41 @@ class Go2_DreamWaQ_Robot(BaseTask):
     def _reward_dof_vel_limits(self):
         # Penalize dof velocities too close to the limit
         # clip to max error = 1 rad/s per joint to avoid huge penalties
-        return torch.sum((torch.abs(self.dof_vel) - self.dof_vel_limits*self.cfg.rewards.soft_dof_vel_limit).clip(min=0., max=1.), dim=1)
+        return torch.sum((torch.abs(self.dof_vel) - self.dof_vel_limits*self.cfg.rewards.soft_dof_vel_limit).clip(min=0., max=1.), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_dof_pos_limits(self):
         # Penalize dof positions too close to the limit
         out_of_limits = -(self.dof_pos - self.soft_dof_pos_limits[:, 0]).clip(max=0.)  # lower limit
         out_of_limits += (self.dof_pos - self.soft_dof_pos_limits[:, 1]).clip(min=0.)
-        return torch.sum(out_of_limits, dim=1)
+        return torch.sum(out_of_limits, dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_torque_limits(self):
         # penalize torques too close to the limit
-        return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
+        return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)#*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw)
         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
-        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)
+        return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_stand_still(self):
         # Penalize motion at zero commands
-        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*(torch.norm(self.commands[:, :3], dim=1) < 0.1)
+        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*(torch.norm(self.commands[:, :3], dim=1) < 0.1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
-        return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
+        return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_default_pos(self):
-        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1) 
+        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
     
     def _reward_stumble(self):
-        return torch.any(torch.norm(self.contact_forces[:, self.feet_indices, :2], dim=2) >5 *torch.abs(self.contact_forces[:, self.feet_indices, 2]), dim=1)
+        return torch.any(torch.norm(self.contact_forces[:, self.feet_indices, :2], dim=2) >5 *torch.abs(self.contact_forces[:, self.feet_indices, 2]), dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_feet_air_time(self):
         # Reward long steps
@@ -1081,7 +1090,7 @@ class Go2_DreamWaQ_Robot(BaseTask):
         rew_airTime = torch.sum((self.feet_air_time - 0.5) * first_contact, dim=1) # reward only on first contact with the ground
         rew_airTime *= torch.norm(self.commands[:, :3], dim=1) > 0.1 #no reward for zero command
         self.feet_air_time *= ~contact_filt
-        return rew_airTime
+        return rew_airTime*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
 
     def _reward_foot_clearance(self):
         cur_footpos_translated = self.feet_pos - self.root_states[:, 0:3].unsqueeze(1)
@@ -1094,7 +1103,7 @@ class Go2_DreamWaQ_Robot(BaseTask):
         
         height_error = torch.square(footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target).view(self.num_envs, -1)
         foot_leteral_vel = torch.sqrt(torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)).view(self.num_envs, -1)
-        return torch.sum(height_error * foot_leteral_vel, dim=1)
+        return torch.sum(height_error * foot_leteral_vel, dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
      
 
     def _reward_hip_pos(self):
@@ -1104,12 +1113,12 @@ class Go2_DreamWaQ_Robot(BaseTask):
         dof_pos_error = torch.sum(torch.square(
             self.dof_pos[:, hip_joint_indices] - 
             self.default_dof_pos[:, hip_joint_indices]), dim=-1)
-        return dof_pos_error
+        return dof_pos_error*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
     
     def _reward_power_distribution(self):
         power = self.torques*self.dof_vel
-        return torch.var(torch.abs(power),dim=1)
+        return torch.var(torch.abs(power),dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
     
     def _reward_joint_power(self):
-        return torch.sum((torch.abs(self.dof_vel)*torch.abs(self.torques)),dim=1)
+        return torch.sum((torch.abs(self.dof_vel)*torch.abs(self.torques)),dim=1)*(torch.clamp(-self.projected_gravity[:, 2], 0, 0.7) / 0.7)
     

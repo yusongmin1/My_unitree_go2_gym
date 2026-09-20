@@ -1,7 +1,11 @@
 """sim2sim_go2_amp_dreamwaq 实时曲线版：
 一个窗口内 3 个等尺寸子图实时滚动 —— ①左前腿(FL)关节角度 ②FL关节角速度 ③基座欧拉角。
-坐标轴无标题、横坐标隐藏、纵轴与图例中文；欧拉角连续化（不出现 ±π 跳变）。
+坐标轴无标题、横坐标隐藏、纵轴与图例中文；欧拉角半圈 [-π, π]，贴边不跳，站起缓慢回 0。
 Ctrl+C 退出时立刻保存 3 张 PNG 并强制退出（不等 viewer / 弹窗回滚）。
+
+PD 状态控制（电机 q/dq/kp/kd 位控）：
+  键盘 p=策略+PD / o=纯PD默认站姿 / i=纯PD锁定当前关节角
+  手柄 X=策略 / A=默认站姿 / B=锁定当前角
 """
 from sim2sim_config_loader import load_cfg
 Go2_AMP_DreamWaQ_Cfg_Yu = load_cfg(
@@ -10,7 +14,6 @@ Go2_AMP_DreamWaQ_Cfg_Yu = load_cfg(
 )
 import os
 import signal
-import math
 import numpy as np
 import mujoco, mujoco.viewer
 from collections import deque
@@ -18,6 +21,7 @@ from scipy.spatial.transform import Rotation as R
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import torch
 import time
+from pynput import keyboard
 from viewer_utils import VelocityArrowViewer
 
 import matplotlib
@@ -31,7 +35,11 @@ for _f in ['Noto Serif CJK SC', 'WenQuanYi Micro Hei', 'AR PL UMing CN', 'AR PL 
         plt.rcParams['font.sans-serif'] = [_f]
         break
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 13            # 全局中文字体加大
+plt.rcParams['font.size'] = 16            # 全局中文字体加大
+plt.rcParams['axes.labelsize'] = 18       # 纵轴中文标签
+plt.rcParams['xtick.labelsize'] = 15      # 坐标轴刻度
+plt.rcParams['ytick.labelsize'] = 15
+plt.rcParams['legend.fontsize'] = 14
 
 x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 1.5
 
@@ -50,50 +58,64 @@ def quaternion_to_euler_array(quat):
     return np.array([roll_x, pitch_y, yaw_z])
 
 
-class EulerUnwrapper:
-    """欧拉角连续化：新值与上个连续值比较，跨 ±π 时累计 ±2π 偏移，消除 -3.14↔3.14 跳变。"""
+class EulerHalfCircle:
+    """半圈显示 ∈ [-π, π]：正常时最短角差跟随；越界则贴边；
+    贴边后若 raw 已回到半圈内，则向 raw 缓慢靠拢（站起来会回到 0），不跳边。"""
 
-    def __init__(self):
-        self.offset = np.zeros(3)
-        self.last = None
+    def __init__(self, max_step=0.15):
+        self.cont = None
+        self.max_step = float(max_step)
 
     def __call__(self, raw):
         raw = np.asarray(raw, dtype=np.float64)
-        if self.last is None:
-            self.last = raw.copy()
-            return raw.copy()
-        cand = raw + self.offset
+        if self.cont is None:
+            self.cont = np.clip(raw.copy(), -np.pi, np.pi)
+            return self.cont.copy()
+
+        out = np.empty(3, dtype=np.float64)
         for i in range(3):
-            d = cand[i] - self.last[i]
-            if d > np.pi:
-                self.offset[i] -= 2 * np.pi
-            elif d < -np.pi:
-                self.offset[i] += 2 * np.pi
-        out = raw + self.offset
-        self.last = out.copy()
+            delta = np.arctan2(np.sin(raw[i] - self.cont[i]), np.cos(raw[i] - self.cont[i]))
+            cand = self.cont[i] + delta
+            if abs(cand) <= np.pi:
+                out[i] = cand
+                continue
+            # 越界：先贴在 ±π
+            out[i] = np.pi if cand > 0.0 else -np.pi
+            # raw 已回到半圈内 → 向 raw 靠拢（站立恢复）；跨支点时先往 0 走
+            if abs(raw[i]) < 0.9 * np.pi:
+                if abs(raw[i] - out[i]) <= np.pi:
+                    err = raw[i] - out[i]
+                else:
+                    err = -out[i]  # 先回到 0
+                out[i] = np.clip(out[i] + np.clip(err, -self.max_step, self.max_step), -np.pi, np.pi)
+        self.cont = out.copy()
         return out
 
 
 class ThreePanelPlotter:
-    """1×3 等尺寸子图实时滚动；无标题、横坐标隐藏、纵轴中文单位、图例中文。
-    Ctrl+C 后三个子图各自另存为同尺寸 PNG（共 3 张）。"""
+    """1×3 等尺寸子图实时滚动；第 1 子图仅实测关节角。"""
 
     SAVE_FILES = ['fl_joint_angles.png', 'fl_joint_velocities.png', 'base_euler_angles.png']
     YLABELS = ['角度（弧度）', '角速度（弧度/秒）', '角度（弧度）']
     LEGENDS = [['髋关节', '大腿关节', '小腿关节'],
                ['髋关节', '大腿关节', '小腿关节'],
                ['横滚角', '俯仰角', '偏航角']]
+    YLABEL_FS = 18
+    TICK_FS = 15
+    LEGEND_FS = 14
 
-    def __init__(self, dt=0.02, window_s=10.0, refresh_every=10, save_dir='.'):
+    def __init__(self, dt=0.005, window_s=5.0, refresh_every=10, save_dir='.'):
         self.refresh_every = refresh_every
-        self.max_points = max(2, int(window_s / dt))
+        self.window_s = float(window_s)
+        # dt 必须是 update() 的调用间隔（物理步），不能用控制步
+        self.max_points = max(2, int(round(self.window_s / dt)))
         self.save_dir = save_dir
         self._count = 0
         self.t_buf = deque(maxlen=self.max_points)
         self.bufs = [deque(maxlen=self.max_points) for _ in range(3)]
 
         plt.ion()
-        self.fig, self.axes = plt.subplots(3, 1, figsize=(11, 8))  # 3 行 1 列
+        self.fig, self.axes = plt.subplots(3, 1, figsize=(11, 8))
         try:
             self.fig.canvas.manager.set_window_title('Go2 实时监测：左前腿关节与基座姿态')
         except Exception:
@@ -105,28 +127,36 @@ class ThreePanelPlotter:
                 line, = ax.plot([], [], linewidth=1.2, label=lbl)
                 ls.append(line)
             self.lines.append(ls)
-            ax.set_ylabel(ylab)                # 纵坐标中文加单位
+            ax.set_ylabel(ylab, fontsize=self.YLABEL_FS)
+            ax.tick_params(axis='both', labelsize=self.TICK_FS)
             ax.grid(True, alpha=0.35)
-            ax.legend(loc='upper right', fontsize=13)
+            ax.legend(loc='upper right', fontsize=self.LEGEND_FS)
         self.fig.tight_layout()
         plt.show(block=False)
         plt.pause(0.001)
 
-    def update(self, t, fl_angles, fl_vels, euler_cont):
+    def update(self, t, fl_angles, fl_vels, euler):
         self.t_buf.append(float(t))
         self.bufs[0].append(np.asarray(fl_angles, dtype=np.float64).copy())
         self.bufs[1].append(np.asarray(fl_vels, dtype=np.float64).copy())
-        self.bufs[2].append(np.asarray(euler_cont, dtype=np.float64).copy())
+        self.bufs[2].append(np.asarray(euler, dtype=np.float64).copy())
         self._count += 1
         if self._count % self.refresh_every != 0:
             return
         ts = np.asarray(self.t_buf)
+        t_end = float(ts[-1])
+        # 横轴固定 5 s：一开始就是 [0, 5]，之后滚动
+        if t_end < self.window_s:
+            x0, x1 = 0.0, self.window_s
+        else:
+            x0, x1 = t_end - self.window_s, t_end
         for i in range(3):
             data = np.asarray(self.bufs[i])
             for line, col in zip(self.lines[i], data.T):
                 line.set_data(ts, col)
+            self.axes[i].set_xlim(x0, x1)
             self.axes[i].relim()
-            self.axes[i].autoscale_view()
+            self.axes[i].autoscale_view(scalex=False, scaley=True)
         plt.pause(0.001)
 
     def save_three(self):
@@ -148,14 +178,90 @@ class ThreePanelPlotter:
                 continue
             for col, lbl in zip(data.T, legend):
                 ax.plot(ts, col, linewidth=1.2, label=lbl)
-            ax.set_ylabel(ylab)
+            t_end = float(ts[-1])
+            ax.set_xlim(t_end - self.window_s, t_end)
+            ax.set_ylabel(ylab, fontsize=self.YLABEL_FS)
+            ax.tick_params(axis='both', labelsize=self.TICK_FS)
             ax.grid(True, alpha=0.35)
-            ax.legend(loc='upper right', fontsize=13)
+            ax.legend(loc='upper right', fontsize=self.LEGEND_FS)
             fig.tight_layout()
             out = os.path.join(self.save_dir, fname)
             fig.savefig(out, dpi=150)
             plt.close(fig)
             print(f'[保存] {out}')
+
+
+class PdModeController:
+    """PD 状态控制模式切换。
+    - policy: 策略目标角 + PD
+    - pd_default: 纯 PD 锁默认站姿
+    - pd_hold: 纯 PD 锁进入模式时的关节角
+    """
+
+    MODE_POLICY = 'policy'
+    MODE_PD_DEFAULT = 'pd_default'
+    MODE_PD_HOLD = 'pd_hold'
+    MODE_NAMES = {
+        MODE_POLICY: '策略+PD',
+        MODE_PD_DEFAULT: '纯PD·默认站姿',
+        MODE_PD_HOLD: '纯PD·锁定当前角',
+    }
+    KEY_TO_MODE = {
+        'p': MODE_POLICY, 'P': MODE_POLICY,
+        'o': MODE_PD_DEFAULT, 'O': MODE_PD_DEFAULT,
+        'i': MODE_PD_HOLD, 'I': MODE_PD_HOLD,
+    }
+    # Xbox: A=0, B=1, X=2
+    BTN_TO_MODE = {2: MODE_POLICY, 0: MODE_PD_DEFAULT, 1: MODE_PD_HOLD}
+
+    def __init__(self, num_actions, initial=MODE_POLICY, joystick=None):
+        self.mode = initial
+        self.joystick = joystick
+        self.hold_target_q = np.zeros(num_actions, dtype=np.double)
+        self._prev_btn = {b: False for b in self.BTN_TO_MODE}
+        self._pending = None
+        self._listener = keyboard.Listener(on_press=self._on_key)
+        self._listener.daemon = True
+        self._listener.start()
+        print('[PD] 模式: p=策略+PD / o=纯PD默认站姿 / i=纯PD锁定当前角（手柄 X/A/B）')
+        print(f'[PD] 当前: {self.MODE_NAMES[self.mode]}')
+
+    def _set_mode(self, mode, q=None, default_dof_pos=None):
+        if mode == self.MODE_PD_HOLD and q is not None and default_dof_pos is not None:
+            self.hold_target_q = (q - default_dof_pos).astype(np.double)
+        if mode != self.mode:
+            self.mode = mode
+            print(f'\n[PD] 模式 -> {self.MODE_NAMES[self.mode]}')
+
+    def _on_key(self, key):
+        try:
+            ch = key.char
+        except AttributeError:
+            return
+        if ch in self.KEY_TO_MODE:
+            self._pending = self.KEY_TO_MODE[ch]
+
+    def update(self, q, default_dof_pos):
+        if self.joystick is not None:
+            try:
+                nbtn = self.joystick.get_numbuttons()
+                for btn, mode in self.BTN_TO_MODE.items():
+                    pressed = nbtn > btn and bool(self.joystick.get_button(btn))
+                    if pressed and not self._prev_btn[btn]:
+                        self._pending = mode
+                    self._prev_btn[btn] = pressed
+            except Exception:
+                pass
+        if self._pending is not None:
+            self._set_mode(self._pending, q=q, default_dof_pos=default_dof_pos)
+            self._pending = None
+
+    def resolve_target_q(self, policy_target_q):
+        if self.mode == self.MODE_POLICY:
+            return policy_target_q
+        if self.mode == self.MODE_PD_HOLD:
+            return self.hold_target_q
+        return np.zeros_like(policy_target_q)
 
 
 def get_obs(data, model):
@@ -168,22 +274,27 @@ def get_obs(data, model):
     gvec = r.apply(np.array([0., 0., -1.]), inverse=True).astype(np.double)
     base_pos = data.qpos[0:3].astype(np.double)
     foot_positions = []
+    foot_forces = 0.0
     for i in range(model.nbody):
         body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, i)
-        if 'foot' in body_name:
+        if body_name is not None and 'foot' in body_name:
             foot_positions.append(data.xpos[i][2].copy().astype(np.double))
             foot_forces = data.cfrc_ext[i][2].copy().astype(np.double)
     return (q, dq, quat, v, omega, gvec, base_pos, foot_positions, foot_forces)
 
 
 def pd_control(target_q, q, kp, target_dq, dq, kd, cfg):
-    torque_out = (target_q + cfg.robot_config.default_dof_pos - q) * kp + (target_dq - dq) * kd
-    return torque_out
+    """电机 PD 状态控制：τ = kp(q* + q0 − q) + kd(dq* − dq)。"""
+    return (target_q + cfg.robot_config.default_dof_pos - q) * kp + (target_dq - dq) * kd
 
 
 def run_mujoco(policy, cfg):
     vel_arrow = VelocityArrowViewer(max_cmd=(x_vel_max, y_vel_max, yaw_vel_max),
                                     gears=[0.5, 1.0, 1.5, 2.0])
+    pd_mode = PdModeController(
+        num_actions=cfg.env.num_actions,
+        joystick=vel_arrow.joystick if vel_arrow.use_joystick else None,
+    )
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
     data = mujoco.MjData(model)
@@ -191,12 +302,11 @@ def run_mujoco(policy, cfg):
     data.qpos[-num_actuated_joints:] = cfg.robot_config.default_dof_pos
     mujoco.mj_step(model, data)
 
-    plotter = ThreePanelPlotter(dt=cfg.sim_config.dt * cfg.sim_config.decimation)
-    euler_unwrap = EulerUnwrapper()
+    plotter = ThreePanelPlotter(dt=cfg.sim_config.dt, window_s=5.0)
+    euler_half = EulerHalfCircle()
     saved = {'done': False}
 
     def _save_now_and_exit(signum=None, frame=None):
-        """Ctrl+C：立刻存图并强制退出，不等 viewer / matplotlib 回滚清理。"""
         if not saved['done']:
             saved['done'] = True
             print('\n[退出] 立即保存曲线...')
@@ -229,6 +339,7 @@ def run_mujoco(policy, cfg):
             x_vel_cmd, y_vel_cmd, yaw_vel_cmd = cmd[0], cmd[1], cmd[2]
 
             q, dq, quat, v, omega, gvec, base_pos, foot_positions, foot_forces = get_obs(data, model)
+            pd_mode.update(q, cfg.robot_config.default_dof_pos)
 
             if count_lowlevel % cfg.sim_config.decimation == 0:
                 obs = np.zeros([1, 45], dtype=np.float32)
@@ -250,13 +361,12 @@ def run_mujoco(policy, cfg):
                 action = np.clip(action, -cfg.normalization.clip_actions, cfg.normalization.clip_actions)
                 target_q = action * cfg.control.action_scale
 
+            # PD 状态控制：按模式选目标角 → τ = kp/kd
+            policy_target_q = target_q if sim_step >= 100 else np.zeros_like(target_q)
+            cmd_target_q = pd_mode.resolve_target_q(policy_target_q)
             target_dq = np.zeros((cfg.env.num_actions), dtype=np.double)
-            if sim_step < 100:
-                tau = pd_control(np.zeros((cfg.env.num_actions)), q, cfg.robot_config.kps,
-                                 target_dq, dq, cfg.robot_config.kds, cfg)
-            else:
-                tau = pd_control(target_q, q, cfg.robot_config.kps,
-                                 target_dq, dq, cfg.robot_config.kds, cfg)
+            tau = pd_control(cmd_target_q, q, cfg.robot_config.kps,
+                             target_dq, dq, cfg.robot_config.kds, cfg)
             tau = np.clip(tau, -cfg.robot_config.tau_limit, cfg.robot_config.tau_limit)
             data.ctrl = tau
 
@@ -265,10 +375,9 @@ def run_mujoco(policy, cfg):
             vel_arrow.draw_arrows(viewer, data)
             viewer.sync()
 
-            # 实时曲线：FL 前 3 个关节（髋/大腿/小腿），欧拉角经连续化
-            euler_raw = quaternion_to_euler_array(quat)
-            euler_cont = euler_unwrap(euler_raw)
-            plotter.update(data.time, q[0:3], dq[0:3], euler_cont)
+            # 半圈显示：曲线 ∈ [-π, π]，过界贴边不跳
+            euler = euler_half(quaternion_to_euler_array(quat))
+            plotter.update(data.time, q[0:3], dq[0:3], euler)
 
             time_until_next_step = model.opt.timestep - (time.time() - step_start)
             if time_until_next_step > 0:

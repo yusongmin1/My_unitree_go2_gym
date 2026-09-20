@@ -21,7 +21,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts=True
     class terrain:
-        mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
         border_size = 50 # [m]
@@ -61,7 +61,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.0, 1.0] # x,y,z [m]  # drop from air
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -97,7 +97,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
         name = "go2"
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf","base"]
-        terminate_after_contacts_on = ["base"]
+        terminate_after_contacts_on = []
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fixe the base of the robot
@@ -159,7 +159,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             tracking_ang_vel = 0.75
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            orientation = -0.2
+            orientation = 1.0
             base_height=-2.0
             # torques = -0.0001#
             dof_acc = -2.5e-7#-7
@@ -168,7 +168,7 @@ class Go2_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             # feet_air_time =  1.0
             # stand_still=-0.5
             dof_pos_limits=-2.0
-            action_smoothness = -0.01
+            # action_smoothness = -0.01
             # stumble = -0.5
             # foot_clearance=-0.01
             hip_pos=-0.1

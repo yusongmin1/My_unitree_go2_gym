@@ -76,6 +76,8 @@
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <!-- 倒地测试障碍：长 1m × 宽 0.4m × 高 0.2m，放在出生点前方 -->
+    <geom name="fall_box" type="box" pos="1.2 0 0.1" size="0.5 0.2 0.1" rgba="0.75 0.35 0.15 1"/>
 
     <!-- scene -->
     <geom pos="18.15 0.0 0.1" type="box" size="0.15 2 0.1" quat="1 0 0 0"/>

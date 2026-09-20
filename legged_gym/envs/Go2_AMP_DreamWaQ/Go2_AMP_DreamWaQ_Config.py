@@ -193,13 +193,13 @@ class Go2_AMP_DreamWaQ_Cfg_Yu( LeggedRobotCfg ):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            base_height=-5.0
+            base_height=-2.0
             torques = -0.0001#
             dof_acc = -2.5e-7#-7
             collision = -1.
             action_rate = -0.01
             # feet_air_time =  1.0
-            # stand_still=-0.5
+            stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
             stumble = -0.5
