@@ -102,8 +102,8 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf"]
-        terminate_after_contacts_on = ["base","hip","Head"]
+        penalize_contacts_on = ["thigh", "calf","Head"]
+        terminate_after_contacts_on = ["base","hip",]
         front_feet=['FL_foot', 'FR_foot']  # legstand 支撑腿（后腿腾空）
         rear_feet=['RL_foot', 'RR_foot']   # handstand 支撑腿（前腿腾空）
         threshold=5.0
@@ -136,7 +136,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         push_robots = True
         push_interval_s = 8
         max_push_vel_xy = 0.4
-        max_push_ang_vel = 0.6
+        max_push_ang_vel = 0.4
 
         randomize_base_mass = True
         added_base_mass_range = [-1,2]
@@ -145,7 +145,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         multiplied_link_mass_range = [0.9, 1.1]
 
         randomize_base_com = True
-        added_base_com_range = [-0.3, 0.03]
+        added_base_com_range = [-0.03, 0.03]
 
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]  
@@ -158,10 +158,10 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         delay = True  # HIMLoco 式 action delay：0~decimation 子步内随机切换点
 
         randomize_joint_friction = True
-        joint_friction_range = [0.01, 0.1]
+        joint_friction_range = [0.02, 0.05]
 
         randomize_joint_damping = True
-        joint_damping_range = [0.0,0.1]
+        joint_damping_range = [0.02, 0.06]
 
         randomize_joint_armature = False
         joint_armature_range = [0.003, 0.006]    # unused when randomize_joint_armature=False
@@ -176,7 +176,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
             tracking_ang_vel = 1.0
             # lin_vel_z = 0.2
             # ang_vel_xy = 0.2
-            torques = -0.0002
+            torques = -0.0001
             dof_vel = -1e-4
             dof_acc = -2.5e-7
             action_rate = -0.01

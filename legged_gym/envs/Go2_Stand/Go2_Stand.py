@@ -454,7 +454,7 @@ class Go2_Stand_Robot(BaseTask):
 
         # stand_command ∈ {-1=handstand, 0=四足, 1=legstand}，先定模式再采速度
         self.stand_command[env_ids] = torch.randint(
-            1, 2, (len(env_ids), 1), device=self.device, dtype=torch.long
+            0, 3, (len(env_ids), 1), device=self.device, dtype=torch.long
         ).float() - 1.0
         cmd = self.stand_command[env_ids].squeeze(-1)
         quad_ids = env_ids[cmd == 0]
@@ -1034,8 +1034,8 @@ class Go2_Stand_Robot(BaseTask):
         Returns:
             [torch.Tensor]: Tensor of shape (num_envs, self.num_base_height_points, 3)
         """
-        y = torch.tensor([-0.6, -0.03, 0., 0.03, 0.6,], device=self.device, requires_grad=False)
-        x = torch.tensor([ -0.6, -0.03, 0., 0.03, 0.6, ], device=self.device, requires_grad=False)
+        y = torch.tensor([-0.06, -0.03, 0., 0.03, 0.06,], device=self.device, requires_grad=False)
+        x = torch.tensor([ -0.06, -0.03, 0., 0.03, 0.06, ], device=self.device, requires_grad=False)
         grid_x, grid_y = torch.meshgrid(x, y)
 
         self.num_base_height_points = grid_x.numel()
