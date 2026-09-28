@@ -55,13 +55,15 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         slope_treshold = 0.75
 
     class commands:
-        # 与 Go2_DreamWaQ / AMP 一致的速度课程：初始 ±1.0，跟踪好后扩到 max_curriculum
+        # rough(idx=14)：全向随机速度；其余地形：仅前进 vx∈[0,vmax]、vy=0、朝向固定向前
         curriculum = True
         max_curriculum = 2.0
         num_commands = 4
         resampling_time = 10.
         heading_command = True
+        rough_terrain_id = 14  # make_terrain idx：仅此类随机采速
         class ranges:
+            # 上界随课程扩大；非 rough 只用 [0, lin_vel_x[1]]
             lin_vel_x = [-1.0, 1.0]
             lin_vel_y = [-1.0, 1.0]
             ang_vel_yaw = [-1.0, 1.0]
@@ -98,7 +100,7 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf", "base"]
+        penalize_contacts_on = ["thigh", "calf","base"]  # base 已 terminate，勿再叠加重罚
         terminate_after_contacts_on = ["base"]
         disable_gravity = False
         collapse_fixed_joints = True
@@ -123,7 +125,7 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         randomize_restitution = True
         restitution_range = [0.0, 0.5]
         push_robots = True
-        push_interval_s = 7  # mjlab 6~8s
+        push_interval_s = 8  # mjlab 6~8s
         max_push_vel_xy = 0.4
         max_push_ang_vel = 0.6
         randomize_base_mass = True
@@ -131,14 +133,14 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         randomize_link_mass = True
         multiplied_link_mass_range = [0.9, 1.1]
         randomize_base_com = True
-        added_base_com_range = [-0.05, 0.05]
+        added_base_com_range = [-0.03, 0.03]
         randomize_pd_gains = True
         stiffness_multiplier_range = [0.9, 1.1]
         damping_multiplier_range = [0.9, 1.1]
-        torque_multiplier_range = [0.9, 1.1]
+        torque_multiplier_range = [0.8, 1.2]
         randomize_motor_zero_offset = True
         motor_zero_offset_range = [-0.015, 0.015]
-        disturbance = True
+        disturbance = False
         disturbance_range = [-30.0, 30.0]
         disturbance_interval = 8
         delay = True
@@ -148,24 +150,23 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         soft_dof_vel_limit = 0.95
         soft_torque_limit = 0.95
         class scales:
-            # Align weights with parkour_mjlab PIE where counterparts exist
-            termination = -0.0
             tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.5
-            lin_vel_z = -1.0
+            tracking_ang_vel = 0.75
+            lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            orientation = -5.0
+            orientation = -0.2         # 与 DreamWaQ 同：奖励直立（见 _reward_orientation）
             dof_acc = -2.5e-7
             joint_power = -2.0e-5
-            collision = -10.0
+            collision = -1.0           # 原 -10 导致不敢迈步
             action_rate = -0.01
-            # action_smoothness = -0.01
-            dof_pos_limits = -10.0
-            hip_pos = -0.5
-            base_height = -0.2  # L2 height error penalty (mjlab uses shaped +reward)
+            dof_pos_limits = -2.0
+            hip_pos = -0.1
+            base_height = -2.0         # 原 -0.2 太弱，趴着几乎不亏
+            feet_air_time = 1.0
+            foot_clearance=-0.01
         only_positive_rewards = False
         tracking_sigma = 0.25
-        base_height_target = 0.27
+        base_height_target = 0.38      # 原 0.27 过低，会鼓励蹲/趴
         max_contact_force = 120.
         clearance_height_target = -0.20
 
@@ -262,8 +263,8 @@ class Go2_PIE_PPO_Yu(LeggedRobotCfgPPO):
         kernel_size = [8, 4, 3]
         stride = [4, 2, 1]
         padding = 0
-        attention_heads = 1
-        transformer_layers = 2
+        attention_heads = 2
+        transformer_layers = 1
         transformer_ff_dim = 256
         transformer_dropout = 0.0
         cnn_activation = 'elu'

@@ -63,6 +63,8 @@ def run_mujoco(policy, cfg):
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
 
+    _extent = float(model.stat.extent)  # vis.map.znear/zfar 以 stat.extent 为单位
+
     data = mujoco.MjData(model)
     num_actuated_joints = cfg.env.num_actions
     data.qpos[-num_actuated_joints:] = cfg.robot_config.default_dof_pos
@@ -79,12 +81,23 @@ def run_mujoco(policy, cfg):
         render_depth = lambda: renderer.render(depth=True)
 
     def get_depth_img():
+        """返回 (米制图[显示用], 归一化图[策略输入用])。
+        显示给完整米制深度不截止；策略输入按训练约定 [0.1, 3.0] 归一化。"""
+        # 仅深度渲染时收紧裁剪面提高深度精度，渲染完恢复，避免影响 viewer 视角
+        _old_zn, _old_zf = model.vis.map.znear, model.vis.map.zfar
+        model.vis.map.znear = CAM_NEAR / _extent
+        model.vis.map.zfar = 6.0 / _extent
         renderer.update_scene(data, camera=cam_id)
-        d = render_depth()                                  # (H, W) 归一化 depth buffer
-        z = CAM_NEAR + d * (CAM_FAR - CAM_NEAR)             # -> 米（平面深度）
-        img = z[:, CROP_L:CAM_W - CROP_R]                   # (60, 86)
-        img = np.flipud(img)   # mujoco readPixels 第0行在底部，翻成常规上=天
-        return np.clip((img - CAM_NEAR) / (CAM_FAR - CAM_NEAR), 0.0, 1.0)
+        z = np.asarray(render_depth(), dtype=np.float32).copy()
+        model.vis.map.znear, model.vis.map.zfar = _old_zn, _old_zf
+        # render() 已返回米（平面深度 optical-z）且方向正确（row0=顶，col0=左），
+        # 不做任何翻转/旋转；无效/超远像素置 far（背景）
+        misses = ~np.isfinite(z) | (z <= 0.0) | (z >= 5.9)
+        z[misses] = 6.0   # 背景置显示最远端（策略侧 clip 到 [0.1,3] 后仍为 1.0，不受影响）
+        meters = z[:, CROP_L:CAM_W - CROP_R]                # (60, 86) 米
+        # 对齐训练 Go2_PIE.get_camera_sensor:784 —— clamp(near, far) / far，不是 (z-near)/(far-near)
+        norm = (np.clip(meters, CAM_NEAR, CAM_FAR) / CAM_FAR).clip(0.0, 1.0)
+        return meters, norm
 
     # --- FOV 视锥线 + 相机红色标记（对齐 play_pie._draw_fov）---
     HFOV = math.radians(87.0)
@@ -117,7 +130,8 @@ def run_mujoco(policy, cfg):
             hw = dist * math.tan(HFOV * 0.5)
             hh = dist * math.tan(VFOV * 0.5)
             for sx, sy in ((1, -1), (-1, -1), (-1, 1), (1, 1)):
-                corners.append(pos + right * (sx * hw) + up * (sy * hh) + forward * dist)
+                v = right * (sx * hw) + up * (sy * hh) + forward * dist
+                corners.append(pos + v / np.linalg.norm(v) * dist)  # 每条锥线严格 dist 长
         near_c, far_c = corners[:4], corners[4:]
 
         green = (0.1, 0.95, 0.2, 0.6)
@@ -128,22 +142,24 @@ def run_mujoco(policy, cfg):
         _capsule(scn, pos, pos + forward * 0.15, red, width=0.006)
         # 视锥 4 条棱 + near/far 矩形
         for i in range(4):
-            _capsule(scn, pos, far_c[i], green)
-            _capsule(scn, near_c[i], far_c[i], green)
-            _capsule(scn, near_c[i], near_c[(i + 1) % 4], green)
-            _capsule(scn, far_c[i], far_c[(i + 1) % 4], green)
+            _capsule(scn, pos, far_c[i], green, width=0.003)
+            _capsule(scn, near_c[i], far_c[i], green, width=0.003)
+            _capsule(scn, near_c[i], near_c[(i + 1) % 4], green, width=0.003)
+            _capsule(scn, far_c[i], far_c[(i + 1) % 4], green, width=0.003)
         # 光轴延长线（蓝）
         _capsule(scn, pos + forward * 0.15, pos + forward * far_d, blue, width=0.004)
 
-    # --- 深度可视化窗口 ---
+    # --- 深度可视化窗口（单窗，go2 相机量程 [0.1, 3.0]m）---
     plt.ion()
     fig, ax = plt.subplots(figsize=(5.0, 3.4))
-    fig.canvas.manager.set_window_title("PIE depth (pie_head_depth)")
+    fig.canvas.manager.set_window_title("go2 PIE depth (pie_head_depth)")
     ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title("depth (m)")
+    import matplotlib.colors as mcolors
     im = ax.imshow(np.zeros((CAM_H, CAM_W - CROP_L - CROP_R)), cmap="gray",
-                   vmin=0.0, vmax=1.0, origin="upper")
+                   norm=mcolors.LogNorm(vmin=0.1, vmax=6.0), origin="upper")
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("0=near(0.1m) ... 1=far(3.0m)")
+    cbar.set_label("meters")
     fig.tight_layout()
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
@@ -159,7 +175,8 @@ def run_mujoco(policy, cfg):
         hist_obs = deque()
         for _ in range(OBS_HIST):
             hist_obs.append(np.zeros([1, 45], dtype=np.double))
-        depth_hist = deque(maxlen=DEPTH_FRAMES)
+        depth_hist = deque(maxlen=DEPTH_FRAMES)      # 归一化，喂策略
+        meters_last = np.zeros((CAM_H, CAM_W - CROP_L - CROP_R))  # 米制，仅显示
         for _ in range(DEPTH_FRAMES):
             depth_hist.append(np.zeros((CAM_H, CAM_W - CROP_L - CROP_R)))
 
@@ -199,7 +216,8 @@ def run_mujoco(policy, cfg):
 
                 # --- 深度刷新（10Hz）---
                 if (count_lowlevel // cfg.sim_config.decimation) % DEPTH_UPDATE_INTERVAL == 0:
-                    depth_hist.append(get_depth_img())
+                    meters_last, _norm = get_depth_img()
+                    depth_hist.append(_norm)
                 for i in range(DEPTH_FRAMES):
                     depth_flat[0, i * CAM_H * 86:(i + 1) * CAM_H * 86] = depth_hist[i].reshape(-1)
 
@@ -217,9 +235,8 @@ def run_mujoco(policy, cfg):
                 action = np.clip(action, -cfg.normalization.clip_actions, cfg.normalization.clip_actions)
                 target_q = action * cfg.control.action_scale
 
-                # 深度窗口刷新（最新一帧）
-                im.set_data(depth_hist[-1])
-                ax.set_title(f"pie_head_depth  sim_step={sim_step}")
+                # 深度窗口刷新（最新一帧）+ RGB 对照
+                im.set_data(meters_last)
                 fig.canvas.draw_idle()
                 fig.canvas.flush_events()
 
