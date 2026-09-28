@@ -318,14 +318,16 @@ def play(args):
             env.commands[:, 1] = 0.0
             env.commands[:, 2] = 0.0
 
-            actions = policy(obs.detach(), obs_hist.detach(), depth.detach())
+            with torch.no_grad():  # 推理无需梯度，避免每步构建 autograd 图、降低显存峰值
+                actions = policy(obs.detach(), obs_hist.detach(), depth.detach())
 
             step_out = env.step(actions.detach())
             # PIE: obs, privileged, obs_hist, depth, pie_targets, rew, reset, extras
             obs, _, obs_hist, depth, _, rews, dones, infos = step_out
 
-            _draw_fov(env, focused)
-            depth_viewer.update(env, focused)
+            if i % 5 == 0:  # 可视化降频：matplotlib/TkAgg 高频重绘会缓涨内存
+                _draw_fov(env, focused)
+                depth_viewer.update(env, focused)
             if not MOVE_CAMERA and i % 5 == 0:
                 _follow_robot(env, focused)
 
