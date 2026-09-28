@@ -1,8 +1,8 @@
-"""Go2_PIE play：10 机器人 + 头顶深度相机视场线 + matplotlib 深度画面。
+"""Go2_PIE play：策略推理 + 状态/奖励日志 + 深度 FOV 可视化。
 
 操作：
-  P  — 切换聚焦机器人（Isaac Gym 视角跟随 + 深度窗口显示该机画面）
-  V  — 切换 viewer sync（BaseTask 原有）
+  P   — 切换聚焦机器人（视角跟随 + 深度窗口）
+  V   — 切换 viewer sync
   Esc — 退出
 
 用法：
@@ -12,56 +12,78 @@
 from __future__ import annotations
 
 import math
+import os
 import sys
 
 import isaacgym  # noqa: F401 — 必须在 torch 前
 from isaacgym import gymapi
 
 import matplotlib
-matplotlib.use("TkAgg")  # 本机 OpenCV highgui 无 GUI，与 play_dreamwaq 一致用 Tk
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from isaacgym.torch_utils import quat_apply
 
+from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs import *
-from legged_gym.utils import get_args, task_registry
+from legged_gym.utils import get_args, task_registry, Logger
 
-NUM_ENVS = 10
+NUM_ENVS = 50
 FOV_NEAR = 0.15
+EXPORT_POLICY = False
+RECORD_FRAMES = False
+MOVE_CAMERA = False
 
 
-def _load_policy_or_none(env, args, train_cfg):
-    try:
-        train_cfg.runner.resume = True
-        ppo_runner, train_cfg = task_registry.make_alg_runner(
-            env=env, name=args.task, args=args, train_cfg=train_cfg
+def _load_depth_policy(env, args, train_cfg):
+    """Load PIE depth policy (ActorCriticPIE via PIERunner). Fail hard if not PIE."""
+    runner_name = train_cfg.runner_class_name
+    if runner_name != "PIERunner":
+        raise RuntimeError(
+            f"[play_pie] expect PIERunner depth policy, got runner_class_name={runner_name!r}. "
+            "Use --task go2_pie."
         )
-        policy = ppo_runner.get_inference_policy(device=env.device)
-        print("[play_pie] 已加载策略:", train_cfg.runner.experiment_name)
-        return policy
-    except Exception as e:
-        print(f"[play_pie] 未加载策略（将用零动作）: {e}")
-        return None
+    if not getattr(env.cfg.camera, "use_camera", False):
+        raise RuntimeError("[play_pie] camera.use_camera must be True to load depth policy.")
+
+    train_cfg.runner.resume = True
+    ppo_runner, train_cfg = task_registry.make_alg_runner(
+        env=env, name=args.task, args=args, train_cfg=train_cfg
+    )
+    if type(ppo_runner).__name__ != "PIERunner":
+        raise RuntimeError(
+            f"[play_pie] alg runner is {type(ppo_runner).__name__}, expected PIERunner."
+        )
+    if not hasattr(ppo_runner.alg.actor_critic, "depth_encoder"):
+        raise RuntimeError(
+            "[play_pie] checkpoint has no depth_encoder — not a PIE depth policy."
+        )
+
+    policy = ppo_runner.get_inference_policy(device=env.device)
+    print(
+        "[play_pie] loaded PIE depth policy:",
+        train_cfg.runner.experiment_name,
+        "| actor=",
+        type(ppo_runner.alg.actor_critic).__name__,
+    )
+    return policy, ppo_runner, train_cfg
 
 
 def _camera_frustum_corners(pos, quat, hfov_deg, width, height, near, far, device):
-    """视锥角点：必须与 warp kernel 一致 —— 相机局部系为 OpenCV 式 Z 朝前、X 右、Y 下。
-    cam_quat 把该局部方向旋到世界系（见 cam_kernel: rd = quat_rotate(cam_quat, K_inv@(x,y,1))）。
-    """
+    """视锥角点：与 warp kernel 一致（Z 朝前、X 右、Y 下）。"""
     hfov = math.radians(hfov_deg)
     vfov = 2.0 * math.atan(math.tan(hfov * 0.5) * (height / float(width)))
     corners = []
     for dist in (near, far):
         hw = dist * math.tan(hfov * 0.5)
         hh = dist * math.tan(vfov * 0.5)
-        # (±X, ±Y, +Z_forward)；Y 下为正，故图像上方为 -hh
         local = torch.tensor(
             [
-                [ hw, -hh, dist],
+                [hw, -hh, dist],
                 [-hw, -hh, dist],
-                [-hw,  hh, dist],
-                [ hw,  hh, dist],
+                [-hw, hh, dist],
+                [hw, hh, dist],
             ],
             device=device,
             dtype=torch.float32,
@@ -74,6 +96,8 @@ def _camera_frustum_corners(pos, quat, hfov_deg, width, height, near, far, devic
 
 def _draw_fov(env, env_id, color=(0.1, 0.95, 0.2)):
     if env.viewer is None or not getattr(env, "use_camera", False):
+        return
+    if not hasattr(env, "warp_manager") or env.warp_manager is None:
         return
     cam_data = env.warp_manager["camera"]
     pos = cam_data.pos[env_id, 0].to(env.device)
@@ -105,10 +129,14 @@ def _draw_fov(env, env_id, color=(0.1, 0.95, 0.2)):
         verts[2 * i + 1] = b.detach().cpu().numpy()
         colors[i] = color
 
-    # 光轴：局部 +Z，应指向相机正前方（略俯视地面）
-    z_axis = quat_apply(quat.unsqueeze(0), torch.tensor([[0.0, 0.0, float(cfg.far_clip)]], device=env.device))[0]
+    z_axis = quat_apply(
+        quat.unsqueeze(0),
+        torch.tensor([[0.0, 0.0, float(cfg.far_clip)]], device=env.device),
+    )[0]
     axis_end = origin + z_axis
-    verts = np.vstack([verts, origin.detach().cpu().numpy(), axis_end.detach().cpu().numpy()])
+    verts = np.vstack(
+        [verts, origin.detach().cpu().numpy(), axis_end.detach().cpu().numpy()]
+    )
     colors = np.vstack([colors, np.array([[0.2, 0.4, 1.0]], dtype=np.float32)])
     n += 1
 
@@ -117,7 +145,7 @@ def _draw_fov(env, env_id, color=(0.1, 0.95, 0.2)):
 
 
 class DepthViewer:
-    """matplotlib 实时深度窗（避免 OpenCV highgui 无 GTK）。"""
+    """matplotlib 实时深度窗。"""
 
     def __init__(self):
         plt.ion()
@@ -129,20 +157,21 @@ class DepthViewer:
         self.fig.tight_layout()
 
     def update(self, env, env_id):
-        if env.image_buf is None:
+        if getattr(env, "image_buf", None) is None:
             return
         if env.image_buf.dim() == 4:
             img = env.image_buf[env_id, -1].detach().cpu().numpy()
         else:
             img = env.image_buf[env_id].detach().cpu().numpy()
-        # image_buf：warp 深度经 near/far 归一化后的 [0,1]（0=近 0.1m，1=远 3m）
         vis = np.clip(img, 0.0, 1.0)
         title = (
             f"warp depth  robot {env_id}/{env.num_envs - 1}  [P]=next\n"
             f"normalized [0,1] = [{env.cfg.camera.near_clip},{env.cfg.camera.far_clip}] m"
         )
         if self.im is None:
-            self.im = self.ax.imshow(vis, cmap="gray", vmin=0.0, vmax=1.0, origin="upper")
+            self.im = self.ax.imshow(
+                vis, cmap="gray", vmin=0.0, vmax=1.0, origin="upper"
+            )
             self.cbar = self.fig.colorbar(self.im, ax=self.ax, fraction=0.046, pad=0.04)
             self.cbar.set_label("0=near ... 1=far")
             self.ax.set_title(title)
@@ -166,9 +195,9 @@ def _follow_robot(env, env_id, offset=(1.8, -1.8, 1.2)):
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
 
-    env_cfg.env.num_envs = NUM_ENVS
-    env_cfg.terrain.num_rows = 4
-    env_cfg.terrain.num_cols = 4
+    env_cfg.env.num_envs = min(env_cfg.env.num_envs, NUM_ENVS)
+    env_cfg.terrain.num_rows = 5
+    env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
     env_cfg.noise.add_noise = False
     env_cfg.domain_rand.push_robots = False
@@ -183,11 +212,24 @@ def play(args):
     args.headless = False
 
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-    obs, obs_hist = env.get_observations()
-    policy = _load_policy_or_none(env, args, train_cfg)
+    obs, obs_hist, depth = env.get_observations()
+    if depth is None:
+        raise RuntimeError("[play_pie] depth observation is None; cannot run depth policy.")
+
+    policy, ppo_runner, train_cfg = _load_depth_policy(env, args, train_cfg)
+
+    logger = Logger(env.dt)
+    robot_index = 0
+    joint_index = 1
+    stop_state_log = 1000
+    stop_rew_log = env.max_episode_length + 1
+    camera_position = np.array(env_cfg.viewer.pos, dtype=np.float64)
+    camera_vel = np.array([1.0, 1.0, 0.0])
+    camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
+    img_idx = 0
 
     focused = 0
-    print(f"[play_pie] {env.num_envs} robots | 按 P 切换聚焦 | 当前 = {focused}")
+    print(f"[play_pie] {env.num_envs} robots | P=next focus | focused={focused}")
 
     env.gym.subscribe_viewer_keyboard_event(env.viewer, gymapi.KEY_P, "next_robot")
     _orig_render = env.render
@@ -222,23 +264,71 @@ def play(args):
     _follow_robot(env, focused)
 
     try:
-        for i in range(50 * int(env.max_episode_length)):
-            env.commands[:, 0] = 0.6
+        for i in range(10 * int(env.max_episode_length)):
+            env.commands[:, 0] = 1.0
             env.commands[:, 1] = 0.0
             env.commands[:, 2] = 0.0
 
-            if policy is not None:
-                actions = policy(obs.detach(), obs_hist.detach())
-            else:
-                actions = torch.zeros(env.num_envs, env.num_actions, device=env.device)
+            actions = policy(obs.detach(), obs_hist.detach(), depth.detach())
 
             step_out = env.step(actions.detach())
-            obs, _, _, obs_hist, _, _, _ = step_out[:7]
+            # PIE: obs, privileged, obs_hist, depth, pie_targets, rew, reset, extras
+            obs, _, obs_hist, depth, _, rews, dones, infos = step_out
 
             _draw_fov(env, focused)
             depth_viewer.update(env, focused)
-            if i % 5 == 0:
+            if not MOVE_CAMERA and i % 5 == 0:
                 _follow_robot(env, focused)
+
+            if RECORD_FRAMES and i % 2 == 0 and train_cfg is not None:
+                filename = os.path.join(
+                    LEGGED_GYM_ROOT_DIR,
+                    "logs",
+                    train_cfg.runner.experiment_name,
+                    "exported",
+                    "frames",
+                    f"{img_idx}.png",
+                )
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                env.gym.write_viewer_image_to_file(env.viewer, filename)
+                img_idx += 1
+
+            if MOVE_CAMERA:
+                camera_position += camera_vel * env.dt
+                env.set_camera(camera_position, camera_position + camera_direction)
+
+            if i < stop_state_log:
+                logger.log_states(
+                    {
+                        "dof_pos_target": actions[robot_index, joint_index].item()
+                        * env.cfg.control.action_scale,
+                        "dof_pos": env.dof_pos[robot_index, joint_index].item(),
+                        "dof_vel": env.dof_vel[robot_index, joint_index].item(),
+                        "dof_torque": env.torques[robot_index, joint_index].item(),
+                        "command_x": env.commands[robot_index, 0].item(),
+                        "command_y": env.commands[robot_index, 1].item(),
+                        "command_yaw": env.commands[robot_index, 2].item(),
+                        "base_vel_x": env.base_lin_vel[robot_index, 0].item(),
+                        "base_vel_y": env.base_lin_vel[robot_index, 1].item(),
+                        "base_vel_z": env.base_lin_vel[robot_index, 2].item(),
+                        "base_vel_yaw": env.base_ang_vel[robot_index, 2].item(),
+                        "contact_forces_z": env.contact_forces[
+                            robot_index, env.feet_indices, 2
+                        ]
+                        .cpu()
+                        .numpy(),
+                    }
+                )
+            elif i == stop_state_log:
+                logger.plot_states()
+
+            if 0 < i < stop_rew_log:
+                if infos.get("episode"):
+                    num_episodes = torch.sum(env.reset_buf).item()
+                    if num_episodes > 0:
+                        logger.log_rewards(infos["episode"], num_episodes)
+            elif i == stop_rew_log:
+                logger.print_rewards()
     finally:
         depth_viewer.close()
 

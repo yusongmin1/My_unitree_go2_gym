@@ -26,7 +26,7 @@ def train(args):
         if os.path.abspath(train_config_path) != os.path.abspath(robot_config_path):
             shutil.copy(train_config_path, log_dir)
 
-    ppo_runner.learn(num_learning_iterations=train_cfg.runner.max_iterations, init_at_random_ep_len=True)
+    ppo_runner.learn(num_learning_iterations=train_cfg.runner.max_iterations, init_at_random_ep_len=False)
 
 if __name__ == '__main__':
     args = get_args()

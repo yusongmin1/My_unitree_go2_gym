@@ -102,8 +102,8 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf","Head"]
-        terminate_after_contacts_on = ["base","hip",]
+        penalize_contacts_on = ["thigh", "calf","Head","hip",]
+        terminate_after_contacts_on = ["base",]
         front_feet=['FL_foot', 'FR_foot']  # legstand 支撑腿（后腿腾空）
         rear_feet=['RL_foot', 'RR_foot']   # handstand 支撑腿（前腿腾空）
         threshold=5.0
@@ -173,7 +173,7 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
         class scales:
             termination = -200.0
             tracking_lin_vel = 1.75
-            tracking_ang_vel = 1.0
+            tracking_ang_vel = 1.2
             # lin_vel_z = 0.2
             # ang_vel_xy = 0.2
             torques = -0.0001
@@ -185,13 +185,13 @@ class Go2_Stand_Cfg_Yu( LeggedRobotCfg ):
 
 
 
-            body_orientation_quad = 1.5
-            body_orientation_handstand = 1.5
-            body_orientation_legstand = 1.5
+            body_orientation_quad = 1.2
+            body_orientation_handstand = 1.2
+            body_orientation_legstand = 1.2
             base_height_quad = 1.
             base_height_handstand = 1.
             base_height_legstand = 1.
-            default_hip_pos=-0.25
+            default_hip_pos=-0.5
             # default_pos_reward=0.2
 
             gait_quad = 0.9       # stand_command=0

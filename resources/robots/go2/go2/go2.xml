@@ -75,6 +75,15 @@
       <geom size="0.05 0.045" pos="0.285 0 0.01" type="cylinder" class="collision" />
       <geom size="0.047" pos="0.293 0 -0.06" class="collision" />
       <site name="imu" pos="-0.02557 0 0.04232" />
+      <!-- PIE 头部深度相机：对齐 Go2_PIE_Config.camera
+           pos    = offset_translation [0.34, 0, 0.07]（基座系，前 x 上 z）
+           俯仰30°：相机 -z 轴指向 (cos30, 0, -sin30)，用 xyaxes 等价给出
+           fovy   = 56.5°（垂直FOV；由水平FOV 87° + 106x60 分辨率换算：
+                    vfov = 2*atan((60/106)*tan(43.5°)) ≈ 56.5°）
+           渲染分辨率由代码 viewport 决定：106x60，裁剪后 60x86 -->
+      <camera name="pie_head_depth" pos="0.34 0 0.07"
+              xyaxes="0 -1 0 0.5 0 0.8660254"
+              fovy="56.5" />
       <body name="FL_hip" pos="0.1934 0.0465 0">
         <inertial pos="-0.0054 0.00194 -0.000105" quat="0.497014 0.499245 0.505462 0.498237"
           mass="0.678"

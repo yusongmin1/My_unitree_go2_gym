@@ -30,8 +30,18 @@
 
 from .on_policy_runner import OnPolicyRunner
 from .dreamwaq_runner import DreamWaQRunner
-from .dreamwaq_runner_amp import DreamWaQRunner_AMP
+from .pie_runner import PIERunner
 from .on_policy_runner_cts import OnPolicyRunnerCTS
-from .on_policy_runner_cts_amp import OnPolicyRunnerCTSAMP
-from .on_policy_runner_amp_ts import OnPolicyRunnerAMP_TS
-from .distill_policy_runner import DistillPolicyRunner
+
+# AMP / distill runners need optional deps (e.g. pybullet_utils).
+try:
+    from .dreamwaq_runner_amp import DreamWaQRunner_AMP
+    from .on_policy_runner_cts_amp import OnPolicyRunnerCTSAMP
+    from .on_policy_runner_amp_ts import OnPolicyRunnerAMP_TS
+    from .distill_policy_runner import DistillPolicyRunner
+except ImportError as _amp_err:
+    DreamWaQRunner_AMP = None  # type: ignore
+    OnPolicyRunnerCTSAMP = None  # type: ignore
+    OnPolicyRunnerAMP_TS = None  # type: ignore
+    DistillPolicyRunner = None  # type: ignore
+    print(f"[rsl_rl.runners] AMP/distill runners unavailable: {_amp_err}")

@@ -14,14 +14,9 @@ from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_fl
 from legged_gym.utils.helpers import class_to_dict
 from legged_gym.envs.Go2_PIE.Go2_PIE_Config import Go2_PIE_Cfg_Yu
 
-# ===== MGDP warp 深度相机迁移 =====
-if getattr(getattr(Go2_PIE_Cfg_Yu, 'camera', None), 'camera_type', None) == 'warp':
-    from legged_gym.warp_sensor import WarpManager
-    from legged_gym.warp_sensor.config.sensor_config import (
-        Config as WarpConfig, Camera as WarpCameraCfg, ImageProcess as WarpImageProcess,
-        Noise as WarpNoise, TransRand as WarpTransRand, RotRand as WarpRotRand,
-        Offset as WarpOffset, DepthCameraPattern as WarpDepthPattern,
-    )
+# NOTE: do NOT import warp_sensor at module import time.
+# `import warp` claims a CUDA context before Isaac Gym create_sim and causes
+# GPU PhysX segfaults. Lazy-import inside _init_camera_buffers() after sim exists.
 
 class Go2_PIE_Robot(BaseTask):
     def __init__(self, cfg: Go2_PIE_Cfg_Yu, sim_params, physics_engine, sim_device, headless):
@@ -76,36 +71,46 @@ class Go2_PIE_Robot(BaseTask):
             self.gym.refresh_dof_state_tensor(self.sim)
         self.post_physics_step()
 
-        # return clipped obs, clipped states (None), rewards, dones and infos
+        # return clipped obs / PIE targets
         clip_obs = self.cfg.normalization.clip_observations
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
+        self.clean_obs_buf = torch.clip(self.clean_obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
-            self.prev_privileged_obs_buf = torch.clip(self.prev_privileged_obs_buf, -clip_obs, clip_obs)
-        # DreamWaQ-main API: obs, privileged, prev_privileged, obs_hist, rew, reset, extras
+        # PIE API: obs, privileged, obs_hist, depth, pie_targets, rew, reset, extras
         return (
             self.obs_buf,
             self.privileged_obs_buf,
-            self.prev_privileged_obs_buf,
             self.obs_hist_buf,
+            self.depth_flat_buf,
+            self._pie_targets(),
             self.rew_buf,
             self.reset_buf,
             self.extras,
         )
 
     def get_observations(self):
-        return self.obs_buf, self.obs_hist_buf
+        return self.obs_buf, self.obs_hist_buf, self.depth_flat_buf
 
     def get_privileged_observations(self):
-        return self.privileged_obs_buf, self.prev_privileged_obs_buf
+        return self.privileged_obs_buf, self._pie_targets()
+
+    def _pie_targets(self):
+        return {
+            "velocity": self.velocity_target_buf,
+            "height": self.height_target_buf,
+            "foot": self.foot_target_buf,
+            # successor for the *previous* transition is this step's clean proprio
+            "successor": self.clean_obs_buf,
+        }
 
     def reset(self):
         """ Reset all robots"""
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, prev_privileged_obs, obs_history, _, _, _ = self.step(
+        obs, privileged_obs, obs_history, depth, pie_targets, _, _, _ = self.step(
             torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False)
         )
-        return obs, privileged_obs, prev_privileged_obs, obs_history
+        return obs, privileged_obs, obs_history, depth, pie_targets
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
             calls self._post_physics_step_callback() for common computations 
@@ -199,15 +204,29 @@ class Go2_PIE_Robot(BaseTask):
         # log additional curriculum info
         if self.cfg.terrain.mesh_type == "trimesh":
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
-            # 分地形类型的课程统计（按 terrain 列比例区间映射类型）
-            _tt = self.terrain_types.float() / self.cfg.terrain.num_cols
-            _p = self.terrain.proportions
+            # Actual parkour class ids from terrain.make_terrain (env_class), not legacy slope labels.
+            # 5 gap, 6 stones, 7 stones2, 8 stones1, 9 bridge, 10 hurdle,
+            # 11 ramp, 12 half-stairs-0.25, 13 half-stairs-0.30, 14 rough
             _tl = self.terrain_levels.float()
-            self.extras["episode"]["terrain_level_slope"] = torch.nan_to_num(_tl[_tt < _p[0]].mean())
-            self.extras["episode"]["terrain_level_rough_slope"] = torch.nan_to_num(_tl[(_tt >= _p[0]) & (_tt < _p[1])].mean())
-            self.extras["episode"]["terrain_level_stairs_down"] = torch.nan_to_num(_tl[(_tt >= _p[1]) & (_tt < _p[2])].mean())
-            self.extras["episode"]["terrain_level_stairs_up"] = torch.nan_to_num(_tl[(_tt >= _p[2]) & (_tt < _p[3])].mean())
-            self.extras["episode"]["terrain_level_obstacles"] = torch.nan_to_num(_tl[_tt >= _p[3]].mean())
+            _cls = self.env_class if hasattr(self, "env_class") else None
+            _names = {
+                5: "gap",
+                6: "stones",
+                7: "stones2",
+                8: "stones1",
+                9: "bridge",
+                10: "hurdle",
+                11: "ramp",
+                12: "half_stairs_025",
+                13: "half_stairs_030",
+                14: "rough",
+            }
+            if _cls is not None:
+                for tid, name in _names.items():
+                    mask = _cls == tid
+                    self.extras["episode"][f"terrain_level_{name}"] = torch.nan_to_num(
+                        _tl[mask].mean()
+                    )
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
             self.extras["episode"]["max_command_yaw"] = self.command_ranges["ang_vel_yaw"][1]  # 角速度课程上界
@@ -219,9 +238,15 @@ class Go2_PIE_Robot(BaseTask):
         self.base_lin_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 7:10])
         self.base_ang_vel[env_ids] = quat_rotate_inverse(self.base_quat[env_ids], self.root_states[env_ids, 10:13])
         #这里要把全局坐标系下的速度和角速度都转换到局部坐标系下，控制前进是控制向基座坐标系下的前进方向，而不是全局坐标系下的前进方向
-        # 重置 env 的 history / prev privileged 清零
+        # 重置 env 的 history / PIE buffers
         self.obs_hist_buf[env_ids] = 0
-        self.prev_privileged_obs_buf[env_ids] = 0
+        self.clean_obs_buf[env_ids] = 0
+        self.velocity_target_buf[env_ids] = 0
+        self.height_target_buf[env_ids] = 0
+        self.foot_target_buf[env_ids] = 0
+        if self.use_camera and self.image_buf is not None:
+            self.image_buf[env_ids] = 0
+            self.depth_flat_buf[env_ids] = 0
 
     def compute_reward(self):
         """ Compute rewards
@@ -242,58 +267,62 @@ class Go2_PIE_Robot(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     def compute_observations(self):
-        # History: append *previous* obs (exclude current frame), then refresh obs/privileged.
-        # Must clone prev privileged — in-place reassignment of privileged_obs_buf would alias otherwise.
+        # History stacks previous *noisy* actor proprio (exclude current), mjlab-style.
         self.obs_hist_buf = torch.cat(
             (self.obs_hist_buf[:, self.num_obs :], self.obs_buf), dim=-1
         )
-        # Previous privileged must be the pre-step critic state. After reset_idx the
-        # buffer was zeroed, but privileged_obs_buf is still stale until rewritten —
-        # keep zeros for just-reset envs so the first post-reset CENet target is valid.
-        self.prev_privileged_obs_buf = self.privileged_obs_buf.clone()
-        reset_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
-        if len(reset_ids) > 0:
-            self.prev_privileged_obs_buf[reset_ids] = 0
 
-        self.obs_buf = torch.cat((
-            self.commands[:, :3] * self.commands_scale,
+        # mjlab PIE proprio order: ang_vel, gravity, command, joint_pos, joint_vel, actions
+        clean = torch.cat((
             self.base_ang_vel * self.obs_scales.ang_vel,
             self.projected_gravity,
+            self.commands[:, :3] * self.commands_scale,
             (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
             self.dof_vel * self.obs_scales.dof_vel,
-            self.actions
+            self.actions,
         ), dim=-1)
+        self.clean_obs_buf = clean
 
-        heights = torch.clip(
+        if self.add_noise:
+            self.obs_buf = (
+                clean
+                + (2 * torch.rand_like(clean) - 1)
+                * self.noise_scale_vec
+                * self.cfg.noise.noise_level
+            )
+        else:
+            self.obs_buf = clean.clone()
+
+        # Height scan target / critic: (base_z - 0.5 - measured) then scale like mjlab 1/max_distance
+        # Keep local clip for numerical stability; decoder target uses scan_scale.
+        heights_raw = torch.clip(
             self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.0
-        ) * self.obs_scales.height_measurements
-        contact_forces_scale, contact_forces_shift = get_scale_shift(
-            self.cfg.normalization.contact_force_range
         )
-        # Layout must match PPO_DreamWaQ vel slice: [obs | lin_vel(3) | ...]
+        scan_scale = 1.0 / float(self.cfg.env.height_scan_max_distance)
+        self.height_target_buf = heights_raw * scan_scale
+
+        # Critic: clean proprio + lin_vel + height scan (mjlab PIE critic group)
         self.privileged_obs_buf = torch.cat(
             (
-                self.obs_buf,
+                self.clean_obs_buf,
                 self.base_lin_vel * self.obs_scales.lin_vel,
-                (self.contact_forces.view(self.num_envs, -1) - contact_forces_shift)
-                * contact_forces_scale,
-                heights,
+                self.height_target_buf,
             ),
             dim=-1,
         )
 
-        if self.add_noise:
-            self.obs_buf = (
-                self.obs_buf
-                + (2 * torch.rand_like(self.obs_buf) - 1)
-                * self.noise_scale_vec
-                * self.cfg.noise.noise_level
-            )
+        # Velocity / foot-clearance supervision targets
+        self.velocity_target_buf = self.base_lin_vel.clone()
+        self.foot_target_buf = self._compute_foot_clearance_target()
 
-        # ===== MGDP：深度图按 update_interval 周期刷新（10Hz）=====
+        # Depth refresh at update_interval (default 5 @ 50Hz -> 10Hz)
+        # global_counter is advanced once per policy step in post_physics_step
         if self.use_camera:
             if self.global_counter % self.cfg.camera.update_interval == 0:
                 self.get_camera_sensor()
+            self.depth_flat_buf = self.image_buf.reshape(self.num_envs, -1)
+        else:
+            self.depth_flat_buf.zero_()
 
     def create_sim(self):
         """ Creates simulation, terrain and evironments
@@ -303,6 +332,15 @@ class Go2_PIE_Robot(BaseTask):
         mesh_type = self.cfg.terrain.mesh_type
         if mesh_type in ['heightfield', 'trimesh']:
             self.terrain = Terrain(self.cfg.terrain)
+            n_verts = len(self.terrain.vertices)
+            n_tris = len(self.terrain.triangles)
+            print(f"[Go2_PIE] terrain mesh: verts={n_verts}, tris={n_tris}", flush=True)
+            if n_tris > 8_000_000:
+                raise RuntimeError(
+                    f"Terrain mesh too large for GPU PhysX ({n_tris} tris). "
+                    "Reduce terrain.border_size / num_cols or increase horizontal_scale "
+                    "(MGDP gap_parkour uses border_size=5, num_cols=10)."
+                )
         if mesh_type == 'plane':
             self._create_ground_plane()
         elif mesh_type == 'heightfield':
@@ -609,6 +647,16 @@ class Go2_PIE_Robot(BaseTask):
             self.image_buf = None
             return
 
+        # Lazy import: after Isaac Gym sim exists (avoids CUDA context clash / segfault)
+        from legged_gym.warp_sensor import WarpManager
+        from legged_gym.warp_sensor.config.sensor_config import (
+            Config as WarpConfig,
+            Camera as WarpCameraCfg,
+            ImageProcess as WarpImageProcess,
+            TransRand as WarpTransRand,
+            RotRand as WarpRotRand,
+        )
+
         assert self.output_hw[0] == self.cfg.camera.height
         assert self.output_hw[1] == self.cfg.camera.width - self.crop_left - self.crop_right
 
@@ -695,25 +743,39 @@ class Go2_PIE_Robot(BaseTask):
                 self.image_buf[at_reset_env_ids, 1] = cur_images[at_reset_env_ids]
 
     def _get_noise_scale_vec(self):
-        """ Sets a vector used to scale the noise added to the observations.
-            [NOTE]: Must be adapted when changing the observations structure
-
-        Args:
-            cfg (Dict): Environment config file
-
-        Returns:
-            [torch.Tensor]: Vector of scales used to multiply a uniform distribution in [-1, 1]
+        """Noise scales for mjlab PIE proprio layout:
+        [ang_vel(3), gravity(3), command(3), dof_pos(12), dof_vel(12), actions(12)].
         """
-        noise_vec = torch.zeros_like(self.obs_buf[0])
+        noise_vec = torch.zeros(self.cfg.env.num_single_obs, device=self.device)
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
-        noise_vec[0: 3] = 0.  # commands
-        noise_vec[3:6] = noise_scales.ang_vel * self.obs_scales.ang_vel   # ang vel
-        noise_vec[6:9] = noise_scales.gravity
-        noise_vec[9: 21] = noise_scales.dof_pos * self.obs_scales.dof_pos
-        noise_vec[21: 33] = noise_scales.dof_vel * self.obs_scales.dof_vel
-        noise_vec[33: 45] = 0.  # previous actions
+        noise_vec[0:3] = noise_scales.ang_vel * self.obs_scales.ang_vel
+        noise_vec[3:6] = noise_scales.gravity
+        noise_vec[6:9] = 0.0  # commands
+        noise_vec[9:21] = noise_scales.dof_pos * self.obs_scales.dof_pos
+        noise_vec[21:33] = noise_scales.dof_vel * self.obs_scales.dof_vel
+        noise_vec[33:45] = 0.0  # previous actions
         return noise_vec
+
+    def _compute_foot_clearance_target(self):
+        """Foot-to-terrain clearance in [0, 1], scaled by 1/max_clearance (mjlab PIE)."""
+        max_c = float(self.cfg.env.foot_clearance_max)
+        if self.cfg.terrain.mesh_type == 'plane':
+            terrain_z = torch.zeros(self.num_envs, len(self.feet_indices), device=self.device)
+        else:
+            points = self.feet_pos.clone()
+            points[:, :, 0] += self.terrain.cfg.border_size
+            points[:, :, 1] += self.terrain.cfg.border_size
+            px = (points[:, :, 0] / self.terrain.cfg.horizontal_scale).long()
+            py = (points[:, :, 1] / self.terrain.cfg.horizontal_scale).long()
+            px = torch.clip(px, 0, self.height_samples.shape[0] - 2)
+            py = torch.clip(py, 0, self.height_samples.shape[1] - 2)
+            h1 = self.height_samples[px, py]
+            h2 = self.height_samples[px + 1, py]
+            h3 = self.height_samples[px, py + 1]
+            terrain_z = torch.min(torch.min(h1, h2), h3) * self.terrain.cfg.vertical_scale
+        clearance = (self.feet_pos[:, :, 2] - terrain_z).clamp(0.0, max_c) / max_c
+        return clearance
 
     def _init_buffers(self):
         """ Initialize torch tensors which will contain simulation states and processed quantities
@@ -784,10 +846,32 @@ class Go2_PIE_Robot(BaseTask):
         self.delayed_actions = torch.zeros(self.num_envs, self.cfg.control.decimation, self.num_actions, device=self.device)
         self.obs_motor_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) 
         self.obs_imu_latency_simstep = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)  
-        self.obs_hist_buf=torch.zeros(self.num_envs, self.cfg.env.num_history_obs,  dtype=torch.float, device=self.device)
-        # DreamWaQ-main: previous privileged obs used as CENet velocity supervision target
-        self.prev_privileged_obs_buf = torch.zeros_like(self.privileged_obs_buf)
-        self.disturbance = torch.zeros(self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False)
+        self.obs_hist_buf = torch.zeros(
+            self.num_envs, self.cfg.env.num_history_obs, dtype=torch.float, device=self.device
+        )
+        self.clean_obs_buf = torch.zeros(
+            self.num_envs, self.num_obs, dtype=torch.float, device=self.device
+        )
+        self.velocity_target_buf = torch.zeros(
+            self.num_envs, 3, dtype=torch.float, device=self.device
+        )
+        self.height_target_buf = torch.zeros(
+            self.num_envs, self.cfg.env.num_height_map, dtype=torch.float, device=self.device
+        )
+        self.foot_target_buf = torch.zeros(
+            self.num_envs, self.cfg.env.num_foot_clearance, dtype=torch.float, device=self.device
+        )
+        depth_flat = (
+            int(self.cfg.camera.image_nums or 1)
+            * int(self.cfg.camera.output_hw[0])
+            * int(self.cfg.camera.output_hw[1])
+        )
+        self.depth_flat_buf = torch.zeros(
+            self.num_envs, depth_flat, dtype=torch.float, device=self.device
+        )
+        self.disturbance = torch.zeros(
+            self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False
+        )
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, which will be called to compute the total reward.
             Looks for self._reward_<REWARD_NAME>, where <REWARD_NAME> are names of all non zero reward scales in the cfg.

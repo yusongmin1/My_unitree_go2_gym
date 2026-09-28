@@ -3,6 +3,7 @@
 
 from .rollout_storage import RolloutStorage
 from .rollout_storage_dreamwaq import RolloutStorageDreamWaQ
+from .rollout_storage_pie import RolloutStoragePIE
 from .rollout_storage_cts import RolloutStorageCTS
 from .replay_buffer import ReplayBuffer
 from .rollout_storage_amp_ts import RolloutStorageAMP_TS

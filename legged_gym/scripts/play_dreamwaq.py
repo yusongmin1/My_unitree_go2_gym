@@ -59,14 +59,21 @@ def play(args):
     env_cfg.commands.heading_command= False
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-    obs, obs_hist = env.get_observations()
+    obs_pack = env.get_observations()
+    # DreamWaQ: (obs, hist); PIE: (obs, hist, depth)
+    is_pie = isinstance(obs_pack, (tuple, list)) and len(obs_pack) == 3
+    if is_pie:
+        obs, obs_hist, depth = obs_pack
+    else:
+        obs, obs_hist = obs_pack
+        depth = None
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
     policy = ppo_runner.get_inference_policy(device=env.device)
     
     # export policy as a jit module (used to run it from C++)
-    if EXPORT_POLICY:
+    if EXPORT_POLICY and not is_pie:
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
         export_policy_as_dwaq(ppo_runner.alg.actor_critic,path)
         print('Exported policy as jit script to: ', path)
@@ -82,13 +89,20 @@ def play(args):
     img_idx = 0
 
     for i in range(10*int(env.max_episode_length)):
-        env.commands[:, 0]=0.5
+        env.commands[:, 0]=1.0
         env.commands[:, 1]=0.
         env.commands[:, 2]=0.0
-        actions = policy(obs.detach(), obs_hist.detach())
-        # DreamWaQ: 7-tuple; AMP DreamWaQ: 9-tuple (extra reset_env_ids, terminal_amp_states)
+        if is_pie:
+            actions = policy(obs.detach(), obs_hist.detach(), depth.detach())
+        else:
+            actions = policy(obs.detach(), obs_hist.detach())
+        # DreamWaQ: 7-tuple; PIE: 8-tuple (obs, priv, hist, depth, targets, rew, reset, extras)
+        # AMP DreamWaQ: 9-tuple
         step_out = env.step(actions.detach())
-        obs, _, _, obs_hist, rews, dones, infos = step_out[:7]
+        if is_pie:
+            obs, _, obs_hist, depth, _, rews, dones, infos = step_out
+        else:
+            obs, _, _, obs_hist, rews, dones, infos = step_out[:7]
         if RECORD_FRAMES:
             if i % 2:
                 filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")

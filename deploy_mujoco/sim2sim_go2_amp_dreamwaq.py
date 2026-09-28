@@ -4,6 +4,8 @@ Go2_AMP_DreamWaQ_Cfg_Yu = load_cfg(
     "Go2_AMP_DreamWaQ_Cfg_Yu",
 )
 import math
+import os
+import signal
 import numpy as np
 import mujoco, mujoco.viewer
 from collections import deque
@@ -177,7 +179,7 @@ if __name__ == '__main__':
 
     class Sim2simCfg(Go2_AMP_DreamWaQ_Cfg_Yu):
         class sim_config:
-            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/scene.xml'
+            mujoco_model_path = f'{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/go2/cross_stairs.xml'
             sim_duration = 12200000000.0
             dt = 0.005
             decimation = 4
@@ -193,4 +195,14 @@ if __name__ == '__main__':
 
 
     policy = torch.jit.load(args.load_model)
+
+    # Ctrl+C 立即保存/退出，不等 mujoco passive viewer 回滚（其 teardown 会卡住）
+    exited = {'done': False}
+    def _save_now_and_exit(signum=None, frame=None):
+        if not exited['done']:
+            exited['done'] = True
+            print('\n[退出] 收到 Ctrl+C，立即退出...')
+        os._exit(0)
+    signal.signal(signal.SIGINT, _save_now_and_exit)
+
     run_mujoco(policy, Sim2simCfg())

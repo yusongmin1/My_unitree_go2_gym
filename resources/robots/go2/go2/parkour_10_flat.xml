@@ -1,0 +1,53 @@
+<mujoco model="parkour_10_flat_curriculum10">
+  <include file="go2.xml"/>
+
+  <statistic center="50.0 0 0.5" extent="35.0"/>
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20" offwidth="1600" offheight="900"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="20 20" reflectance="0.0"/>
+  </asset>
+
+  <worldbody>
+    <light pos="50.0 0 6" dir="0 0 -1" diffuse="0.9 0.9 0.9" directional="true"/>
+    <!-- type=10 (flat); curriculum rows=10;
+         difficulty = row/(num_rows-1) along +X: [0.00, 0.11, 0.22, 0.33, 0.44, 0.56, 0.67, 0.78, 0.89, 1.00]; each segment 10m -->
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" pos="50.0 0 -0.650"/>
+    <geom name="lv0_ground" pos="5.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv0_diff_pillar" pos="0.3000 2.3500 0.0750" type="box" size="0.0800 0.0800 0.0750" rgba="0.20 0.80 0.20 1"/>
+    <geom name="lv1_link" pos="10.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv1_ground" pos="15.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv1_diff_pillar" pos="10.3000 2.3500 0.1056" type="box" size="0.0800 0.0800 0.1056" rgba="0.28 0.73 0.20 1"/>
+    <geom name="lv2_link" pos="20.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv2_ground" pos="25.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv2_diff_pillar" pos="20.3000 2.3500 0.1361" type="box" size="0.0800 0.0800 0.1361" rgba="0.36 0.67 0.20 1"/>
+    <geom name="lv3_link" pos="30.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv3_ground" pos="35.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv3_diff_pillar" pos="30.3000 2.3500 0.1667" type="box" size="0.0800 0.0800 0.1667" rgba="0.43 0.60 0.20 1"/>
+    <geom name="lv4_link" pos="40.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv4_ground" pos="45.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv4_diff_pillar" pos="40.3000 2.3500 0.1972" type="box" size="0.0800 0.0800 0.1972" rgba="0.51 0.53 0.20 1"/>
+    <geom name="lv5_link" pos="50.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv5_ground" pos="55.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv5_diff_pillar" pos="50.3000 2.3500 0.2278" type="box" size="0.0800 0.0800 0.2278" rgba="0.59 0.47 0.20 1"/>
+    <geom name="lv6_link" pos="60.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv6_ground" pos="65.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv6_diff_pillar" pos="60.3000 2.3500 0.2583" type="box" size="0.0800 0.0800 0.2583" rgba="0.67 0.40 0.20 1"/>
+    <geom name="lv7_link" pos="70.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv7_ground" pos="75.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv7_diff_pillar" pos="70.3000 2.3500 0.2889" type="box" size="0.0800 0.0800 0.2889" rgba="0.74 0.33 0.20 1"/>
+    <geom name="lv8_link" pos="80.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv8_ground" pos="85.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv8_diff_pillar" pos="80.3000 2.3500 0.3194" type="box" size="0.0800 0.0800 0.3194" rgba="0.82 0.27 0.20 1"/>
+    <geom name="lv9_link" pos="90.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv9_ground" pos="95.0000 0.0000 -0.0500" type="box" size="5.0000 2.0000 0.0500"/>
+    <geom name="lv9_diff_pillar" pos="90.3000 2.3500 0.3500" type="box" size="0.0800 0.0800 0.3500" rgba="0.90 0.20 0.20 1"/>
+  </worldbody>
+</mujoco>

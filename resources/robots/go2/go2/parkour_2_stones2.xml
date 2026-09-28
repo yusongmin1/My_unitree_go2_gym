@@ -1,0 +1,273 @@
+<mujoco model="parkour_2_stones2_curriculum10">
+  <include file="go2.xml"/>
+
+  <statistic center="50.0 0 0.5" extent="35.0"/>
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20" offwidth="1600" offheight="900"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="20 20" reflectance="0.0"/>
+  </asset>
+
+  <worldbody>
+    <light pos="50.0 0 6" dir="0 0 -1" diffuse="0.9 0.9 0.9" directional="true"/>
+    <!-- type=2 (stones2); curriculum rows=10;
+         difficulty = row/(num_rows-1) along +X: [0.00, 0.11, 0.22, 0.33, 0.44, 0.56, 0.67, 0.78, 0.89, 1.00]; each segment 10m -->
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" pos="50.0 0 -0.650"/>
+    <geom name="lv0_plat_entry" pos="1.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv0_t_0_0" pos="2.4000 -0.4800 -0.2825" type="box" size="0.4000 0.4000 0.3175"/>
+    <geom name="lv0_t_0_1" pos="2.4000 0.4800 -0.2793" type="box" size="0.4000 0.4000 0.3207"/>
+    <geom name="lv0_t_1_0" pos="3.2800 -0.4800 -0.2664" type="box" size="0.4000 0.4000 0.3336"/>
+    <geom name="lv0_t_1_1" pos="3.2800 0.4800 -0.2695" type="box" size="0.4000 0.4000 0.3305"/>
+    <geom name="lv0_t_2_0" pos="4.1600 -0.4800 -0.2815" type="box" size="0.4000 0.4000 0.3185"/>
+    <geom name="lv0_t_2_1" pos="4.1600 0.4800 -0.2726" type="box" size="0.4000 0.4000 0.3274"/>
+    <geom name="lv0_t_3_0" pos="5.0400 -0.4800 -0.2727" type="box" size="0.4000 0.4000 0.3273"/>
+    <geom name="lv0_t_3_1" pos="5.0400 0.4800 -0.2745" type="box" size="0.4000 0.4000 0.3255"/>
+    <geom name="lv0_t_4_0" pos="5.9200 -0.4800 -0.2760" type="box" size="0.4000 0.4000 0.3240"/>
+    <geom name="lv0_t_4_1" pos="5.9200 0.4800 -0.2777" type="box" size="0.4000 0.4000 0.3223"/>
+    <geom name="lv0_t_5_0" pos="6.8000 -0.4800 -0.2746" type="box" size="0.4000 0.4000 0.3254"/>
+    <geom name="lv0_t_5_1" pos="6.8000 0.4800 -0.2681" type="box" size="0.4000 0.4000 0.3319"/>
+    <geom name="lv0_t_6_0" pos="7.6800 -0.4800 -0.2715" type="box" size="0.4000 0.4000 0.3285"/>
+    <geom name="lv0_t_6_1" pos="7.6800 0.4800 -0.2693" type="box" size="0.4000 0.4000 0.3307"/>
+    <geom name="lv0_t_7_0" pos="8.5600 -0.4800 -0.2796" type="box" size="0.4000 0.4000 0.3204"/>
+    <geom name="lv0_t_7_1" pos="8.5600 0.4800 -0.2737" type="box" size="0.4000 0.4000 0.3263"/>
+    <geom name="lv0_t_8_0" pos="9.3700 -0.4800 -0.2767" type="box" size="0.3300 0.4000 0.3233"/>
+    <geom name="lv0_t_8_1" pos="9.3700 0.4800 -0.2733" type="box" size="0.3300 0.4000 0.3267"/>
+    <geom name="lv0_plat_entry2" pos="1.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv0_plat_exit" pos="9.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv0_diff_pillar" pos="0.3000 2.3500 0.0750" type="box" size="0.0800 0.0800 0.0750" rgba="0.20 0.80 0.20 1"/>
+    <geom name="lv1_link" pos="10.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv1_plat_entry" pos="11.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv1_t_0_0" pos="12.3722 -0.4522 -0.2795" type="box" size="0.3722 0.3722 0.3205"/>
+    <geom name="lv1_t_0_1" pos="12.3722 0.4522 -0.2750" type="box" size="0.3722 0.3722 0.3250"/>
+    <geom name="lv1_t_1_0" pos="13.2322 -0.4522 -0.2569" type="box" size="0.3722 0.3722 0.3431"/>
+    <geom name="lv1_t_1_1" pos="13.2322 0.4522 -0.2614" type="box" size="0.3722 0.3722 0.3386"/>
+    <geom name="lv1_t_2_0" pos="14.0922 -0.4522 -0.2781" type="box" size="0.3722 0.3722 0.3219"/>
+    <geom name="lv1_t_2_1" pos="14.0922 0.4522 -0.2657" type="box" size="0.3722 0.3722 0.3343"/>
+    <geom name="lv1_t_3_0" pos="14.9522 -0.4522 -0.2658" type="box" size="0.3722 0.3722 0.3342"/>
+    <geom name="lv1_t_3_1" pos="14.9522 0.4522 -0.2684" type="box" size="0.3722 0.3722 0.3316"/>
+    <geom name="lv1_t_4_0" pos="15.8122 -0.4522 -0.2703" type="box" size="0.3722 0.3722 0.3297"/>
+    <geom name="lv1_t_4_1" pos="15.8122 0.4522 -0.2728" type="box" size="0.3722 0.3722 0.3272"/>
+    <geom name="lv1_t_5_0" pos="16.6722 -0.4522 -0.2684" type="box" size="0.3722 0.3722 0.3316"/>
+    <geom name="lv1_t_5_1" pos="16.6722 0.4522 -0.2593" type="box" size="0.3722 0.3722 0.3407"/>
+    <geom name="lv1_t_6_0" pos="17.5322 -0.4522 -0.2642" type="box" size="0.3722 0.3722 0.3358"/>
+    <geom name="lv1_t_6_1" pos="17.5322 0.4522 -0.2611" type="box" size="0.3722 0.3722 0.3389"/>
+    <geom name="lv1_t_7_0" pos="18.3922 -0.4522 -0.2754" type="box" size="0.3722 0.3722 0.3246"/>
+    <geom name="lv1_t_7_1" pos="18.3922 0.4522 -0.2672" type="box" size="0.3722 0.3722 0.3328"/>
+    <geom name="lv1_t_8_0" pos="19.2522 -0.4522 -0.2714" type="box" size="0.3722 0.3722 0.3286"/>
+    <geom name="lv1_t_8_1" pos="19.2522 0.4522 -0.2667" type="box" size="0.3722 0.3722 0.3333"/>
+    <geom name="lv1_plat_entry2" pos="11.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv1_plat_exit" pos="19.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv1_diff_pillar" pos="10.3000 2.3500 0.1056" type="box" size="0.0800 0.0800 0.1056" rgba="0.28 0.73 0.20 1"/>
+    <geom name="lv2_link" pos="20.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv2_plat_entry" pos="21.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv2_t_0_0" pos="22.3444 -0.4244 -0.2765" type="box" size="0.3444 0.3444 0.3235"/>
+    <geom name="lv2_t_0_1" pos="22.3444 0.4244 -0.2707" type="box" size="0.3444 0.3444 0.3293"/>
+    <geom name="lv2_t_1_0" pos="23.1844 -0.4244 -0.2475" type="box" size="0.3444 0.3444 0.3525"/>
+    <geom name="lv2_t_1_1" pos="23.1844 0.4244 -0.2532" type="box" size="0.3444 0.3444 0.3468"/>
+    <geom name="lv2_t_2_0" pos="24.0244 -0.4244 -0.2747" type="box" size="0.3444 0.3444 0.3253"/>
+    <geom name="lv2_t_2_1" pos="24.0244 0.4244 -0.2587" type="box" size="0.3444 0.3444 0.3413"/>
+    <geom name="lv2_t_3_0" pos="24.8644 -0.4244 -0.2589" type="box" size="0.3444 0.3444 0.3411"/>
+    <geom name="lv2_t_3_1" pos="24.8644 0.4244 -0.2622" type="box" size="0.3444 0.3444 0.3378"/>
+    <geom name="lv2_t_4_0" pos="25.7044 -0.4244 -0.2647" type="box" size="0.3444 0.3444 0.3353"/>
+    <geom name="lv2_t_4_1" pos="25.7044 0.4244 -0.2679" type="box" size="0.3444 0.3444 0.3321"/>
+    <geom name="lv2_t_5_0" pos="26.5444 -0.4244 -0.2622" type="box" size="0.3444 0.3444 0.3378"/>
+    <geom name="lv2_t_5_1" pos="26.5444 0.4244 -0.2506" type="box" size="0.3444 0.3444 0.3494"/>
+    <geom name="lv2_t_6_0" pos="27.3844 -0.4244 -0.2568" type="box" size="0.3444 0.3444 0.3432"/>
+    <geom name="lv2_t_6_1" pos="27.3844 0.4244 -0.2528" type="box" size="0.3444 0.3444 0.3472"/>
+    <geom name="lv2_t_7_0" pos="28.2244 -0.4244 -0.2713" type="box" size="0.3444 0.3444 0.3287"/>
+    <geom name="lv2_t_7_1" pos="28.2244 0.4244 -0.2606" type="box" size="0.3444 0.3444 0.3394"/>
+    <geom name="lv2_t_8_0" pos="29.0644 -0.4244 -0.2661" type="box" size="0.3444 0.3444 0.3339"/>
+    <geom name="lv2_t_8_1" pos="29.0644 0.4244 -0.2600" type="box" size="0.3444 0.3444 0.3400"/>
+    <geom name="lv2_plat_entry2" pos="21.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv2_plat_exit" pos="29.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv2_diff_pillar" pos="20.3000 2.3500 0.1361" type="box" size="0.0800 0.0800 0.1361" rgba="0.36 0.67 0.20 1"/>
+    <geom name="lv3_link" pos="30.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv3_plat_entry" pos="31.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv3_t_0_0" pos="32.3167 -0.3967 -0.2735" type="box" size="0.3167 0.3167 0.3265"/>
+    <geom name="lv3_t_0_1" pos="32.3167 0.3967 -0.2665" type="box" size="0.3167 0.3167 0.3335"/>
+    <geom name="lv3_t_1_0" pos="33.1367 -0.3967 -0.2380" type="box" size="0.3167 0.3167 0.3620"/>
+    <geom name="lv3_t_1_1" pos="33.1367 0.3967 -0.2450" type="box" size="0.3167 0.3167 0.3550"/>
+    <geom name="lv3_t_2_0" pos="33.9567 -0.3967 -0.2713" type="box" size="0.3167 0.3167 0.3287"/>
+    <geom name="lv3_t_2_1" pos="33.9567 0.3967 -0.2518" type="box" size="0.3167 0.3167 0.3482"/>
+    <geom name="lv3_t_3_0" pos="34.7767 -0.3967 -0.2520" type="box" size="0.3167 0.3167 0.3480"/>
+    <geom name="lv3_t_3_1" pos="34.7767 0.3967 -0.2560" type="box" size="0.3167 0.3167 0.3440"/>
+    <geom name="lv3_t_4_0" pos="35.5967 -0.3967 -0.2591" type="box" size="0.3167 0.3167 0.3409"/>
+    <geom name="lv3_t_4_1" pos="35.5967 0.3967 -0.2630" type="box" size="0.3167 0.3167 0.3370"/>
+    <geom name="lv3_t_5_0" pos="36.4167 -0.3967 -0.2560" type="box" size="0.3167 0.3167 0.3440"/>
+    <geom name="lv3_t_5_1" pos="36.4167 0.3967 -0.2418" type="box" size="0.3167 0.3167 0.3582"/>
+    <geom name="lv3_t_6_0" pos="37.2367 -0.3967 -0.2494" type="box" size="0.3167 0.3167 0.3506"/>
+    <geom name="lv3_t_6_1" pos="37.2367 0.3967 -0.2445" type="box" size="0.3167 0.3167 0.3555"/>
+    <geom name="lv3_t_7_0" pos="38.0567 -0.3967 -0.2671" type="box" size="0.3167 0.3167 0.3329"/>
+    <geom name="lv3_t_7_1" pos="38.0567 0.3967 -0.2541" type="box" size="0.3167 0.3167 0.3459"/>
+    <geom name="lv3_t_8_0" pos="38.8767 -0.3967 -0.2608" type="box" size="0.3167 0.3167 0.3392"/>
+    <geom name="lv3_t_8_1" pos="38.8767 0.3967 -0.2533" type="box" size="0.3167 0.3167 0.3467"/>
+    <geom name="lv3_t_9_0" pos="39.5400 -0.3967 -0.2527" type="box" size="0.1600 0.3167 0.3473"/>
+    <geom name="lv3_t_9_1" pos="39.5400 0.3967 -0.2534" type="box" size="0.1600 0.3167 0.3466"/>
+    <geom name="lv3_plat_entry2" pos="31.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv3_plat_exit" pos="39.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv3_diff_pillar" pos="30.3000 2.3500 0.1667" type="box" size="0.0800 0.0800 0.1667" rgba="0.43 0.60 0.20 1"/>
+    <geom name="lv4_link" pos="40.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv4_plat_entry" pos="41.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv4_t_0_0" pos="42.2889 -0.3689 -0.2705" type="box" size="0.2889 0.2889 0.3295"/>
+    <geom name="lv4_t_0_1" pos="42.2889 0.3689 -0.2622" type="box" size="0.2889 0.2889 0.3378"/>
+    <geom name="lv4_t_1_0" pos="43.0889 -0.3689 -0.2286" type="box" size="0.2889 0.2889 0.3714"/>
+    <geom name="lv4_t_1_1" pos="43.0889 0.3689 -0.2368" type="box" size="0.2889 0.2889 0.3632"/>
+    <geom name="lv4_t_2_0" pos="43.8889 -0.3689 -0.2679" type="box" size="0.2889 0.2889 0.3321"/>
+    <geom name="lv4_t_2_1" pos="43.8889 0.3689 -0.2448" type="box" size="0.2889 0.2889 0.3552"/>
+    <geom name="lv4_t_3_0" pos="44.6889 -0.3689 -0.2451" type="box" size="0.2889 0.2889 0.3549"/>
+    <geom name="lv4_t_3_1" pos="44.6889 0.3689 -0.2498" type="box" size="0.2889 0.2889 0.3502"/>
+    <geom name="lv4_t_4_0" pos="45.4889 -0.3689 -0.2535" type="box" size="0.2889 0.2889 0.3465"/>
+    <geom name="lv4_t_4_1" pos="45.4889 0.3689 -0.2581" type="box" size="0.2889 0.2889 0.3419"/>
+    <geom name="lv4_t_5_0" pos="46.2889 -0.3689 -0.2499" type="box" size="0.2889 0.2889 0.3501"/>
+    <geom name="lv4_t_5_1" pos="46.2889 0.3689 -0.2330" type="box" size="0.2889 0.2889 0.3670"/>
+    <geom name="lv4_t_6_0" pos="47.0889 -0.3689 -0.2420" type="box" size="0.2889 0.2889 0.3580"/>
+    <geom name="lv4_t_6_1" pos="47.0889 0.3689 -0.2362" type="box" size="0.2889 0.2889 0.3638"/>
+    <geom name="lv4_t_7_0" pos="47.8889 -0.3689 -0.2630" type="box" size="0.2889 0.2889 0.3370"/>
+    <geom name="lv4_t_7_1" pos="47.8889 0.3689 -0.2476" type="box" size="0.2889 0.2889 0.3524"/>
+    <geom name="lv4_t_8_0" pos="48.6889 -0.3689 -0.2555" type="box" size="0.2889 0.2889 0.3445"/>
+    <geom name="lv4_t_8_1" pos="48.6889 0.3689 -0.2467" type="box" size="0.2889 0.2889 0.3533"/>
+    <geom name="lv4_t_9_0" pos="49.4500 -0.3689 -0.2459" type="box" size="0.2500 0.2889 0.3541"/>
+    <geom name="lv4_t_9_1" pos="49.4500 0.3689 -0.2468" type="box" size="0.2500 0.2889 0.3532"/>
+    <geom name="lv4_plat_entry2" pos="41.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv4_plat_exit" pos="49.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv4_diff_pillar" pos="40.3000 2.3500 0.1972" type="box" size="0.0800 0.0800 0.1972" rgba="0.51 0.53 0.20 1"/>
+    <geom name="lv5_link" pos="50.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv5_plat_entry" pos="51.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv5_t_0_0" pos="52.2611 -0.3411 -0.2675" type="box" size="0.2611 0.2611 0.3325"/>
+    <geom name="lv5_t_0_1" pos="52.2611 0.3411 -0.2579" type="box" size="0.2611 0.2611 0.3421"/>
+    <geom name="lv5_t_1_0" pos="53.0411 -0.3411 -0.2191" type="box" size="0.2611 0.2611 0.3809"/>
+    <geom name="lv5_t_1_1" pos="53.0411 0.3411 -0.2286" type="box" size="0.2611 0.2611 0.3714"/>
+    <geom name="lv5_t_2_0" pos="53.8211 -0.3411 -0.2645" type="box" size="0.2611 0.2611 0.3355"/>
+    <geom name="lv5_t_2_1" pos="53.8211 0.3411 -0.2379" type="box" size="0.2611 0.2611 0.3621"/>
+    <geom name="lv5_t_3_0" pos="54.6011 -0.3411 -0.2382" type="box" size="0.2611 0.2611 0.3618"/>
+    <geom name="lv5_t_3_1" pos="54.6011 0.3411 -0.2436" type="box" size="0.2611 0.2611 0.3564"/>
+    <geom name="lv5_t_4_0" pos="55.3811 -0.3411 -0.2479" type="box" size="0.2611 0.2611 0.3521"/>
+    <geom name="lv5_t_4_1" pos="55.3811 0.3411 -0.2532" type="box" size="0.2611 0.2611 0.3468"/>
+    <geom name="lv5_t_5_0" pos="56.1611 -0.3411 -0.2437" type="box" size="0.2611 0.2611 0.3563"/>
+    <geom name="lv5_t_5_1" pos="56.1611 0.3411 -0.2243" type="box" size="0.2611 0.2611 0.3757"/>
+    <geom name="lv5_t_6_0" pos="56.9411 -0.3411 -0.2346" type="box" size="0.2611 0.2611 0.3654"/>
+    <geom name="lv5_t_6_1" pos="56.9411 0.3411 -0.2280" type="box" size="0.2611 0.2611 0.3720"/>
+    <geom name="lv5_t_7_0" pos="57.7211 -0.3411 -0.2588" type="box" size="0.2611 0.2611 0.3412"/>
+    <geom name="lv5_t_7_1" pos="57.7211 0.3411 -0.2411" type="box" size="0.2611 0.2611 0.3589"/>
+    <geom name="lv5_t_8_0" pos="58.5011 -0.3411 -0.2502" type="box" size="0.2611 0.2611 0.3498"/>
+    <geom name="lv5_t_8_1" pos="58.5011 0.3411 -0.2400" type="box" size="0.2611 0.2611 0.3600"/>
+    <geom name="lv5_t_9_0" pos="59.2811 -0.3411 -0.2392" type="box" size="0.2611 0.2611 0.3608"/>
+    <geom name="lv5_t_9_1" pos="59.2811 0.3411 -0.2401" type="box" size="0.2611 0.2611 0.3599"/>
+    <geom name="lv5_plat_entry2" pos="51.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv5_plat_exit" pos="59.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv5_diff_pillar" pos="50.3000 2.3500 0.2278" type="box" size="0.0800 0.0800 0.2278" rgba="0.59 0.47 0.20 1"/>
+    <geom name="lv6_link" pos="60.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv6_plat_entry" pos="61.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv6_t_0_0" pos="62.2333 -0.3133 -0.2645" type="box" size="0.2333 0.2333 0.3355"/>
+    <geom name="lv6_t_0_1" pos="62.2333 0.3133 -0.2536" type="box" size="0.2333 0.2333 0.3464"/>
+    <geom name="lv6_t_1_0" pos="62.9933 -0.3133 -0.2097" type="box" size="0.2333 0.2333 0.3903"/>
+    <geom name="lv6_t_1_1" pos="62.9933 0.3133 -0.2205" type="box" size="0.2333 0.2333 0.3795"/>
+    <geom name="lv6_t_2_0" pos="63.7533 -0.3133 -0.2611" type="box" size="0.2333 0.2333 0.3389"/>
+    <geom name="lv6_t_2_1" pos="63.7533 0.3133 -0.2309" type="box" size="0.2333 0.2333 0.3691"/>
+    <geom name="lv6_t_3_0" pos="64.5133 -0.3133 -0.2313" type="box" size="0.2333 0.2333 0.3687"/>
+    <geom name="lv6_t_3_1" pos="64.5133 0.3133 -0.2374" type="box" size="0.2333 0.2333 0.3626"/>
+    <geom name="lv6_t_4_0" pos="65.2733 -0.3133 -0.2423" type="box" size="0.2333 0.2333 0.3577"/>
+    <geom name="lv6_t_4_1" pos="65.2733 0.3133 -0.2483" type="box" size="0.2333 0.2333 0.3517"/>
+    <geom name="lv6_t_5_0" pos="66.0333 -0.3133 -0.2375" type="box" size="0.2333 0.2333 0.3625"/>
+    <geom name="lv6_t_5_1" pos="66.0333 0.3133 -0.2155" type="box" size="0.2333 0.2333 0.3845"/>
+    <geom name="lv6_t_6_0" pos="66.7933 -0.3133 -0.2272" type="box" size="0.2333 0.2333 0.3728"/>
+    <geom name="lv6_t_6_1" pos="66.7933 0.3133 -0.2197" type="box" size="0.2333 0.2333 0.3803"/>
+    <geom name="lv6_t_7_0" pos="67.5533 -0.3133 -0.2546" type="box" size="0.2333 0.2333 0.3454"/>
+    <geom name="lv6_t_7_1" pos="67.5533 0.3133 -0.2345" type="box" size="0.2333 0.2333 0.3655"/>
+    <geom name="lv6_t_8_0" pos="68.3133 -0.3133 -0.2449" type="box" size="0.2333 0.2333 0.3551"/>
+    <geom name="lv6_t_8_1" pos="68.3133 0.3133 -0.2334" type="box" size="0.2333 0.2333 0.3666"/>
+    <geom name="lv6_t_9_0" pos="69.0733 -0.3133 -0.2324" type="box" size="0.2333 0.2333 0.3676"/>
+    <geom name="lv6_t_9_1" pos="69.0733 0.3133 -0.2335" type="box" size="0.2333 0.2333 0.3665"/>
+    <geom name="lv6_plat_entry2" pos="61.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv6_plat_exit" pos="69.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv6_diff_pillar" pos="60.3000 2.3500 0.2583" type="box" size="0.0800 0.0800 0.2583" rgba="0.67 0.40 0.20 1"/>
+    <geom name="lv7_link" pos="70.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv7_plat_entry" pos="71.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv7_t_0_0" pos="72.2056 -0.2856 -0.2615" type="box" size="0.2056 0.2056 0.3385"/>
+    <geom name="lv7_t_0_1" pos="72.2056 0.2856 -0.2493" type="box" size="0.2056 0.2056 0.3507"/>
+    <geom name="lv7_t_1_0" pos="72.9456 -0.2856 -0.2002" type="box" size="0.2056 0.2056 0.3998"/>
+    <geom name="lv7_t_1_1" pos="72.9456 0.2856 -0.2123" type="box" size="0.2056 0.2056 0.3877"/>
+    <geom name="lv7_t_2_0" pos="73.6856 -0.2856 -0.2577" type="box" size="0.2056 0.2056 0.3423"/>
+    <geom name="lv7_t_2_1" pos="73.6856 0.2856 -0.2240" type="box" size="0.2056 0.2056 0.3760"/>
+    <geom name="lv7_t_3_0" pos="74.4256 -0.2856 -0.2244" type="box" size="0.2056 0.2056 0.3756"/>
+    <geom name="lv7_t_3_1" pos="74.4256 0.2856 -0.2313" type="box" size="0.2056 0.2056 0.3687"/>
+    <geom name="lv7_t_4_0" pos="75.1656 -0.2856 -0.2366" type="box" size="0.2056 0.2056 0.3634"/>
+    <geom name="lv7_t_4_1" pos="75.1656 0.2856 -0.2434" type="box" size="0.2056 0.2056 0.3566"/>
+    <geom name="lv7_t_5_0" pos="75.9056 -0.2856 -0.2313" type="box" size="0.2056 0.2056 0.3687"/>
+    <geom name="lv7_t_5_1" pos="75.9056 0.2856 -0.2067" type="box" size="0.2056 0.2056 0.3933"/>
+    <geom name="lv7_t_6_0" pos="76.6456 -0.2856 -0.2199" type="box" size="0.2056 0.2056 0.3801"/>
+    <geom name="lv7_t_6_1" pos="76.6456 0.2856 -0.2114" type="box" size="0.2056 0.2056 0.3886"/>
+    <geom name="lv7_t_7_0" pos="77.3856 -0.2856 -0.2505" type="box" size="0.2056 0.2056 0.3495"/>
+    <geom name="lv7_t_7_1" pos="77.3856 0.2856 -0.2280" type="box" size="0.2056 0.2056 0.3720"/>
+    <geom name="lv7_t_8_0" pos="78.1256 -0.2856 -0.2396" type="box" size="0.2056 0.2056 0.3604"/>
+    <geom name="lv7_t_8_1" pos="78.1256 0.2856 -0.2267" type="box" size="0.2056 0.2056 0.3733"/>
+    <geom name="lv7_t_9_0" pos="78.8656 -0.2856 -0.2256" type="box" size="0.2056 0.2056 0.3744"/>
+    <geom name="lv7_t_9_1" pos="78.8656 0.2856 -0.2268" type="box" size="0.2056 0.2056 0.3732"/>
+    <geom name="lv7_t_10_0" pos="79.5500 -0.2856 -0.1969" type="box" size="0.1500 0.2056 0.4031"/>
+    <geom name="lv7_t_10_1" pos="79.5500 0.2856 -0.2602" type="box" size="0.1500 0.2056 0.3398"/>
+    <geom name="lv7_plat_entry2" pos="71.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv7_plat_exit" pos="79.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv7_diff_pillar" pos="70.3000 2.3500 0.2889" type="box" size="0.0800 0.0800 0.2889" rgba="0.74 0.33 0.20 1"/>
+    <geom name="lv8_link" pos="80.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv8_plat_entry" pos="81.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv8_t_0_0" pos="82.1778 -0.2578 -0.2585" type="box" size="0.1778 0.1778 0.3415"/>
+    <geom name="lv8_t_0_1" pos="82.1778 0.2578 -0.2451" type="box" size="0.1778 0.1778 0.3549"/>
+    <geom name="lv8_t_1_0" pos="82.8978 -0.2578 -0.1908" type="box" size="0.1778 0.1778 0.4092"/>
+    <geom name="lv8_t_1_1" pos="82.8978 0.2578 -0.2041" type="box" size="0.1778 0.1778 0.3959"/>
+    <geom name="lv8_t_2_0" pos="83.6178 -0.2578 -0.2543" type="box" size="0.1778 0.1778 0.3457"/>
+    <geom name="lv8_t_2_1" pos="83.6178 0.2578 -0.2170" type="box" size="0.1778 0.1778 0.3830"/>
+    <geom name="lv8_t_3_0" pos="84.3378 -0.2578 -0.2175" type="box" size="0.1778 0.1778 0.3825"/>
+    <geom name="lv8_t_3_1" pos="84.3378 0.2578 -0.2251" type="box" size="0.1778 0.1778 0.3749"/>
+    <geom name="lv8_t_4_0" pos="85.0578 -0.2578 -0.2310" type="box" size="0.1778 0.1778 0.3690"/>
+    <geom name="lv8_t_4_1" pos="85.0578 0.2578 -0.2385" type="box" size="0.1778 0.1778 0.3615"/>
+    <geom name="lv8_t_5_0" pos="85.7778 -0.2578 -0.2252" type="box" size="0.1778 0.1778 0.3748"/>
+    <geom name="lv8_t_5_1" pos="85.7778 0.2578 -0.1980" type="box" size="0.1778 0.1778 0.4020"/>
+    <geom name="lv8_t_6_0" pos="86.4978 -0.2578 -0.2125" type="box" size="0.1778 0.1778 0.3875"/>
+    <geom name="lv8_t_6_1" pos="86.4978 0.2578 -0.2032" type="box" size="0.1778 0.1778 0.3968"/>
+    <geom name="lv8_t_7_0" pos="87.2178 -0.2578 -0.2463" type="box" size="0.1778 0.1778 0.3537"/>
+    <geom name="lv8_t_7_1" pos="87.2178 0.2578 -0.2215" type="box" size="0.1778 0.1778 0.3785"/>
+    <geom name="lv8_t_8_0" pos="87.9378 -0.2578 -0.2343" type="box" size="0.1778 0.1778 0.3657"/>
+    <geom name="lv8_t_8_1" pos="87.9378 0.2578 -0.2200" type="box" size="0.1778 0.1778 0.3800"/>
+    <geom name="lv8_t_9_0" pos="88.6578 -0.2578 -0.2188" type="box" size="0.1778 0.1778 0.3812"/>
+    <geom name="lv8_t_9_1" pos="88.6578 0.2578 -0.2201" type="box" size="0.1778 0.1778 0.3799"/>
+    <geom name="lv8_t_10_0" pos="89.3778 -0.2578 -0.1871" type="box" size="0.1778 0.1778 0.4129"/>
+    <geom name="lv8_t_10_1" pos="89.3778 0.2578 -0.2570" type="box" size="0.1778 0.1778 0.3430"/>
+    <geom name="lv8_plat_entry2" pos="81.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv8_plat_exit" pos="89.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv8_diff_pillar" pos="80.3000 2.3500 0.3194" type="box" size="0.0800 0.0800 0.3194" rgba="0.82 0.27 0.20 1"/>
+    <geom name="lv9_link" pos="90.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv9_plat_entry" pos="91.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv9_t_0_0" pos="92.1500 -0.2300 -0.2555" type="box" size="0.1500 0.1500 0.3445"/>
+    <geom name="lv9_t_0_1" pos="92.1500 0.2300 -0.2408" type="box" size="0.1500 0.1500 0.3592"/>
+    <geom name="lv9_t_1_0" pos="92.8500 -0.2300 -0.1813" type="box" size="0.1500 0.1500 0.4187"/>
+    <geom name="lv9_t_1_1" pos="92.8500 0.2300 -0.1959" type="box" size="0.1500 0.1500 0.4041"/>
+    <geom name="lv9_t_2_0" pos="93.5500 -0.2300 -0.2509" type="box" size="0.1500 0.1500 0.3491"/>
+    <geom name="lv9_t_2_1" pos="93.5500 0.2300 -0.2101" type="box" size="0.1500 0.1500 0.3899"/>
+    <geom name="lv9_t_3_0" pos="94.2500 -0.2300 -0.2106" type="box" size="0.1500 0.1500 0.3894"/>
+    <geom name="lv9_t_3_1" pos="94.2500 0.2300 -0.2189" type="box" size="0.1500 0.1500 0.3811"/>
+    <geom name="lv9_t_4_0" pos="94.9500 -0.2300 -0.2254" type="box" size="0.1500 0.1500 0.3746"/>
+    <geom name="lv9_t_4_1" pos="94.9500 0.2300 -0.2336" type="box" size="0.1500 0.1500 0.3664"/>
+    <geom name="lv9_t_5_0" pos="95.6500 -0.2300 -0.2190" type="box" size="0.1500 0.1500 0.3810"/>
+    <geom name="lv9_t_5_1" pos="95.6500 0.2300 -0.1892" type="box" size="0.1500 0.1500 0.4108"/>
+    <geom name="lv9_t_6_0" pos="96.3500 -0.2300 -0.2051" type="box" size="0.1500 0.1500 0.3949"/>
+    <geom name="lv9_t_6_1" pos="96.3500 0.2300 -0.1949" type="box" size="0.1500 0.1500 0.4051"/>
+    <geom name="lv9_t_7_0" pos="97.0500 -0.2300 -0.2422" type="box" size="0.1500 0.1500 0.3578"/>
+    <geom name="lv9_t_7_1" pos="97.0500 0.2300 -0.2149" type="box" size="0.1500 0.1500 0.3851"/>
+    <geom name="lv9_t_8_0" pos="97.7500 -0.2300 -0.2290" type="box" size="0.1500 0.1500 0.3710"/>
+    <geom name="lv9_t_8_1" pos="97.7500 0.2300 -0.2134" type="box" size="0.1500 0.1500 0.3866"/>
+    <geom name="lv9_t_9_0" pos="98.4500 -0.2300 -0.2121" type="box" size="0.1500 0.1500 0.3879"/>
+    <geom name="lv9_t_9_1" pos="98.4500 0.2300 -0.2135" type="box" size="0.1500 0.1500 0.3865"/>
+    <geom name="lv9_t_10_0" pos="99.1500 -0.2300 -0.1773" type="box" size="0.1500 0.1500 0.4227"/>
+    <geom name="lv9_t_10_1" pos="99.1500 0.2300 -0.2539" type="box" size="0.1500 0.1500 0.3461"/>
+    <geom name="lv9_plat_entry2" pos="91.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv9_plat_exit" pos="99.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv9_diff_pillar" pos="90.3000 2.3500 0.3500" type="box" size="0.0800 0.0800 0.3500" rgba="0.90 0.20 0.20 1"/>
+  </worldbody>
+</mujoco>

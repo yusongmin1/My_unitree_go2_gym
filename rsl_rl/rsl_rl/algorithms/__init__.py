@@ -31,6 +31,7 @@
 from .ppo import PPO
 from .ppo_dreamwaq import PPO_DreamWaQ
 from .ppo_dreamwaq_amp import PPO_DreamWaQ_AMP
+from .ppo_pie import PPO_PIE
 from .amp_discriminator import AMPDiscriminator
 from .cts import CTS
 from .amp_cts import AMPCTS

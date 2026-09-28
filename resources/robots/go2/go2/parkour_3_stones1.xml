@@ -1,0 +1,150 @@
+<mujoco model="parkour_3_stones1_curriculum10">
+  <include file="go2.xml"/>
+
+  <statistic center="50.0 0 0.5" extent="35.0"/>
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20" offwidth="1600" offheight="900"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="20 20" reflectance="0.0"/>
+  </asset>
+
+  <worldbody>
+    <light pos="50.0 0 6" dir="0 0 -1" diffuse="0.9 0.9 0.9" directional="true"/>
+    <!-- type=3 (stones1); curriculum rows=10;
+         difficulty = row/(num_rows-1) along +X: [0.00, 0.11, 0.22, 0.33, 0.44, 0.56, 0.67, 0.78, 0.89, 1.00]; each segment 10m -->
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" pos="50.0 0 -0.650"/>
+    <geom name="lv0_plat_entry" pos="1.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv0_o_0" pos="2.4000 0.0000 -0.2760" type="box" size="0.4000 0.4382 0.3240"/>
+    <geom name="lv0_o_1" pos="3.4000 0.0000 -0.2737" type="box" size="0.4000 0.4393 0.3263"/>
+    <geom name="lv0_o_2" pos="4.4000 0.0000 -0.2756" type="box" size="0.4000 0.4466 0.3244"/>
+    <geom name="lv0_o_3" pos="5.4000 0.0000 -0.2665" type="box" size="0.4000 0.4459 0.3335"/>
+    <geom name="lv0_o_4" pos="6.4000 0.0000 -0.2707" type="box" size="0.4000 0.4610 0.3293"/>
+    <geom name="lv0_o_5" pos="7.4000 0.0000 -0.2664" type="box" size="0.4000 0.4509 0.3336"/>
+    <geom name="lv0_o_6" pos="8.4000 0.0000 -0.2697" type="box" size="0.4000 0.4517 0.3303"/>
+    <geom name="lv0_o_7" pos="9.3500 0.0000 -0.2782" type="box" size="0.3500 0.4517 0.3218"/>
+    <geom name="lv0_plat_entry2" pos="1.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv0_plat_exit" pos="9.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv0_diff_pillar" pos="0.3000 2.3500 0.0750" type="box" size="0.0800 0.0800 0.0750" rgba="0.20 0.80 0.20 1"/>
+    <geom name="lv1_link" pos="10.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv1_plat_entry" pos="11.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv1_o_0" pos="12.3722 0.0000 -0.2703" type="box" size="0.3722 0.4104 0.3297"/>
+    <geom name="lv1_o_1" pos="13.3833 0.0000 -0.2672" type="box" size="0.3722 0.4116 0.3328"/>
+    <geom name="lv1_o_2" pos="14.3944 0.0000 -0.2698" type="box" size="0.3722 0.4188 0.3302"/>
+    <geom name="lv1_o_3" pos="15.4056 0.0000 -0.2570" type="box" size="0.3722 0.4181 0.3430"/>
+    <geom name="lv1_o_4" pos="16.4167 0.0000 -0.2630" type="box" size="0.3722 0.4332 0.3370"/>
+    <geom name="lv1_o_5" pos="17.4278 0.0000 -0.2570" type="box" size="0.3722 0.4232 0.3430"/>
+    <geom name="lv1_o_6" pos="18.4389 0.0000 -0.2616" type="box" size="0.3722 0.4239 0.3384"/>
+    <geom name="lv1_o_7" pos="19.3889 0.0000 -0.2735" type="box" size="0.3111 0.4239 0.3265"/>
+    <geom name="lv1_plat_entry2" pos="11.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv1_plat_exit" pos="19.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv1_diff_pillar" pos="10.3000 2.3500 0.1056" type="box" size="0.0800 0.0800 0.1056" rgba="0.28 0.73 0.20 1"/>
+    <geom name="lv2_link" pos="20.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv2_plat_entry" pos="21.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv2_o_0" pos="22.3444 0.0000 -0.2647" type="box" size="0.3444 0.3826 0.3353"/>
+    <geom name="lv2_o_1" pos="23.3667 0.0000 -0.2607" type="box" size="0.3444 0.3838 0.3393"/>
+    <geom name="lv2_o_2" pos="24.3889 0.0000 -0.2640" type="box" size="0.3444 0.3911 0.3360"/>
+    <geom name="lv2_o_3" pos="25.4111 0.0000 -0.2476" type="box" size="0.3444 0.3903 0.3524"/>
+    <geom name="lv2_o_4" pos="26.4333 0.0000 -0.2553" type="box" size="0.3444 0.4055 0.3447"/>
+    <geom name="lv2_o_5" pos="27.4556 0.0000 -0.2475" type="box" size="0.3444 0.3954 0.3525"/>
+    <geom name="lv2_o_6" pos="28.4778 0.0000 -0.2534" type="box" size="0.3444 0.3962 0.3466"/>
+    <geom name="lv2_o_7" pos="29.4278 0.0000 -0.2687" type="box" size="0.2722 0.3961 0.3313"/>
+    <geom name="lv2_plat_entry2" pos="21.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv2_plat_exit" pos="29.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv2_diff_pillar" pos="20.3000 2.3500 0.1361" type="box" size="0.0800 0.0800 0.1361" rgba="0.36 0.67 0.20 1"/>
+    <geom name="lv3_link" pos="30.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv3_plat_entry" pos="31.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv3_o_0" pos="32.3167 0.0000 -0.2591" type="box" size="0.3167 0.3548 0.3409"/>
+    <geom name="lv3_o_1" pos="33.3500 0.0000 -0.2541" type="box" size="0.3167 0.3560 0.3459"/>
+    <geom name="lv3_o_2" pos="34.3833 0.0000 -0.2582" type="box" size="0.3167 0.3633 0.3418"/>
+    <geom name="lv3_o_3" pos="35.4167 0.0000 -0.2382" type="box" size="0.3167 0.3625 0.3618"/>
+    <geom name="lv3_o_4" pos="36.4500 0.0000 -0.2476" type="box" size="0.3167 0.3777 0.3524"/>
+    <geom name="lv3_o_5" pos="37.4833 0.0000 -0.2381" type="box" size="0.3167 0.3676 0.3619"/>
+    <geom name="lv3_o_6" pos="38.5167 0.0000 -0.2453" type="box" size="0.3167 0.3684 0.3547"/>
+    <geom name="lv3_o_7" pos="39.4667 0.0000 -0.2640" type="box" size="0.2333 0.3683 0.3360"/>
+    <geom name="lv3_plat_entry2" pos="31.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv3_plat_exit" pos="39.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv3_diff_pillar" pos="30.3000 2.3500 0.1667" type="box" size="0.0800 0.0800 0.1667" rgba="0.43 0.60 0.20 1"/>
+    <geom name="lv4_link" pos="40.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv4_plat_entry" pos="41.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv4_o_0" pos="42.2889 0.0000 -0.2535" type="box" size="0.2889 0.3271 0.3465"/>
+    <geom name="lv4_o_1" pos="43.3333 0.0000 -0.2476" type="box" size="0.2889 0.3282 0.3524"/>
+    <geom name="lv4_o_2" pos="44.3778 0.0000 -0.2524" type="box" size="0.2889 0.3355 0.3476"/>
+    <geom name="lv4_o_3" pos="45.4222 0.0000 -0.2288" type="box" size="0.2889 0.3348 0.3712"/>
+    <geom name="lv4_o_4" pos="46.4667 0.0000 -0.2399" type="box" size="0.2889 0.3499 0.3601"/>
+    <geom name="lv4_o_5" pos="47.5111 0.0000 -0.2286" type="box" size="0.2889 0.3398 0.3714"/>
+    <geom name="lv4_o_6" pos="48.5556 0.0000 -0.2372" type="box" size="0.2889 0.3406 0.3628"/>
+    <geom name="lv4_o_7" pos="49.5056 0.0000 -0.2593" type="box" size="0.1944 0.3406 0.3407"/>
+    <geom name="lv4_plat_entry2" pos="41.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv4_plat_exit" pos="49.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv4_diff_pillar" pos="40.3000 2.3500 0.1972" type="box" size="0.0800 0.0800 0.1972" rgba="0.51 0.53 0.20 1"/>
+    <geom name="lv5_link" pos="50.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv5_plat_entry" pos="51.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv5_o_0" pos="52.2611 0.0000 -0.2479" type="box" size="0.2611 0.2993 0.3521"/>
+    <geom name="lv5_o_1" pos="53.3167 0.0000 -0.2411" type="box" size="0.2611 0.3005 0.3589"/>
+    <geom name="lv5_o_2" pos="54.3722 0.0000 -0.2467" type="box" size="0.2611 0.3077 0.3533"/>
+    <geom name="lv5_o_3" pos="55.4278 0.0000 -0.2194" type="box" size="0.2611 0.3070 0.3806"/>
+    <geom name="lv5_o_4" pos="56.4833 0.0000 -0.2322" type="box" size="0.2611 0.3221 0.3678"/>
+    <geom name="lv5_o_5" pos="57.5389 0.0000 -0.2192" type="box" size="0.2611 0.3121 0.3808"/>
+    <geom name="lv5_o_6" pos="58.5944 0.0000 -0.2290" type="box" size="0.2611 0.3128 0.3710"/>
+    <geom name="lv5_o_7" pos="59.5444 0.0000 -0.2546" type="box" size="0.1556 0.3128 0.3454"/>
+    <geom name="lv5_plat_entry2" pos="51.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv5_plat_exit" pos="59.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv5_diff_pillar" pos="50.3000 2.3500 0.2278" type="box" size="0.0800 0.0800 0.2278" rgba="0.59 0.47 0.20 1"/>
+    <geom name="lv6_link" pos="60.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv6_plat_entry" pos="61.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv6_o_0" pos="62.2333 0.0000 -0.2423" type="box" size="0.2333 0.2715 0.3577"/>
+    <geom name="lv6_o_1" pos="63.3000 0.0000 -0.2346" type="box" size="0.2333 0.2727 0.3654"/>
+    <geom name="lv6_o_2" pos="64.3667 0.0000 -0.2409" type="box" size="0.2333 0.2799 0.3591"/>
+    <geom name="lv6_o_3" pos="65.4333 0.0000 -0.2099" type="box" size="0.2333 0.2792 0.3901"/>
+    <geom name="lv6_o_4" pos="66.5000 0.0000 -0.2245" type="box" size="0.2333 0.2944 0.3755"/>
+    <geom name="lv6_o_5" pos="67.5667 0.0000 -0.2098" type="box" size="0.2333 0.2843 0.3902"/>
+    <geom name="lv6_o_6" pos="68.6333 0.0000 -0.2209" type="box" size="0.2333 0.2851 0.3791"/>
+    <geom name="lv6_o_7" pos="69.5833 0.0000 -0.2498" type="box" size="0.1167 0.2850 0.3502"/>
+    <geom name="lv6_plat_entry2" pos="61.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv6_plat_exit" pos="69.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv6_diff_pillar" pos="60.3000 2.3500 0.2583" type="box" size="0.0800 0.0800 0.2583" rgba="0.67 0.40 0.20 1"/>
+    <geom name="lv7_link" pos="70.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv7_plat_entry" pos="71.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv7_o_0" pos="72.2056 0.0000 -0.2366" type="box" size="0.2056 0.2437 0.3634"/>
+    <geom name="lv7_o_1" pos="73.2833 0.0000 -0.2281" type="box" size="0.2056 0.2449 0.3719"/>
+    <geom name="lv7_o_2" pos="74.3611 0.0000 -0.2351" type="box" size="0.2056 0.2522 0.3649"/>
+    <geom name="lv7_o_3" pos="75.4389 0.0000 -0.2005" type="box" size="0.2056 0.2514 0.3995"/>
+    <geom name="lv7_o_4" pos="76.5167 0.0000 -0.2168" type="box" size="0.2056 0.2666 0.3832"/>
+    <geom name="lv7_o_5" pos="77.5944 0.0000 -0.2003" type="box" size="0.2056 0.2565 0.3997"/>
+    <geom name="lv7_o_6" pos="78.6722 0.0000 -0.2128" type="box" size="0.2056 0.2573 0.3872"/>
+    <geom name="lv7_plat_entry2" pos="71.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv7_plat_exit" pos="79.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv7_diff_pillar" pos="70.3000 2.3500 0.2889" type="box" size="0.0800 0.0800 0.2889" rgba="0.74 0.33 0.20 1"/>
+    <geom name="lv8_link" pos="80.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv8_plat_entry" pos="81.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv8_o_0" pos="82.1778 0.0000 -0.2310" type="box" size="0.1778 0.2160 0.3690"/>
+    <geom name="lv8_o_1" pos="83.2667 0.0000 -0.2215" type="box" size="0.1778 0.2171 0.3785"/>
+    <geom name="lv8_o_2" pos="84.3556 0.0000 -0.2293" type="box" size="0.1778 0.2244 0.3707"/>
+    <geom name="lv8_o_3" pos="85.4444 0.0000 -0.1911" type="box" size="0.1778 0.2237 0.4089"/>
+    <geom name="lv8_o_4" pos="86.5333 0.0000 -0.2091" type="box" size="0.1778 0.2388 0.3909"/>
+    <geom name="lv8_o_5" pos="87.6222 0.0000 -0.1909" type="box" size="0.1778 0.2287 0.4091"/>
+    <geom name="lv8_o_6" pos="88.7111 0.0000 -0.2047" type="box" size="0.1778 0.2295 0.3953"/>
+    <geom name="lv8_plat_entry2" pos="81.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv8_plat_exit" pos="89.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv8_diff_pillar" pos="80.3000 2.3500 0.3194" type="box" size="0.0800 0.0800 0.3194" rgba="0.82 0.27 0.20 1"/>
+    <geom name="lv9_link" pos="90.0000 0.0000 -0.0500" type="box" size="0.4000 0.6000 0.0500"/>
+    <geom name="lv9_plat_entry" pos="91.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv9_o_0" pos="92.1750 0.0000 -0.2254" type="box" size="0.1750 0.1882 0.3746"/>
+    <geom name="lv9_o_1" pos="93.3250 0.0000 -0.2150" type="box" size="0.1750 0.1893 0.3850"/>
+    <geom name="lv9_o_2" pos="94.4750 0.0000 -0.2235" type="box" size="0.1750 0.1966 0.3765"/>
+    <geom name="lv9_o_3" pos="95.6250 0.0000 -0.1817" type="box" size="0.1750 0.1959 0.4183"/>
+    <geom name="lv9_o_4" pos="96.7750 0.0000 -0.2014" type="box" size="0.1750 0.2110 0.3986"/>
+    <geom name="lv9_o_5" pos="97.9250 0.0000 -0.1815" type="box" size="0.1750 0.2009 0.4185"/>
+    <geom name="lv9_o_6" pos="99.0750 0.0000 -0.1965" type="box" size="0.1750 0.2017 0.4035"/>
+    <geom name="lv9_plat_entry2" pos="91.0000 0.0000 -0.0500" type="box" size="1.0000 1.0000 0.0500"/>
+    <geom name="lv9_plat_exit" pos="99.5000 0.0000 -0.0500" type="box" size="0.5000 1.0000 0.0500"/>
+    <geom name="lv9_diff_pillar" pos="90.3000 2.3500 0.3500" type="box" size="0.0800 0.0800 0.3500" rgba="0.90 0.20 0.20 1"/>
+  </worldbody>
+</mujoco>
