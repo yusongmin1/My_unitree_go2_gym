@@ -20,6 +20,7 @@ from isaacgym import gymapi
 
 import matplotlib
 matplotlib.use("TkAgg")
+matplotlib.rcParams["toolbar"] = "None"  # 规避 TkAgg 工具栏图标 0 尺寸崩溃
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -67,7 +68,46 @@ def _load_depth_policy(env, args, train_cfg):
         "| actor=",
         type(ppo_runner.alg.actor_critic).__name__,
     )
+    _export_sim2sim_jit(env, ppo_runner, train_cfg)
     return policy, ppo_runner, train_cfg
+
+
+def _export_sim2sim_jit(env, ppo_runner, train_cfg):
+    """导出 sim2sim 用完整 jit：三输入(obs/obs_hist/depth) + 显式 GRU hidden。
+    通用 export_policy_as_jit 只导裸 actor MLP（单输入），对 PIE 不可用。"""
+    import copy
+    try:
+        ac = copy.deepcopy(ppo_runner.alg.actor_critic).to("cpu").eval()
+        ac.init_hidden(1, "cpu")
+        hdim = int(ac.memory_hidden.shape[-1])
+
+        class _JitWrapper(torch.nn.Module):
+            def __init__(self, ac):
+                super().__init__()
+                self.ac = ac
+
+            def forward(self, obs, obs_hist, depth, hidden):
+                est, new_hidden = self.ac._estimate_tensors(
+                    obs, obs_hist, depth,
+                    hidden_state=hidden, update_internal=False, sample_latent=False,
+                )
+                return self.ac.actor(torch.cat([obs, est["latent"]], dim=-1)), new_hidden
+
+        c = env.cfg.camera
+        zeros = (torch.zeros(1, env.num_obs),
+                 torch.zeros(1, env.cfg.env.num_history_obs),
+                 torch.zeros(1, int(c.image_nums) * int(c.output_hw[0]) * int(c.output_hw[1])),
+                 torch.zeros(1, 1, hdim))
+        with torch.no_grad():
+            traced = torch.jit.trace(_JitWrapper(ac), zeros, strict=False)
+        out_dir = os.path.join(LEGGED_GYM_ROOT_DIR, "logs", train_cfg.runner.experiment_name,
+                               "exported", "policies")
+        os.makedirs(out_dir, exist_ok=True)
+        out = os.path.join(out_dir, "policy_pie.pt")
+        traced.save(out)
+        print("[play_pie] 已导出 sim2sim jit(显式hidden) ->", out)
+    except Exception as e:
+        print("[play_pie] sim2sim jit 导出失败:", e)
 
 
 def _camera_frustum_corners(pos, quat, hfov_deg, width, height, near, far, device):
@@ -218,6 +258,15 @@ def play(args):
 
     policy, ppo_runner, train_cfg = _load_depth_policy(env, args, train_cfg)
 
+    with torch.no_grad():
+        actions0 = policy(obs.detach(), obs_hist.detach(), depth.detach())
+    a0 = actions0[0].detach().cpu().numpy()
+    print(
+        f"[play_pie] env0 initial actions (12): "
+        f"{np.array2string(a0, precision=4, floatmode='fixed')}",
+        flush=True,
+    )
+
     logger = Logger(env.dt)
     robot_index = 0
     joint_index = 1
@@ -265,7 +314,7 @@ def play(args):
 
     try:
         for i in range(10 * int(env.max_episode_length)):
-            env.commands[:, 0] = 1.0
+            env.commands[:, 0] = 0.7
             env.commands[:, 1] = 0.0
             env.commands[:, 2] = 0.0
 

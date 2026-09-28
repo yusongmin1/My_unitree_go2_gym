@@ -27,6 +27,7 @@ import torch
 
 import matplotlib
 matplotlib.use("TkAgg")
+matplotlib.rcParams["toolbar"] = "None"  # 规避 TkAgg 工具栏图标 0 尺寸崩溃
 import matplotlib.pyplot as plt
 
 from viewer_utils import VelocityArrowViewer
@@ -57,9 +58,12 @@ def pd_control(target_q, q, kp, target_dq, dq, kd, cfg):
     return (target_q + cfg.robot_config.default_dof_pos - q) * kp + (target_dq - dq) * kd
 
 
-def run_mujoco(policy, cfg):
+def run_mujoco(policy, cfg, policy_is_jit=False):
     vel_arrow = VelocityArrowViewer(max_cmd=(1.5, 0.5, 1.2),
                                     gears=[0.5, 1.0, 1.5])
+    # 初始前进命令（对齐 play_pie 的 cmd_x 档位取 0.5）：
+    # cmd 为 0 时 _add_arrow 渲染成 mjGEOM_NONE，箭头不可见
+    vel_arrow.cmd[:] = [0.5, 0.0, 0.0]
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
 
@@ -117,9 +121,9 @@ def run_mujoco(policy, cfg):
         scn.ngeom += 1
 
     def draw_cam_debug(viewer):
-        """红色相机标记 + 视锥线（near 0.15 / far 3.0，与 play_pie 一致）。"""
+        """红色相机标记 + 视锥线（near 0.15 / far 3.0，与 play_pie 一致）。
+        不清场（ngeom 不归零）：user_scn 里还有 vel_arrow 的速度箭头。"""
         scn = viewer.user_scn
-        scn.ngeom = 0
         pos = data.cam_xpos[cam_id].copy()
         Rm = data.cam_xmat[cam_id].reshape(3, 3)
         right, up, forward = Rm[:, 0], Rm[:, 1], -Rm[:, 2]
@@ -181,6 +185,7 @@ def run_mujoco(policy, cfg):
             depth_hist.append(np.zeros((CAM_H, CAM_W - CROP_L - CROP_R)))
 
         count_lowlevel = 1
+        pie_hidden = torch.zeros(1, 1, 128)  # jit 模型的显式 GRU hidden
         policy_input = np.zeros([1, 45 * OBS_HIST], dtype=np.float32)
         depth_flat = np.zeros([1, DEPTH_FRAMES * CAM_H * (CAM_W - CROP_L - CROP_R)], dtype=np.float32)
 
@@ -224,7 +229,11 @@ def run_mujoco(policy, cfg):
                 # --- 策略（三输入：obs, obs_hist, depth）---
                 if policy is not None:
                     try:
-                        a, _ = policy.act_inference(torch.tensor(obs), torch.tensor(policy_input), torch.tensor(depth_flat))
+                        if policy_is_jit:
+                            a, pie_hidden = policy(torch.tensor(obs), torch.tensor(policy_input),
+                                                    torch.tensor(depth_flat), pie_hidden)
+                        else:
+                            a, _ = policy.act_inference(torch.tensor(obs), torch.tensor(policy_input), torch.tensor(depth_flat))
                         action[:] = a[0].detach().numpy()
                     except Exception as e:
                         if sim_step % 500 == 0:
@@ -269,7 +278,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Go2_PIE sim2sim deployment.')
     parser.add_argument('--load_model', type=str,
-                        default=f'{LEGGED_GYM_ROOT_DIR}/logs/go2_pie/Sep28_11-38-39_/model_200.pt',
+                        default=f'{LEGGED_GYM_ROOT_DIR}/logs/go2_pie/exported/policies/policy_pie.pt',
                         help='训练 checkpoint（raw .pt，经 ActorCriticPIE 加载）。')
     parser.add_argument('--terrain', action='store_true', help='terrain or plane')
     args = parser.parse_args()
@@ -292,13 +301,19 @@ if __name__ == '__main__':
                                          0.1, 1.0, -1.5,   # RL
                                         -0.1, 1.0, -1.5], dtype=np.double)  # RR
 
-    # 策略：--load_model 指向训练 checkpoint（raw .pt），经 ActorCriticPIE 加载
+    # 策略：优先 jit 导出模型（四输入含显式 hidden）；否则按 raw checkpoint 加载
     policy = None
+    policy_is_jit = False
     if os.path.exists(args.load_model):
         try:
-            policy = load_pie_policy(args.load_model)
-        except Exception as e:
-            print(f"[sim2sim_pie] 策略加载失败（用零动作）: {e}")
+            policy = torch.jit.load(args.load_model, map_location='cpu').eval()
+            policy_is_jit = True
+            print(f"[sim2sim_pie] 已加载 jit 策略(显式hidden): {args.load_model}")
+        except Exception:
+            try:
+                policy = load_pie_policy(args.load_model)
+            except Exception as e:
+                print(f"[sim2sim_pie] 策略加载失败（用零动作）: {e}")
     else:
         print(f"[sim2sim_pie] 未找到 {args.load_model}，用零动作，仅看相机")
 
@@ -311,4 +326,4 @@ if __name__ == '__main__':
         os._exit(0)
     signal.signal(signal.SIGINT, _save_now_and_exit)
 
-    run_mujoco(policy, Sim2simCfg())
+    run_mujoco(policy, Sim2simCfg(), policy_is_jit)

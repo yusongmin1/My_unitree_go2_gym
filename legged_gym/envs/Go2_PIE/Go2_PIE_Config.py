@@ -53,20 +53,19 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
 
     class commands:
         curriculum = True
-        max_curriculum = 2.0
+        max_curriculum = 1.0
         num_commands = 4
         resampling_time = 10.
         heading_command = True
-        rough_terrain_id = 14  # make_terrain idx：仅此类随机采速
+        rough_terrain_id = 14
         class ranges:
-            # 上界随课程扩大；非 rough 只用 [0, lin_vel_x[1]]
-            lin_vel_x = [-1.0, 1.0]
-            lin_vel_y = [-1.0, 1.0]
+            lin_vel_x = [0.0, 1.0]
+            lin_vel_y = [0.0, 0.0]
             ang_vel_yaw = [-1.0, 1.0]
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.0, 0.35] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -101,7 +100,7 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"
         foot_name = "foot"
-        penalize_contacts_on = ["thigh", "calf","base"]  # base 已 terminate，勿再叠加重罚
+        penalize_contacts_on = ["thigh", "calf","base","Head"]  # base 已 terminate，勿再叠加重罚
         terminate_after_contacts_on = ["base"]
         disable_gravity = False
         collapse_fixed_joints = True
@@ -152,7 +151,7 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 0.95
         class scales:
             tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.75
+            tracking_ang_vel = 0.3
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2         # 与 DreamWaQ 同：奖励直立（见 _reward_orientation）
@@ -161,10 +160,8 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
             collision = -1.0           # 原 -10 导致不敢迈步
             action_rate = -0.01
             dof_pos_limits = -2.0
-            hip_pos = -0.1
+            hip_pos = -0.05
             base_height = -2.0         # 原 -0.2 太弱，趴着几乎不亏
-            feet_air_time = 1.0
-            foot_clearance=-0.01
         only_positive_rewards = False
         tracking_sigma = 0.25
         base_height_target = 0.38      # 原 0.27 过低，会鼓励蹲/趴

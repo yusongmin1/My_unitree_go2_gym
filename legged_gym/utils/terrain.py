@@ -82,7 +82,7 @@ class Terrain:
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
 
             choice = np.random.uniform(0, 1)
-            difficulty = np.random.choice([0.9])
+            difficulty = np.random.choice([0.1])
             terrain = self.make_terrain(choice, difficulty)
             self.add_terrain_to_map(terrain, i, j)
         
@@ -124,7 +124,7 @@ class Terrain:
     def add_roughness(self, terrain, difficulty=1.0):
         if not getattr(self.cfg, "add_roughness", True):
             return
-        height_range = getattr(self.cfg, "height", [0.01, 0.04])
+        height_range = getattr(self.cfg, "height", [0.01, 0.010])
         downsampled_scale = getattr(self.cfg, "downsampled_scale", 0.2)
         max_height = (height_range[1] - height_range[0]) * difficulty + height_range[0]
         height = random.uniform(height_range[0], max_height)

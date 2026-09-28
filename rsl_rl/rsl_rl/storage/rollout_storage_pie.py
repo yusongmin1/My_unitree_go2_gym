@@ -26,14 +26,7 @@ class RolloutStoragePIE:
         def clear(self):
             self.__init__()
 
-    def __init__(
-        self,
-        num_envs,
-        num_transitions_per_env,
-        obs_shape,
-        privileged_obs_shape,
-        obs_hist_shape,
-        depth_shape,
+    def __init__(self, num_envs, num_transitions_per_env, obs_shape, privileged_obs_shape,obs_hist_shape,depth_shape,
         velocity_shape,
         height_shape,
         foot_shape,
@@ -43,7 +36,6 @@ class RolloutStoragePIE:
     ):
         self.device = device
         self.num_envs = num_envs
-        self.num_transitions_per_env = num_transitions_per_env
 
         self.observations = torch.zeros(
             num_transitions_per_env, num_envs, *obs_shape, device=device
@@ -97,6 +89,7 @@ class RolloutStoragePIE:
         self.sigma = torch.zeros(
             num_transitions_per_env, num_envs, *actions_shape, device=device
         )
+        self.num_transitions_per_env = num_transitions_per_env
 
         self.saved_hidden_states_a = None
         self.step = 0

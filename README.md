@@ -192,7 +192,7 @@ python legged_gym/scripts/play_dreamwaq.py --task=go2_amp_dreamwaq
  
 #### PIE 任务（DreamwaQ 栈）
 ```bash
-python legged_gym/scripts/play_dreamwaq.py --task=go2_pie
+python legged_gym/scripts/play_pie.py --task=go2_pie
 ```
  
 #### CTS 任务

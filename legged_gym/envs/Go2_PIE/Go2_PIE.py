@@ -244,9 +244,9 @@ class Go2_PIE_Robot(BaseTask):
         self.velocity_target_buf[env_ids] = 0
         self.height_target_buf[env_ids] = 0
         self.foot_target_buf[env_ids] = 0
-        if self.use_camera and self.image_buf is not None:
-            self.image_buf[env_ids] = 0
-            self.depth_flat_buf[env_ids] = 0
+        # if self.use_camera and self.image_buf is not None:
+        #     self.image_buf[env_ids] = 0
+        #     self.depth_flat_buf[env_ids] = 0
 
     def compute_reward(self):
         """ Compute rewards
@@ -451,7 +451,7 @@ class Go2_PIE_Robot(BaseTask):
         env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0).nonzero(as_tuple=False).flatten()
         self._resample_commands(env_ids)
         if self.cfg.commands.heading_command:
-            # 角速度跟踪朝向误差（非 rough 的 heading 目标恒为 0=朝前）
+            # yaw rate tracks heading target; when heading matches commands[:,3], ang_vel≈0
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
             self.commands[:, 2] = torch.clip(
@@ -466,92 +466,20 @@ class Go2_PIE_Robot(BaseTask):
         if self.cfg.domain_rand.disturbance and (self.common_step_counter % self.cfg.domain_rand.disturbance_interval == 0):
             self._disturbance_robots()
 
-        # 仅 rough：小概率站立/原地转（跑酷地形保持前进命令）
-        if len(env_ids) > 0 and hasattr(self, "env_class"):
-            rough_id = int(getattr(self.cfg.commands, "rough_terrain_id", 14))
-            rough_ids = env_ids[self.env_class[env_ids] == rough_id]
-            if len(rough_ids) > 0:
-                all_zero_mask = torch.rand(len(rough_ids), device=self.device) < 0.05
-                self.commands[rough_ids[all_zero_mask]] = 0.0
-                xy_zero_mask = torch.rand(len(rough_ids), device=self.device) < 0.05
-                self.commands[rough_ids[xy_zero_mask], :2] = 0.0
-
-    def _command_vmax(self):
-        """前进速度上界：iter 日程 ∩ 课程 ranges 上界。"""
-        max_vel = 1.0
-        current_iter = self.common_step_counter // 24
-        if current_iter > 15000 and current_iter < 20000:
-            max_vel = 1.2
-        elif current_iter > 20000 and current_iter < 30000:
-            max_vel = 1.4
-        elif current_iter > 30000:
-            max_vel = 1.5
-        return max(float(self.command_ranges["lin_vel_x"][1]), max_vel)
-
     def _resample_commands(self, env_ids):
-        """速度命令采样。
-        - rough(idx=14)：全向随机（±vx/±vy/随机朝向），与原先一致
-        - 其余地形：vx∈[0, vmax]、vy=0、heading=0（朝前），角速度由 heading 误差生成
-        """
+        """All terrains: vx∈[0,1], vy=0, heading=0; yaw rate from heading error in callback."""
         if len(env_ids) == 0:
             return
 
-        vmax = self._command_vmax()
-        rough_id = int(getattr(self.cfg.commands, "rough_terrain_id", 14))
-
-        if hasattr(self, "env_class"):
-            is_rough = self.env_class[env_ids] == rough_id
-        else:
-            is_rough = torch.zeros(len(env_ids), dtype=torch.bool, device=self.device)
-
-        rough_ids = env_ids[is_rough]
-        other_ids = env_ids[~is_rough]
-
-        # ---- 跑酷 / 楼梯等：只前进 ----
-        if len(other_ids) > 0:
-            self.commands[other_ids, 0] = torch_rand_float(
-                0.0, vmax, (len(other_ids), 1), device=self.device
-            ).squeeze(1)
-            self.commands[other_ids, 1] = 0.0
-            self.commands[other_ids, 2] = 0.0
-            # 朝向目标固定向前（世界系 yaw=0）；yaw 速率在 callback 里跟踪该朝向
-            self.commands[other_ids, 3] = 0.0
-            # 过小前进速度置零，避免抖
-            self.commands[other_ids, 0] *= (
-                self.commands[other_ids, 0] > 0.1
-            ).float()
-
-        # ---- rough：随机速度范围 ----
-        if len(rough_ids) > 0:
-            vx_lo = self.command_ranges["lin_vel_x"][0]
-            vx_hi = max(float(self.command_ranges["lin_vel_x"][1]), vmax)
-            self.commands[rough_ids, 0] = torch_rand_float(
-                vx_lo, vx_hi, (len(rough_ids), 1), device=self.device
-            ).squeeze(1)
-            self.commands[rough_ids, 1] = torch_rand_float(
-                self.command_ranges["lin_vel_y"][0],
-                self.command_ranges["lin_vel_y"][1],
-                (len(rough_ids), 1),
-                device=self.device,
-            ).squeeze(1)
-            if self.cfg.commands.heading_command:
-                self.commands[rough_ids, 3] = torch_rand_float(
-                    self.command_ranges["heading"][0],
-                    self.command_ranges["heading"][1],
-                    (len(rough_ids), 1),
-                    device=self.device,
-                ).squeeze(1)
-            else:
-                self.commands[rough_ids, 2] = torch_rand_float(
-                    self.command_ranges["ang_vel_yaw"][0],
-                    self.command_ranges["ang_vel_yaw"][1],
-                    (len(rough_ids), 1),
-                    device=self.device,
-                ).squeeze(1)
-            # 小命令置零
-            self.commands[rough_ids, :2] *= (
-                torch.norm(self.commands[rough_ids, :2], dim=1) > 0.2
-            ).unsqueeze(1)
+        vx_lo = float(self.command_ranges["lin_vel_x"][0])
+        vx_hi = float(self.command_ranges["lin_vel_x"][1])
+        self.commands[env_ids, 0] = torch_rand_float(
+            vx_lo, vx_hi, (len(env_ids), 1), device=self.device
+        ).squeeze(1)
+        self.commands[env_ids, 1] = 0.0
+        self.commands[env_ids, 2] = 0.0
+        self.commands[env_ids, 3] = 0.0
+        self.commands[env_ids, 0] *= (self.commands[env_ids, 0] > 0.1).float()
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -606,14 +534,14 @@ class Go2_PIE_Robot(BaseTask):
                 if len(parkour_ids) > 0:
                     self.root_states[parkour_ids, :2] += torch_rand_float(-0.1, 0.1, (len(parkour_ids), 2), device=self.device)
                 if len(other_ids) > 0:
-                    self.root_states[other_ids, :2] += torch_rand_float(-0.5, 0.5, (len(other_ids), 2), device=self.device)
+                    self.root_states[other_ids, :2] += torch_rand_float(-0.1, 0.1, (len(other_ids), 2), device=self.device)
             else:
                 self.root_states[env_ids, :2] += torch_rand_float(-0.2, 0.2, (len(env_ids), 2), device=self.device)
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
         # base velocities
-        self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
+        # self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -673,10 +601,12 @@ class Go2_PIE_Robot(BaseTask):
         high_vel_env_ids = (env_ids < (self.num_envs * 0.2))
         low_vel_env_ids = env_ids[low_vel_env_ids.nonzero(as_tuple=True)]
         high_vel_env_ids = env_ids[high_vel_env_ids.nonzero(as_tuple=True)]
-        # If the tracking reward is above 80% of the maximum, increase the range of commands
+        # Keep lin_vel_x in [0, max_curriculum] (default [0, 1]); do not expand sideways/backward
         if (torch.mean(self.episode_sums["tracking_lin_vel"][low_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]) and (torch.mean(self.episode_sums["tracking_lin_vel"][high_vel_env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]):
-            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
+            self.command_ranges["lin_vel_x"][0] = 0.0
+            self.command_ranges["lin_vel_x"][1] = np.clip(
+                self.command_ranges["lin_vel_x"][1] + 0.0, 0.0, self.cfg.commands.max_curriculum
+            )
 
     # ==================== MGDP warp 深度相机（迁移） ====================
 
@@ -1334,7 +1264,6 @@ class Go2_PIE_Robot(BaseTask):
         return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
 
     def _reward_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)；直立门控，趴着拿不到跟踪奖
         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
         return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma) 
 
