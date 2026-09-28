@@ -26,15 +26,12 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         mesh_type = 'trimesh'
         horizontal_scale = 0.05
         vertical_scale = 0.005
-        # border=50 @ hs=0.05 → ~14M verts / 28M tris → GPU PhysX segfault on upload.
-        # Align MGDP gap_parkour stage2.
-        border_size = 5
+        border_size = 10
         curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0
         restitution = 0.
         measure_heights = True
-        # mjlab terrain_scan: size (1.7, 1.0) @ 0.1 → inclusive 18×11 = 198
         measured_points_x = [-0.85, -0.75, -0.65, -0.55, -0.45, -0.35, -0.25, -0.15, -0.05,
                              0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85]
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
@@ -55,7 +52,6 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         slope_treshold = 0.75
 
     class commands:
-        # rough(idx=14)：全向随机速度；其余地形：仅前进 vx∈[0,vmax]、vy=0、朝向固定向前
         curriculum = True
         max_curriculum = 2.0
         num_commands = 4
@@ -70,32 +66,37 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
             heading = [-3.14, 3.14]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42]
-        rot = [0.0, 0.0, 0.0, 1.0]
-        lin_vel = [0.0, 0.0, 0.0]
-        ang_vel = [0.0, 0.0, 0.0]
-        default_joint_angles = {
-            'FL_hip_joint': 0.1,
-            'RL_hip_joint': 0.1,
-            'FR_hip_joint': -0.1,
-            'RR_hip_joint': -0.1,
-            'FL_thigh_joint': 0.8,
-            'RL_thigh_joint': 1.0,
-            'FR_thigh_joint': 0.8,
-            'RR_thigh_joint': 1.0,
-            'FL_calf_joint': -1.5,
-            'RL_calf_joint': -1.5,
-            'FR_calf_joint': -1.5,
-            'RR_calf_joint': -1.5,
+        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
+        lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
+        ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1 ,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
+
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.0,#1.,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.0,#1.,   # [rad]
+
+            'FL_calf_joint': -1.5,   # [rad]
+            'RL_calf_joint': -1.5,    # [rad]
+            'FR_calf_joint': -1.5,  # [rad]
+            'RR_calf_joint': -1.5,    # [rad]
         }
 
     class control( LeggedRobotCfg.control ):
+        # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 20.}
-        damping = {'joint': 0.5}
+        stiffness = {'joint': 20.}  # [N*m/rad]
+        damping = {'joint': 0.5}     # [N*m*s/rad]
+        # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
+        # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
-
     class asset:
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
         name = "go2"

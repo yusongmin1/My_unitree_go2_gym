@@ -264,14 +264,14 @@ def build_bridge(difficulty: float) -> Scene:
 
 def build_hurdle(difficulty: float) -> Scene:
     scene = Scene()
-    # 栏高连续：0.08 → 0.55；训练里 clip(diff/hs,60,80) 会让间距永远 3m
+    # 栏高连续：0.08 → 0.55
     hurdle_h = 0.08 + 0.47 * difficulty
-    # 栏间距连续变密一点但仍可跑：3.5 → 2.0
+    # 栏间距：3.5 → 2.0
     gap = 3.5 - 1.5 * difficulty
     sx = 0.45 - 0.15 * difficulty
-    sy = 0.90 - 0.20 * difficulty
-    corridor_w = 18 * HS
-    _add_ground_slab(scene, "corridor", 0.0, LENGTH, -corridor_w * 0.5, corridor_w * 0.5)
+    # 横向与地形同宽（WIDTH）
+    sy = WIDTH
+    _add_ground_slab(scene, "corridor", 0.0, LENGTH, -WIDTH * 0.5, WIDTH * 0.5)
 
     x = PLAT + 0.8
     i = 0

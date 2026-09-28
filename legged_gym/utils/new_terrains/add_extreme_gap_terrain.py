@@ -1121,49 +1121,30 @@ def parkour_step_terrain(terrain, num_stones=8, x_range=[0.2, 0.4], hurdle_heigh
 def parkour_hurdle_terrain(terrain, difficulty, stone_size, stone_distance, max_height, hurdle_height_range, platform_size=1., depth=1):
     # switch parameters to discrete units
     stone_size = int(stone_size / terrain.horizontal_scale)
-    # stone_distance = int(stone_distance / terrain.horizontal_scale)
-    # max_height = int(max_height / terrain.vertical_scale)
-    # max_height = np.clip(max_height, 0, 20)
-
     platform_size = int(platform_size / terrain.horizontal_scale)
+    pit = int(-depth / terrain.vertical_scale)
 
-    # Calculate the y-coordinates for the two rows of stones
-    platform_y = (terrain.length - platform_size) // 2
+    # 走廊与跨栏均拉满地形横向宽度（terrain.length ↔ terrain_width）
+    y0, y1 = 0, terrain.length
 
-    terrain.height_field_raw[:, :] = int(-0.6 / terrain.vertical_scale)
-
-    row0_y = int(platform_y + platform_size / 2 - 17 / 2)
-
-    terrain.height_field_raw[:, row0_y:row0_y + 18] = 0
-
+    terrain.height_field_raw[:, :] = pit
+    terrain.height_field_raw[:, y0:y1] = 0
 
     hurdle_height_max = round(hurdle_height_range[1] / terrain.vertical_scale)
     hurdle_height_min = round(hurdle_height_range[0] / terrain.vertical_scale)
+    # randint 上界开区间；保证 min < max
+    if hurdle_height_max <= hurdle_height_min:
+        hurdle_height_max = hurdle_height_min + 1
     step_height = np.random.randint(hurdle_height_min, hurdle_height_max)
-    # print('stone', difficulty, step_height,  hurdle_height_min,  hurdle_height_max)
 
-    # Generate the series of stones in front of the platform
+    # 栏杆沿前进方向排布；横向宽度 = 整幅地形宽
     start_x = platform_size + 20
     while start_x < terrain.width - 20:
         stone_size_x = np.clip(stone_size, 12, 30)
-        stone_distance_range = np.arange(17, 30, step=1)
-
         stop_x = min(terrain.width, start_x + stone_size_x)
+        terrain.height_field_raw[start_x:stop_x, y0:y1] = step_height
 
-        stone_size_y = np.random.choice(stone_distance_range)
-        row1_y = int(platform_y + platform_size / 2 - stone_size_y / 2)
-
-        terrain.height_field_raw[start_x: stop_x, row1_y: row1_y + stone_size_y] = step_height
-
-        # terrain.height_field_raw[stop_x: , row1_y: row1_y + 17] = 0
-
-        stone_distance_gap = np.clip(int(difficulty / terrain.horizontal_scale), 60, 80)  # np.clip(stone_distance_gap, 4, 5)
-
+        stone_distance_gap = np.clip(int(difficulty / terrain.horizontal_scale), 60, 80)
         start_x += stone_size + stone_distance_gap
-
-    # Create the platform
-    x1 = 0
-    x2 = int(platform_size/2.5)
-    # terrain.height_field_raw[x1:x2, row0_y:row0_y + 20] = 0
 
     return terrain
