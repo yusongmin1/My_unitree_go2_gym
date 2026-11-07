@@ -14,13 +14,12 @@ dist/
 .venv/
 venv/
 
-# logs/
+logs/
+.logs/
 .vscode/
 vscode/
 .zcode/
 zcode/
 .kilo/
-# logs/
-# .logs/
-
+.cursor/
 .curosr/

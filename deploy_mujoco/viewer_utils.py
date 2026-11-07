@@ -23,37 +23,37 @@ class VelocityArrowViewer:
         self.max_cmd = max_cmd
         self.dead_zone = dead_zone
 
-        # 速度档位：L2 减小 / R2 增大，档位值 = 前进最大速度 [m/s]
+        # 速度档位（对齐 dreamwaq_80）：LB/键2 降档，RB/键3·4 升档；档位值=前进最大速度
         self.gears = list(gears) if gears is not None else [0.5, 1.0, 1.5]
         self.gear_idx = min(1, len(self.gears) - 1)  # 默认第 2 档（1.0 m/s）
-        self._prev_l2 = False
-        self._prev_r2 = False
+        self._prev_lb = False
+        self._prev_rb = False
 
         # 当前命令（vx, vy, yaw）
         self.cmd = np.zeros(3, dtype=np.float32)
-        # 键盘增量步长
-        self.key_step = np.array([0.3, 0.3, 0.5], dtype=np.float32)
+        # 键盘增量：vx ±0.1（对齐 dreamwaq_80），vy ±0.3，yaw ±0.5
+        self.key_step = np.array([0.1, 0.3, 0.5], dtype=np.float32)
 
         # ----- 手柄初始化（pygame）-----
         pygame.init()
         pygame.joystick.init()
         self.use_joystick = False
         self.joystick = None
-        self._yaw_axis = 3  # Xbox 常见：右摇杆 X=axis3；4 轴杂牌多为 axis2
+        self._yaw_axis = 3  # 对齐 dreamwaq_80 / Xbox：右摇杆 X = axis3
         self._try_open_joystick(verbose=True)
         if not self.use_joystick:
             print("[viewer_utils] 未检测到手柄，使用键盘控制（运行中插入手柄会自动接管）。")
-            print("  键盘: 6/7=前进/后退, 8/9=左/右平移, -/=左转/右转, 1=归零, [/]=降/升档")
-        print(f"[viewer_utils] 档位表（L2 降档 / R2 升档）:")
+        print("  键盘: 6/7=加/减前进, 8/9=左/右平移, -/=左转/右转, 1=归零, 2/3/4=1/2/3档")
+        print("  手柄: 左摇杆移动, 右摇杆转向(axis3), LB/RB 降/升档")
+        print(f"[viewer_utils] 档位表（LB 降档 / RB 升档）:")
         for i, g in enumerate(self.gears):
             mark = " <-" if i == self.gear_idx else ""
             print(f"  [{i + 1}] {self._format_gear_limits(g)}{mark}")
 
-        # ----- 键盘监听（无手柄时启用；手柄热插拔后仍可作后备）-----
+        # 键盘始终监听（对齐 dreamwaq_80：有手柄时也可用 2/3/4、6/7）
         self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
         self._kb_listener.daemon = True
-        if not self.use_joystick:
-            self._kb_listener.start()
+        self._kb_listener.start()
 
     # ---------- 输入处理 ----------
     @property
@@ -62,9 +62,8 @@ class VelocityArrowViewer:
         return self.gears[self.gear_idx]
 
     def _limits_for_gear(self, gear_vx):
-        """给定前进档位，返回缩放后的 (vx_max, vy_max, yaw_max)。"""
-        scale = gear_vx / self.max_cmd[0]
-        return (self.max_cmd[0] * scale, self.max_cmd[1] * scale, self.max_cmd[2] * scale)
+        """对齐 dreamwaq_80：档位只改前进上限，vy/yaw 保持 max_cmd。"""
+        return (float(gear_vx), float(self.max_cmd[1]), float(self.max_cmd[2]))
 
     def _format_gear_limits(self, gear_vx=None):
         """格式化档位三轴上限：vx / vy / yaw。"""
@@ -90,32 +89,23 @@ class VelocityArrowViewer:
         self.cmd[1] = np.clip(self.cmd[1], -mc[1], mc[1])
         self.cmd[2] = np.clip(self.cmd[2], -mc[2], mc[2])
 
-    def _read_trigger(self, which):
-        """读取 L2/R2：兼容按钮（常见映射 6/7）和扳机轴（常见映射轴 4/5，>0.5 视为按下）。"""
-        btn = 6 if which == 'l2' else 7
-        ax = 4 if which == 'l2' else 5
+    def _update_gear_from_bumpers(self):
+        """LB/RB 边沿切换档位（对齐 dreamwaq_80：button 4/5）。"""
         try:
-            if self.joystick.get_numbuttons() > btn and self.joystick.get_button(btn):
-                return True
-            if self.joystick.get_numaxes() > ax and self.joystick.get_axis(ax) > 0.5:
-                return True
+            nbtn = self.joystick.get_numbuttons()
+            lb = nbtn > 4 and bool(self.joystick.get_button(4))
+            rb = nbtn > 5 and bool(self.joystick.get_button(5))
         except pygame.error:
-            pass
-        return False
-
-    def _update_gear_from_triggers(self):
-        """L2/R2 边沿触发切换档位（按住只切一档，松开后才能再切）。"""
-        l2 = self._read_trigger('l2')
-        r2 = self._read_trigger('r2')
-        if l2 and not self._prev_l2:
-            self._change_gear(-1)
-        if r2 and not self._prev_r2:
+            return
+        if rb and not self._prev_rb:
             self._change_gear(+1)
-        self._prev_l2 = l2
-        self._prev_r2 = r2
+        elif lb and not self._prev_lb:
+            self._change_gear(-1)
+        self._prev_lb = lb
+        self._prev_rb = rb
 
     def _on_key_press(self, key):
-        """键盘控制（无手柄时使用）。"""
+        """键盘控制（对齐 dreamwaq_80）。"""
         try:
             if key.char == '6':
                 self.cmd[0] += self.key_step[0]
@@ -131,11 +121,23 @@ class VelocityArrowViewer:
                 self.cmd[2] -= self.key_step[2]
             elif key.char == '1':
                 self.cmd[:] = 0
-            elif key.char == '[':
-                self._change_gear(-1)
-            elif key.char == ']':
-                self._change_gear(+1)
-            # 限幅（按当前档位）
+            elif key.char == '2':
+                self.gear_idx = 0
+                self._clip_cmd()
+                print(f"\n[档位] -> {self._format_gear_limits()}")
+                return
+            elif key.char == '3':
+                self.gear_idx = min(1, len(self.gears) - 1)
+                self._clip_cmd()
+                print(f"\n[档位] -> {self._format_gear_limits()}")
+                return
+            elif key.char == '4':
+                self.gear_idx = min(2, len(self.gears) - 1)
+                self._clip_cmd()
+                print(f"\n[档位] -> {self._format_gear_limits()}")
+                return
+            else:
+                return
             self._clip_cmd()
             print(
                 f"\r[键盘] cmd: vx={self.cmd[0]:.2f}, vy={self.cmd[1]:.2f}, yaw={self.cmd[2]:.2f} | "
@@ -161,14 +163,11 @@ class VelocityArrowViewer:
             return False
         self.joystick = js
         self.use_joystick = True
-        # 4 轴杂牌（如 0810 USB Gamepad）：右摇杆 X 一般是 axis2
-        # Xbox 类（>=5 轴）：右摇杆 X 一般是 axis3，axis2 常是扳机
-        nax = js.get_numaxes()
-        self._yaw_axis = 2 if nax <= 4 else 3
+        self._yaw_axis = 3  # 固定对齐 dreamwaq_80
         if verbose:
             print(
                 f"[viewer_utils] 检测到手柄: {js.get_name()} "
-                f"(axes={nax}, yaw_axis={self._yaw_axis})"
+                f"(axes={js.get_numaxes()}, yaw_axis={self._yaw_axis})"
             )
         return True
 
@@ -178,12 +177,12 @@ class VelocityArrowViewer:
         if not self.use_joystick:
             self._try_open_joystick(verbose=True)
         if self.use_joystick:
-            # L2/R2 档位切换
-            self._update_gear_from_triggers()
+            self._update_gear_from_bumpers()
             lx = self.joystick.get_axis(0)   # 左摇杆左右
             ly = self.joystick.get_axis(1)   # 左摇杆上下
-            yaw_ax = min(self._yaw_axis, self.joystick.get_numaxes() - 1)
-            rx = self.joystick.get_axis(yaw_ax)  # 右摇杆左右 → 偏航
+            nax = self.joystick.get_numaxes()
+            yaw_ax = min(self._yaw_axis, nax - 1) if nax > 0 else 0
+            rx = self.joystick.get_axis(yaw_ax)  # 右摇杆左右 → 偏航（Xbox axis3）
             if abs(lx) < self.dead_zone: lx = 0.0
             if abs(ly) < self.dead_zone: ly = 0.0
             if abs(rx) < self.dead_zone: rx = 0.0
