@@ -245,7 +245,7 @@ def play(args):
     env_cfg.commands.heading_command = False
     if hasattr(env_cfg, "camera"):
         env_cfg.camera.use_camera = True
-        env_cfg.camera.update_interval = 1
+        # 保持训练默认 update_interval=5（10Hz），勿改成 1，否则与 sim2sim/训练不一致
         env_cfg.camera.noise_gaussian = 0.0
         env_cfg.camera.noise_dropout = 0.0
 

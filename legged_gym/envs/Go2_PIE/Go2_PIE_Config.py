@@ -42,10 +42,12 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         terrain_width = 4.
         num_rows = 10
         num_cols = 10
+        # 只保留: 5 gap / 10 hurdle / 11 ramp / 12~13 上下楼梯 / 14 rough
+        # rough=0.10，其余五类平分 0.90 → 各 0.18
         terrain_proportions = [0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.093, 0.093, 0.093, 0.093, 0.093, 0.093, 0.092,
-                               0.10, 0.10,
-                               0.15]
+                               0.18, 0.0, 0.0, 0.0, 0.0, 0.18, 0.18,
+                               0.18, 0.18,
+                               0.10]
         add_roughness = True
         height = [0.01, 0.04]
         downsampled_scale = 0.2
@@ -151,7 +153,7 @@ class Go2_PIE_Cfg_Yu( LeggedRobotCfg ):
         soft_torque_limit = 0.95
         class scales:
             tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.3
+            tracking_ang_vel = 0.5
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2         # 与 DreamWaQ 同：奖励直立（见 _reward_orientation）
@@ -248,7 +250,7 @@ class Go2_PIE_PPO_Yu(LeggedRobotCfgPPO):
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu'
-        # PIE CNN / transformer (mjlab defaults)
+        # Estimator: stride CNN depth tokens + PIE transformer/GRU heads
         token_dim = 64
         map_latent_dim = 16
         vae_latent_dim = 16
@@ -257,6 +259,7 @@ class Go2_PIE_PPO_Yu(LeggedRobotCfgPPO):
         history_hidden_dims = [256, 128]
         successor_decoder_dims = [64, 128]
         height_decoder_dims = [64, 128]
+        # depth CNN: (image_nums, H, W) -> spatial tokens (last ch forced to token_dim)
         output_channels = [32, 64, 64]
         kernel_size = [8, 4, 3]
         stride = [4, 2, 1]

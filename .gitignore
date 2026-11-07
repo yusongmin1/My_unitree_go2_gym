@@ -19,7 +19,8 @@ venv/
 vscode/
 .zcode/
 zcode/
+.kilo/
+# logs/
+# .logs/
 
-logs/
-.logs/
-
+.curosr/

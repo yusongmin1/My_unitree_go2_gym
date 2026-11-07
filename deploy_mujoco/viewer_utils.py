@@ -36,22 +36,20 @@ class VelocityArrowViewer:
 
         # ----- 手柄初始化（pygame）-----
         pygame.init()
+        pygame.joystick.init()
         self.use_joystick = False
         self.joystick = None
-        if pygame.joystick.get_count() > 0:
-            self.joystick = pygame.joystick.Joystick(0)
-            self.joystick.init()
-            self.use_joystick = True
-            print(f"[viewer_utils] 检测到手柄: {self.joystick.get_name()}")
-        else:
-            print("[viewer_utils] 未检测到手柄，使用键盘控制。")
+        self._yaw_axis = 3  # Xbox 常见：右摇杆 X=axis3；4 轴杂牌多为 axis2
+        self._try_open_joystick(verbose=True)
+        if not self.use_joystick:
+            print("[viewer_utils] 未检测到手柄，使用键盘控制（运行中插入手柄会自动接管）。")
             print("  键盘: 6/7=前进/后退, 8/9=左/右平移, -/=左转/右转, 1=归零, [/]=降/升档")
         print(f"[viewer_utils] 档位表（L2 降档 / R2 升档）:")
         for i, g in enumerate(self.gears):
             mark = " <-" if i == self.gear_idx else ""
             print(f"  [{i + 1}] {self._format_gear_limits(g)}{mark}")
 
-        # ----- 键盘监听（手柄不可用时启用，或作为后备）-----
+        # ----- 键盘监听（无手柄时启用；手柄热插拔后仍可作后备）-----
         self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
         self._kb_listener.daemon = True
         if not self.use_joystick:
@@ -147,15 +145,45 @@ class VelocityArrowViewer:
         except AttributeError:
             pass
 
+    def _try_open_joystick(self, verbose=False):
+        """打开第一个手柄；支持启动后再插入。"""
+        try:
+            pygame.joystick.init()
+            n = pygame.joystick.get_count()
+        except pygame.error:
+            return False
+        if n <= 0:
+            return False
+        try:
+            js = pygame.joystick.Joystick(0)
+            js.init()
+        except pygame.error:
+            return False
+        self.joystick = js
+        self.use_joystick = True
+        # 4 轴杂牌（如 0810 USB Gamepad）：右摇杆 X 一般是 axis2
+        # Xbox 类（>=5 轴）：右摇杆 X 一般是 axis3，axis2 常是扳机
+        nax = js.get_numaxes()
+        self._yaw_axis = 2 if nax <= 4 else 3
+        if verbose:
+            print(
+                f"[viewer_utils] 检测到手柄: {js.get_name()} "
+                f"(axes={nax}, yaw_axis={self._yaw_axis})"
+            )
+        return True
+
     def update_cmd(self):
         """每帧调用：从手柄读取命令（若使用手柄）。返回当前 cmd。"""
+        pygame.event.pump()
+        if not self.use_joystick:
+            self._try_open_joystick(verbose=True)
         if self.use_joystick:
-            pygame.event.pump()
             # L2/R2 档位切换
             self._update_gear_from_triggers()
             lx = self.joystick.get_axis(0)   # 左摇杆左右
             ly = self.joystick.get_axis(1)   # 左摇杆上下
-            rx = self.joystick.get_axis(3)   # 右摇杆左右
+            yaw_ax = min(self._yaw_axis, self.joystick.get_numaxes() - 1)
+            rx = self.joystick.get_axis(yaw_ax)  # 右摇杆左右 → 偏航
             if abs(lx) < self.dead_zone: lx = 0.0
             if abs(ly) < self.dead_zone: ly = 0.0
             if abs(rx) < self.dead_zone: rx = 0.0

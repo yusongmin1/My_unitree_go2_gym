@@ -1140,7 +1140,8 @@ def parkour_hurdle_terrain(terrain, difficulty, stone_size, stone_distance, max_
     # 栏杆沿前进方向排布；横向宽度 = 整幅地形宽
     start_x = platform_size + 20
     while start_x < terrain.width - 20:
-        stone_size_x = np.clip(stone_size, 12, 30)
+        # 栏杆厚度夹在 0.8~1.5 m（水平分辨率 0.05 m → 16~30 像素）
+        stone_size_x = np.clip(stone_size, 16, 30)
         stop_x = min(terrain.width, start_x + stone_size_x)
         terrain.height_field_raw[start_x:stop_x, y0:y1] = step_height
 

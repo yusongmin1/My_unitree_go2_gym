@@ -119,7 +119,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
 
         push_robots = True
         push_interval_s = 4
-        max_push_vel_xy = 0.4
+        max_push_vel_xy = 1.0
         max_push_ang_vel = 0.6
 
         randomize_base_mass = True
@@ -162,7 +162,7 @@ class Go2_Cts_Cfg_Yu( LeggedRobotCfg ):
             # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
-            stumble = -0.5
+            # stumble = -0.5
             foot_clearance=-0.5
             hip_pos=-0.1
         only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)

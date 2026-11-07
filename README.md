@@ -23,8 +23,6 @@
 |---|---|---|---|
 | **标准 PPO** | `go2_trot` | `Go2_MoB/Go2_Trot/` | `PPO` / `OnPolicyRunner` |
 | **标准 PPO** | `go2_jump` | `Go2_MoB/Go2_Jump/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_spring_jump` | `Go2_Flip/Go2_Spring_Jump/` | `PPO` / `OnPolicyRunner` |
-| **标准 PPO** | `go2_backflip` | `Go2_Flip/Go2_BackFlip/` | `PPO` / `OnPolicyRunner` |
 | **DreamwaQ** | `go2_stand` | `Go2_Stand/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **DreamwaQ** | `go2_dreamwaq` | `Go2_DreamWaQ/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
 | **PIE（DreamwaQ 栈）** | `go2_pie` | `Go2_PIE/` | `PPO_DreamWaQ` / `DreamWaQRunner` |
@@ -86,14 +84,6 @@ python legged_gym/scripts/train.py --task=go2_trot --headless
 
 ```bash
 python legged_gym/scripts/train.py --task=go2_jump --headless
-```
-
-```bash
-python legged_gym/scripts/train.py --task=go2_spring_jump --headless
-```
-
-```bash
-python legged_gym/scripts/train.py --task=go2_backflip --headless
 ```
  
 #### DreamwaQ 任务
@@ -168,14 +158,6 @@ python legged_gym/scripts/play.py --task=go2_trot
 ```bash
 python legged_gym/scripts/play.py --task=go2_jump
 ```
-
-```bash
-python legged_gym/scripts/play.py --task=go2_spring_jump
-```
-
-```bash
-python legged_gym/scripts/play.py --task=go2_backflip
-```
  
 #### DreamwaQ / AMP + DreamwaQ 任务
 ```bash
@@ -192,7 +174,7 @@ python legged_gym/scripts/play_dreamwaq.py --task=go2_amp_dreamwaq
  
 #### PIE 任务（DreamwaQ 栈）
 ```bash
-python legged_gym/scripts/play_pie.py --task=go2_pie
+python legged_gym/scripts/play_dreamwaq.py --task=go2_pie
 ```
  
 #### CTS 任务
@@ -262,14 +244,6 @@ python deploy_mujoco/sim2sim_go2_trot.py
 python deploy_mujoco/sim2sim_go2_jump.py
 ```
 
-```bash
-python deploy_mujoco/sim2sim_go2_spring_jump.py
-```
-
-```bash
-python deploy_mujoco/sim2sim_go2_backflip.py
-```
-
 #### DreamwaQ 任务（加载 policy_dwaq.pt）
 ```bash
 python deploy_mujoco/sim2sim_go2_stand.py
@@ -314,7 +288,6 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 │   ├── envs/
 │   │   ├── base/                 # 基类（BaseTask / LeggedRobotCfg 等）
 │   │   ├── Go2_MoB/              # 标准 PPO: trot / stairs / jump
-│   │   ├── Go2_Flip/             # 标准 PPO: backflip / spring_jump
 │   │   ├── Go2_Stand/            # DreamwaQ: go2_stand（倒立/直立/四足）
 │   │   ├── Go2_DreamWaQ/         # DreamwaQ 任务
 │   │   ├── Go2_PIE/              # PIE 跑酷任务（DreamwaQ 栈 + 跑酷地形）
@@ -350,33 +323,33 @@ python deploy_mujoco/sim2sim_go2_amp_ts_student.py
 - [x] 7. dreamwaq原理写的有问题，需要修改 2026/9/6 已修改好dreamwaq任务的原理
 - [x] 8. 爬楼梯任务走停住会翻车 dreamwaq任务，不会立即刹停，修改网络后会立刻刹停，cts任务本就可以立即刹停 2026/9/6
 - [ ] 9. 步态规范程度不如dreamwaq 还有吴金泽那篇
-- [ ] 10. amp后退拖地，我认为是amp参数没有调整好
+- [ ] 10. amp后退拖地，amp参数没有调整好
 - [ ] 11. amp数据集质量不高,前进的数据集质量较差
-- [ ] 12. 行走时基座晃动
-- [ ] 13. 原地转圈拖地，amp比不加amp效果好，但还达不到能卖出去的效果，我准备试一试raibert的启发式奖励
+- [ ] 12. 行走时基座晃动amp任务数据质量的问题
+- [ ] 13. 原地转圈拖地，amp比不加amp效果好，但还不是正确的思路
 - [x] 14. 速度采样有死区，在amp任务中存在某些关节角度下发command不动的现象 2026/8/22 ,reset_dof_pos 0.5到1.5,尽量覆盖全部空间，此外对于amp任务，要等待至机器人可以完整上楼梯，否则会卡住导致command死区
 - [x] 15. 四条腿抬脚高度和抬脚时间不一致，推测是feet_air_time奖励的影响，去掉feet_air_time奖励，发现四条腿抬脚高度趋于一致，amp_cts任务提供的是加上的，其他任务没有加，可以进行对比2026/8/24
-- [ ] 16. 下楼梯会滑下去，找到原因了，没有被卡住的话开始训练实际宇树机器人默认步态速度给太高的话会翻倒，所以模型宁愿让他卡住,奖励的问题
-- [ ] 17. 下楼梯后腿绊在楼梯上导致翻倒,dreamwaq任务,这是奖励的问题
+- [x] 16. 下楼梯会滑下去，滑下去也会失控
+- [x] 17. 下楼梯后腿绊在楼梯上导致翻倒,dreamwaq任务,这是奖励的问题,小狗腿部太短，正常下楼梯会有腿部和楼梯的碰撞，碰撞奖励删除就不会出现此问题,
 - [ ] 18. 走歪
 - [ ] 19. 后退不走直线
 - [x] 20. 横着走特别慢 amp任务 2026/9/14 修改amp obs解决此问题
 - [ ] 21. 横着走会摔倒，dreamwaq任务已经不会摔倒了
-- [ ] 22. 一个楼梯没上去，后腿会发疯
-- [ ] 23. 速度过低时机器人在楼梯上被卡住，
+- [x] 22. 一个楼梯没上去，后腿会发疯,添加转子惯量后此现象消失
+- [ ] 23. 速度过低时机器人在楼梯上被卡住，第一次上楼梯有一个比较严重的磕碰
 - [ ] 24. 高速度高角速度失稳
 - [ ] 25. amp 3m/s的速度在不平坦地形上奔跑
 - [ ] 26. 自身负载还不够大
-- [ ] 27. 平地发疯，在仿真中就能看出来
-- [ ] 后退不会回到正确的位置
-- [ ] 爬楼梯后腿使用大腿跨越楼梯，这是不正确的思路
-- [x] 28. go2温度高了之后性能下降，torque_multiplier_range 改为 0.8 1.2 会明显感受到原来的性能下降现象减少
-- [ ] 29. ts任务随机崩掉
-- [ ] 30. 机器人行走有时候基座有横滚不平，pitch角度不平
-- [ ] 31. 高速运动时基座高度降低
-- [ ] 32. 鲁棒性不如moe cts开源框架
-- [ ] 33. parkour (PIE)
-- [ ] 34. 部署代码
+- [x] 27. 平地发疯，在仿真中就能看出来
+- [ ] 28. 后退不会回到正确的位置
+- [x] 29. 爬楼梯后腿使用大腿跨越楼梯，这是不正确的思路,stumble奖励系数过大
+- [x] 30. go2温度高了之后性能下降，torque_multiplier_range 改为 0.8 1.2 会明显感受到原来的性能下降现象减少
+- [ ] 31. ts任务随机崩掉
+- [ ] 32. 机器人行走有时候基座有横滚不平，pitch角度不平
+- [ ] 33. 高速运动时基座高度降低
+- [ ] 34. 鲁棒性不如moe cts开源框架
+- [ ] 35. parkour (PIE)
+- [ ] 36. 部署代码
 
 
 # 参考文章
@@ -399,7 +372,7 @@ https://arxiv.org/abs/2312.11460
 
 https://github.com/lupinjia/LeggedGym-Ex
 
-https://github.com/wty-yy/go2_rl_gym
+https://github.com/wty-yy/go2_rl_lab
 
 https://github.com/vassil-atn/Curriculum-Quadruped-Jumping-DRL
 

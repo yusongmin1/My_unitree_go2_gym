@@ -1,7 +1,7 @@
 """Go2_PIE sim2sim（MuJoCo）：DreamWaQ 式 obs 滚动 + PIE 头部深度相机可视化。
 
 - obs 按 PIE 布局：[角速度3, 重力3, 命令3, 关节角12, 关节速12, 动作12] = 45
-- obs_hist：10 帧 × 45 滚动（deque，先推旧帧）
+- obs_hist：10 帧 × 45 滚动（不含当前帧，对齐 Go2_PIE.compute_observations）
 - depth：mujoco 离屏渲染 pie_head_depth 相机（106×60 → 裁 10/10 → 60×86，
   near 0.1 / far 3.0 归一化），双帧历史，matplotlib 实时窗口显示
 - 策略可选：--load_model 指向导出的 jit；加载失败则用零动作（纯看相机）
@@ -59,11 +59,10 @@ def pd_control(target_q, q, kp, target_dq, dq, kd, cfg):
 
 
 def run_mujoco(policy, cfg, policy_is_jit=False):
+    # 手柄优先（左摇杆前进/平移，右摇杆转向，L2/R2 换挡）；无手柄回退键盘
     vel_arrow = VelocityArrowViewer(max_cmd=(1.5, 0.5, 1.2),
                                     gears=[0.5, 1.0, 1.5])
-    # 初始前进命令（对齐 play_pie 的 cmd_x 档位取 0.5）：
-    # cmd 为 0 时 _add_arrow 渲染成 mjGEOM_NONE，箭头不可见
-    vel_arrow.cmd[:] = [0.5, 0.0, 0.0]
+    vel_arrow.cmd[:] = [0.0, 0.0, 0.0]
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
 
@@ -185,6 +184,7 @@ def run_mujoco(policy, cfg, policy_is_jit=False):
             depth_hist.append(np.zeros((CAM_H, CAM_W - CROP_L - CROP_R)))
 
         count_lowlevel = 1
+        policy_step = 0  # 对齐 Isaac global_counter：0 起算，%5==0 刷深度
         pie_hidden = torch.zeros(1, 1, 128)  # jit 模型的显式 GRU hidden
         policy_input = np.zeros([1, 45 * OBS_HIST], dtype=np.float32)
         depth_flat = np.zeros([1, DEPTH_FRAMES * CAM_H * (CAM_W - CROP_L - CROP_R)], dtype=np.float32)
@@ -213,14 +213,13 @@ def run_mujoco(policy, cfg, policy_is_jit=False):
                 obs[0, 33:45] = action
                 obs = np.clip(obs, -cfg.normalization.clip_observations, cfg.normalization.clip_observations)
 
-                # DreamWaQ 式滚动：旧帧在前，最新帧在后
-                hist_obs.append(obs)
-                hist_obs.popleft()
+                # 与 Go2_PIE.compute_observations 一致：历史不含当前帧。
+                # 先用旧 hist 组 policy_input，推理后再把当前 obs 推进缓冲。
                 for i in range(OBS_HIST):
                     policy_input[0, i * 45:(i + 1) * 45] = hist_obs[i][0, :]
 
-                # --- 深度刷新（10Hz）---
-                if (count_lowlevel // cfg.sim_config.decimation) % DEPTH_UPDATE_INTERVAL == 0:
+                # --- 深度刷新（对齐 env.global_counter：0,5,10,...）---
+                if policy_step % DEPTH_UPDATE_INTERVAL == 0:
                     meters_last, _norm = get_depth_img()
                     depth_hist.append(_norm)
                 for i in range(DEPTH_FRAMES):
@@ -243,6 +242,10 @@ def run_mujoco(policy, cfg, policy_is_jit=False):
                     action[:] = 0.0
                 action = np.clip(action, -cfg.normalization.clip_actions, cfg.normalization.clip_actions)
                 target_q = action * cfg.control.action_scale
+
+                hist_obs.append(obs)
+                hist_obs.popleft()
+                policy_step += 1
 
                 # 深度窗口刷新（最新一帧）+ RGB 对照
                 im.set_data(meters_last)

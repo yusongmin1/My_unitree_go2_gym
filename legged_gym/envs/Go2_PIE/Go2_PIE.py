@@ -224,6 +224,9 @@ class Go2_PIE_Robot(BaseTask):
             if _cls is not None:
                 for tid, name in _names.items():
                     mask = _cls == tid
+                    # 没有该类地形（比例为 0）就不记录，避免日志里出现恒 0 的行
+                    if not torch.any(mask):
+                        continue
                     self.extras["episode"][f"terrain_level_{name}"] = torch.nan_to_num(
                         _tl[mask].mean()
                     )

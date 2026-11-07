@@ -196,7 +196,7 @@ class Go2_AMP_Cts_Cfg_Yu( LeggedRobotCfg ):
             # stand_still=-0.5
             dof_pos_limits=-2.0
             action_smoothness = -0.01
-            stumble = -0.5
+            # stumble = -0.5
             foot_clearance=-0.5
             hip_pos=-0.1
 
